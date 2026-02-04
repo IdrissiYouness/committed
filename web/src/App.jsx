@@ -24,7 +24,7 @@ function App() {
   return (
     <div style={styles.container}>
       <header style={styles.header}>
-        <h1 style={styles.title}>🎓 CommitEd</h1>
+        <h1 style={styles.title}>🎓 Committed</h1>
         <p style={styles.subtitle}>Code Submission & Analysis Platform</p>
       </header>
 
@@ -96,7 +96,7 @@ function App() {
       </main>
 
       <footer style={styles.footer}>
-        <p>CommitEd Platform - Educational Code Analysis System</p>
+        <p>Committed Platform - Educational Code Analysis System</p>
       </footer>
     </div>
   )

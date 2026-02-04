@@ -1,4 +1,4 @@
-# CommitEd - Code Submission & Analysis Platform
+# Committed - Code Submission & Analysis Platform
 
 Educational platform for automated code analysis and grading, similar to Google Classroom.
 
@@ -36,12 +36,12 @@ cp .env.example .env
 3. Start all services:
 ```bash
 cd docker
-docker-compose up -d
+docker compose up -d
 ```
 
 4. Wait for Oracle to be healthy (may take 2-3 minutes):
 ```bash
-docker-compose ps
+docker compose ps
 ```
 
 5. Access application:
@@ -102,7 +102,7 @@ See [docs/SETUP.md](docs/SETUP.md) for detailed IDE setup instructions.
 ```
 commit-ed/
 ├── docker/                 # Docker configuration
-│   ├── docker-compose.yml
+│   ├── docker compose.yml
 │   ├── nginx/
 │   └── db/
 ├── services/
@@ -171,22 +171,22 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
 
 ```bash
 # Start all services
-cd docker && docker-compose up -d
+cd docker && docker compose up -d
 
 # View logs
-docker-compose logs -f [service-name]
+docker compose logs -f [service-name]
 
 # Rebuild specific service
-docker-compose up -d --build gateway
+docker compose up -d --build gateway
 
 # Stop all services
-docker-compose down
+docker compose down
 
 # Clean everything (including volumes)
-docker-compose down -v
+docker compose down -v
 
 # Access database
-docker exec -it commit-ed-oracle sqlplus committed_user/SecurePassword123!@XEPDB1
+docker exec -it committed-oracle sqlplus committed_user/SecurePassword123!@XEPDB1
 ```
 
 ## License

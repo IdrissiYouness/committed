@@ -353,13 +353,13 @@ Open http://localhost:3000 in your browser and click "Test Service Chain"
 ```bash
 # From project root
 cd docker
-docker-compose up -d
+docker compose up -d
 
 # View logs
-docker-compose logs -f
+docker compose logs -f
 
 # Stop all services
-docker-compose down
+docker compose down
 ```
 
 ### Option 2: Individual Services (Development)
@@ -367,9 +367,9 @@ docker-compose down
 1. Start Oracle database first:
    ```bash
    cd docker
-   docker-compose up -d oracle-db
+   docker compose up -d oracle-db
    # Wait for it to be healthy (2-3 minutes)
-   docker-compose ps
+   docker compose ps
    ```
 
 2. Start each service in its IDE:
@@ -391,10 +391,10 @@ docker-compose down
 ### Oracle Database Won't Start
 - Ensure Docker has at least 4GB RAM allocated
 - Check if port 1521 is already in use
-- View logs: `docker-compose logs oracle-db`
+- View logs: `docker compose logs oracle-db`
 
 ### Service Can't Connect to Database
-- Ensure Oracle is healthy: `docker-compose ps`
+- Ensure Oracle is healthy: `docker compose ps`
 - Check connection string format
 - Verify credentials match `.env` file
 

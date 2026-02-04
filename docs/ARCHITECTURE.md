@@ -1,8 +1,8 @@
-# CommitEd Architecture
+# Committed Architecture
 
 ## Overview
 
-CommitEd is a microservices-based educational platform for automated code submission and analysis, similar to Google Classroom.
+Committed is a microservices-based educational platform for automated code submission and analysis, similar to Google Classroom.
 
 ## System Architecture
 
@@ -131,11 +131,11 @@ Analyzer → Notifications: http://notifications:5001/api/...
 
 ## Docker Network
 
-All services are connected via the `commit-ed-network` bridge network:
+All services are connected via the `committed-network` bridge network:
 
 ```yaml
 networks:
-  commit-ed-network:
+  committed-network:
     driver: bridge
 ```
 
@@ -179,7 +179,7 @@ Each service can be scaled independently:
 
 ```bash
 # Scale specific service
-docker-compose up -d --scale core=3
+docker compose up -d --scale core=3
 ```
 
 For production, consider:

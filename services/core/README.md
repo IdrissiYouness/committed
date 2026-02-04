@@ -1,6 +1,6 @@
 # Core Service
 
-PHP Symfony service for core business logic of the CommitEd platform.
+PHP Symfony service for core business logic of the Committed platform.
 
 ## Technology Stack
 
@@ -61,10 +61,10 @@ symfony server:start
 
 ```bash
 # Build image
-docker build -t commit-ed-core .
+docker build -t committed-core .
 
 # Run container
-docker run -p 8000:8000 commit-ed-core
+docker run -p 8000:8000 committed-core
 ```
 
 ## Environment Variables

@@ -1,6 +1,6 @@
 # Web Frontend
 
-React + Vite frontend application for the CommitEd platform.
+React + Vite frontend application for the Committed platform.
 
 ## Technology Stack
 
@@ -61,10 +61,10 @@ npm run preview
 
 ```bash
 # Build image
-docker build -t commit-ed-web .
+docker build -t committed-web .
 
 # Run container
-docker run -p 3000:80 commit-ed-web
+docker run -p 3000:80 committed-web
 ```
 
 ## Environment Variables
