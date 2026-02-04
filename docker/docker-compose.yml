@@ -67,6 +67,8 @@ services:
     restart: unless-stopped
 
   # Code Analyzer Service (Python Flask)
+  # Note: This service does NOT connect to database directly.
+  # Gateway sends all necessary data via HTTP requests.
   code-analyzer:
     build:
       context: ../services/code-analyzer
@@ -75,16 +77,12 @@ services:
     ports:
       - "${ANALYZER_PORT}:5000"
     environment:
-      - DATABASE_URL=oracle+cx_oracle://${DB_USER}:${DB_PASSWORD}@oracle-db:${DB_PORT}/${DB_SERVICE}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - TEMP_CLONE_DIR=${TEMP_CLONE_DIR}
       - NOTIFICATION_SERVICE_URL=http://notifications:5001
+      - GATEWAY_SERVICE_URL=http://gateway:8080
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
       - analyzer-temp:/tmp/code-analysis
-    depends_on:
-      oracle-db:
-        condition: service_healthy
     networks:
       - commit-ed-network
     restart: unless-stopped
