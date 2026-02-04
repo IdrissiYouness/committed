@@ -1,5 +1,5 @@
 # =============================================================================
-# CommitEd GitLab CI/CD Pipeline (Academic Version)
+# Committed GitLab CI/CD Pipeline (Academic Version)
 # =============================================================================
 # Simple 3-stage pipeline: compile → test → build
 # =============================================================================

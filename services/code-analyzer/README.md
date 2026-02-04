@@ -1,6 +1,6 @@
 # Code Analyzer Service
 
-Python Flask service for code analysis and AI feedback in the CommitEd platform.
+Python Flask service for code analysis and AI feedback in the Committed platform.
 
 ## Technology Stack
 
@@ -90,10 +90,10 @@ flask run --host=0.0.0.0 --port=5000
 
 ```bash
 # Build image
-docker build -t commit-ed-analyzer .
+docker build -t committed-analyzer .
 
 # Run container
-docker run -p 5000:5000 commit-ed-analyzer
+docker run -p 5000:5000 committed-analyzer
 ```
 
 ## Environment Variables

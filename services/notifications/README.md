@@ -1,6 +1,6 @@
 # Notifications Service
 
-.NET Core service for email notifications in the CommitEd platform.
+.NET Core service for email notifications in the Committed platform.
 
 ## Technology Stack
 
@@ -92,10 +92,10 @@ dotnet watch run
 
 ```bash
 # Build image
-docker build -t commit-ed-notifications .
+docker build -t committed-notifications .
 
 # Run container
-docker run -p 5001:5001 commit-ed-notifications
+docker run -p 5001:5001 committed-notifications
 ```
 
 ## Environment Variables
@@ -107,6 +107,6 @@ docker run -p 5001:5001 commit-ed-notifications
 | SmtpSettings__Port | SMTP server port | 587 |
 | SmtpSettings__Username | SMTP username | (required) |
 | SmtpSettings__Password | SMTP password | (required) |
-| SmtpSettings__FromEmail | Sender email | noreply@commit-ed.com |
-| SmtpSettings__FromName | Sender name | CommitEd Platform |
+| SmtpSettings__FromEmail | Sender email | noreply@committed.com |
+| SmtpSettings__FromName | Sender name | Committed Platform |
 | ASPNETCORE_URLS | Server URL | http://+:5001 |

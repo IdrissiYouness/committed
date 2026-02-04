@@ -1,6 +1,6 @@
 {
     "name": "committed/core",
-    "description": "CommitEd Core Service - PHP Symfony",
+    "description": "Committed Core Service - PHP Symfony",
     "type": "project",
     "license": "MIT",
     "minimum-stability": "stable",

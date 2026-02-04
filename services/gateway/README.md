@@ -1,6 +1,6 @@
 # Gateway Service
 
-Java Spring Boot service handling authentication and request routing for the CommitEd platform.
+Java Spring Boot service handling authentication and request routing for the Committed platform.
 
 ## Technology Stack
 
@@ -54,10 +54,10 @@ java -jar target/gateway-0.0.1-SNAPSHOT.jar
 
 ```bash
 # Build image
-docker build -t commit-ed-gateway .
+docker build -t committed-gateway .
 
 # Run container
-docker run -p 8080:8080 commit-ed-gateway
+docker run -p 8080:8080 committed-gateway
 ```
 
 ## Environment Variables
