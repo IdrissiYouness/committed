@@ -181,7 +181,8 @@ Create `.vscode/launch.json`:
             "env": {
                 "FLASK_APP": "app.py",
                 "FLASK_DEBUG": "1",
-                "DATABASE_URL": "oracle+cx_oracle://committed_user:SecurePassword123!@localhost:1521/XEPDB1"
+                "GATEWAY_SERVICE_URL": "http://localhost:8080",
+                "NOTIFICATION_SERVICE_URL": "http://localhost:5001"
             },
             "args": ["run", "--host=0.0.0.0", "--port=5000"],
             "jinja": true
@@ -200,8 +201,9 @@ Create `.vscode/launch.json`:
 
 ```bash
 curl http://localhost:5000/health
-curl http://localhost:5000/db-test
 ```
+
+**Note**: The Code Analyzer service does NOT connect to the database directly. It receives all necessary data from the Gateway service via HTTP requests.
 
 ---
 
