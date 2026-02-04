@@ -71,6 +71,8 @@ lint:core:
 lint:code-analyzer:
   stage: lint
   image: python:3.11-slim
+  before_script:
+    - apt-get update && apt-get install -y gcc libc-dev
   script:
     - cd services/code-analyzer
     - pip install flake8 black
