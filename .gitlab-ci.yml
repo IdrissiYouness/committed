@@ -86,7 +86,7 @@ test:web:
   image: node:20-alpine
   script:
     - cd web
-    - npm ci
+    - npm install
     - npm run test -- --run || echo "No tests yet"
   allow_failure: true
   only:
