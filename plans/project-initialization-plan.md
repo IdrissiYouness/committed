@@ -1,8 +1,8 @@
-# CommitEd Project Initialization Plan
+# Committed Project Initialization Plan
 
 ## Overview
 
-This plan outlines the steps to initialize the CommitEd microservices project structure, Docker configuration, and create minimal "hello world" services that demonstrate end-to-end connectivity.
+This plan outlines the steps to initialize the Committed microservices project structure, Docker configuration, and create minimal "hello world" services that demonstrate end-to-end connectivity.
 
 **End Goal**: Be able to `curl` a request to the Gateway service and receive a response after the Gateway connects with Core, and Core connects with the Oracle database.
 
@@ -14,7 +14,7 @@ flowchart TB
         Client[Client/Browser]
     end
     
-    subgraph Docker Network: commit-ed-network
+    subgraph Docker Network: committed-network
         Nginx[Nginx :80]
         Gateway[Gateway - Java Spring Boot :8080]
         Core[Core - PHP Symfony :8000]
@@ -48,7 +48,7 @@ commit-ed/
 ├── .env
 │
 ├── docker/
-│   ├── docker-compose.yml
+│   ├── docker compose.yml
 │   ├── nginx/
 │   │   └── nginx.conf
 │   └── db/
@@ -131,7 +131,7 @@ commit-ed/
 ### Phase 2: Docker Configuration
 
 3. **Create Docker Compose setup**
-   - [`docker/docker-compose.yml`](docker/docker-compose.yml) - All services orchestration
+   - [`docker/docker compose.yml`](docker/docker compose.yml) - All services orchestration
    - [`docker/nginx/nginx.conf`](docker/nginx/nginx.conf) - Reverse proxy configuration
    - [`docker/db/init.sql`](docker/db/init.sql) - Database initialization script
 
@@ -214,7 +214,7 @@ sequenceDiagram
 ### Docker Configuration
 | File | Description |
 |------|-------------|
-| `docker/docker-compose.yml` | Service orchestration |
+| `docker/docker compose.yml` | Service orchestration |
 | `docker/nginx/nginx.conf` | Reverse proxy config |
 | `docker/db/init.sql` | Database init script |
 
@@ -292,7 +292,7 @@ Before starting, ensure you have:
 # Login to Oracle Container Registry
 docker login container-registry.oracle.com
 
-# Pull Oracle XE image (this will be done automatically by docker-compose)
+# Pull Oracle XE image (this will be done automatically by docker compose)
 docker pull container-registry.oracle.com/database/express:21.3.0-xe
 ```
 
@@ -310,10 +310,10 @@ nano .env  # or use your preferred editor
 
 # 4. Start all services
 cd docker
-docker-compose up -d
+docker compose up -d
 
 # 5. Wait for Oracle to be healthy (may take 2-3 minutes)
-docker-compose ps
+docker compose ps
 
 # 6. Test the chain
 curl http://localhost/api/test-chain

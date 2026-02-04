@@ -1,4 +1,4 @@
-# CommitEd Project - Final Review & Readiness Checklist
+# Committed Project - Final Review & Readiness Checklist
 
 This document provides a complete assessment of the project setup for junior developers.
 
@@ -22,7 +22,7 @@ commit-ed/
 ├── README.md               # Project overview
 │
 ├── docker/
-│   ├── docker-compose.yml  # Orchestrates all services
+│   ├── docker compose.yml  # Orchestrates all services
 │   ├── nginx/nginx.conf    # Reverse proxy config
 │   └── db/init.sql         # Database initialization
 │
@@ -93,8 +93,8 @@ commit-ed/
 - [ ] **Start the database (first time takes 3-5 minutes)**
   ```bash
   cd docker
-  docker-compose up -d oracle-db
-  docker-compose logs -f oracle-db  # Wait for "DATABASE IS READY"
+  docker compose up -d oracle-db
+  docker compose logs -f oracle-db  # Wait for "DATABASE IS READY"
   ```
 
 ### Daily Development Workflow
@@ -102,12 +102,12 @@ commit-ed/
 1. **Start services**:
    ```bash
    cd docker
-   docker-compose up -d
+   docker compose up -d
    ```
 
 2. **Check all services are running**:
    ```bash
-   docker-compose ps
+   docker compose ps
    ```
 
 3. **Test connectivity**:
@@ -120,7 +120,7 @@ commit-ed/
 
 4. **Stop when done**:
    ```bash
-   docker-compose down
+   docker compose down
    ```
 
 ---
@@ -256,7 +256,7 @@ registry.gitlab.com/iliassai/commit-ed/web:latest
 
 1. Read `CONTRIBUTING.md` - understand branching and commit conventions
 2. Read `docs/SETUP.md` - set up your IDE
-3. Run `docker-compose up -d` - verify everything works
+3. Run `docker compose up -d` - verify everything works
 4. Create your first branch: `git checkout -b feat/your-feature`
 
 ### Service Ownership Suggestion

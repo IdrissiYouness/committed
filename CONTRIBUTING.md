@@ -1,6 +1,6 @@
-# 🤝 Contributing to CommitEd
+# 🤝 Contributing to Committed
 
-Welcome to the CommitEd project! This guide will help you and your team collaborate effectively. Don't worry if you're new to this - we've written this guide specifically for students and junior developers.
+Welcome to the Committed project! This guide will help you and your team collaborate effectively. Don't worry if you're new to this - we've written this guide specifically for students and junior developers.
 
 ## 📚 Table of Contents
 
@@ -42,7 +42,7 @@ Welcome to the CommitEd project! This guide will help you and your team collabor
 4. **Start the services:**
    ```bash
    cd docker
-   docker-compose up -d
+   docker compose up -d
    ```
 
 5. **Verify everything works:**
@@ -250,7 +250,7 @@ Adds user login functionality to the gateway service.
 
 ## How to test
 <!-- Step-by-step instructions for reviewers -->
-1. Start the services: `docker-compose up -d`
+1. Start the services: `docker compose up -d`
 2. Send a POST request to `/api/login`
 3. Check that you receive a JWT token
 
@@ -420,16 +420,16 @@ git commit -m "merge: resolve conflicts with develop"
 
 ```bash
 # Stop everything
-docker-compose down
+docker compose down
 
 # Remove old containers and volumes
-docker-compose down -v
+docker compose down -v
 
 # Rebuild and start
-docker-compose up -d --build
+docker compose up -d --build
 
 # Check logs for errors
-docker-compose logs -f
+docker compose logs -f
 ```
 
 ### "I can't push to GitLab!"
@@ -508,8 +508,8 @@ Print this and keep it handy!
 │ git branch          = see all branches                       │
 │ git stash           = temporarily save changes               │
 │ git stash pop       = restore saved changes                  │
-│ docker-compose up -d = start services                        │
-│ docker-compose logs -f = see logs                            │
+│ docker compose up -d = start services                        │
+│ docker compose logs -f = see logs                            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
