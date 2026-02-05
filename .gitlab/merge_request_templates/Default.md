@@ -1,15 +1,15 @@
-## 📝 What does this MR do?
+## What does this MR do?
 
 <!-- Describe your changes in simple terms. What problem does it solve? -->
 
 
 
-## 🔗 Related Issue
+## Related Issue
 
 <!-- Link to the GitLab issue if applicable -->
 Closes #
 
-## 🧪 How to Test
+## How to Test
 
 <!-- Step-by-step instructions for reviewers to test your changes -->
 
@@ -18,13 +18,13 @@ Closes #
 3. 
 4. Expected result: 
 
-## 📸 Screenshots (if applicable)
+## Screenshots (if applicable)
 
 <!-- Add screenshots for UI changes or API responses -->
 
 
 
-## ✅ Checklist
+## Checklist
 
 Before requesting a review, please check:
 
@@ -35,7 +35,7 @@ Before requesting a review, please check:
 - [ ] I added/updated tests (if applicable)
 - [ ] I rebased my branch on latest `develop`
 
-## 🤔 Questions for Reviewers
+## Questions for Reviewers
 
 <!-- Any specific areas you'd like feedback on? -->
 
@@ -44,6 +44,6 @@ Before requesting a review, please check:
 ---
 
 **Reviewer Guidelines:**
-- Be kind and constructive 🤝
+- Be kind and constructive
 - Ask questions instead of criticizing
-- Approve when it looks good 👍
+- Approve when it looks good

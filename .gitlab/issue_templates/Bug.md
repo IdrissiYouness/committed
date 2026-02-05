@@ -1,4 +1,4 @@
-## 🐛 Bug Report
+## Bug Report
 
 ### Description
 <!-- What's happening? Describe the bug clearly -->
@@ -46,9 +46,9 @@ Paste error logs here
 
 ### Severity
 <!-- How bad is this? -->
-- [ ] 🔴 Critical (app is broken)
-- [ ] 🟡 Major (feature doesn't work)
-- [ ] 🟢 Minor (annoying but workaround exists)
+- [ ] Critical (app is broken)
+- [ ] Major (feature doesn't work)
+- [ ] Minor (annoying but workaround exists)
 
 ### Additional Context
 <!-- Any other information that might help -->

@@ -1,4 +1,4 @@
-## 🚀 Feature Request
+## Feature Request
 
 ### Description
 <!-- Describe the feature you want to add -->
@@ -30,9 +30,9 @@ As a **[type of user]**, I want **[goal]** so that **[benefit]**.
 
 ### Priority
 <!-- How important is this? -->
-- [ ] 🔴 High (blocking other work)
-- [ ] 🟡 Medium (important but not urgent)
-- [ ] 🟢 Low (nice to have)
+- [ ] High (blocking other work)
+- [ ] Medium (important but not urgent)
+- [ ] Low (nice to have)
 
 ### Estimated Effort
 <!-- How long do you think this will take? -->
