@@ -42,6 +42,7 @@ __pycache__/
 *.pyo
 venv/
 *.egg-info/
+.venv/
 
 # .NET
 bin/
