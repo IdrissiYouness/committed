@@ -169,13 +169,13 @@ git push origin feature/your-feature-name
 
 Each team member can focus on a specific service:
 
-| Service | Folder | Language | IDE |
-|---------|--------|----------|-----|
+| Service | Folder | Language / Framework | IDE |
+|---------|--------|----------------------|-----|
 | Gateway | `services/gateway/` | Java | IntelliJ |
 | Core | `services/core/` | PHP | PhpStorm |
 | Code Analyzer | `services/code-analyzer/` | Python | VS Code |
 | Notifications | `services/notifications/` | C# | VS Code |
-| Web Frontend | `web/` | React | VS Code |
+| Web Frontend | `web/` | React + Tailwind CSS | VS Code |
 
 ---
 
@@ -466,6 +466,7 @@ git remote -v
 | Python | [Flask Tutorial](https://flask.palletsprojects.com/tutorial/) |
 | C# | [.NET Tutorial](https://docs.microsoft.com/en-us/dotnet/core/tutorials/) |
 | React | [React Tutorial](https://react.dev/learn) |
+| Tailwind CSS | [Tailwind CSS Documentation](https://tailwindcss.com/docs) |
 
 ### General
 
