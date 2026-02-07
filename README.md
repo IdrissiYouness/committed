@@ -9,7 +9,7 @@ Microservices architecture with:
 - **Core** (PHP Symfony) - Courses, assignments, submissions
 - **Code Analyzer** (Python Flask) - GitHub cloning & AI analysis
 - **Notifications** (.NET Core) - Email notifications
-- **Web** (React) - Frontend application
+- **Web** (React + Tailwind CSS) - Frontend application
 - **Oracle Database** - Shared data store
 - **Nginx** - Reverse proxy
 
@@ -57,7 +57,7 @@ docker compose ps
 | Core | 8000 | PHP Symfony |
 | Code Analyzer | 5000 | Python Flask |
 | Notifications | 5001 | .NET Core |
-| Web | 3000 | React + Vite |
+| Web | 3000 | React + Vite + Tailwind CSS |
 | Oracle DB | 1521 | Oracle XE 21c |
 
 ## Testing Connectivity
@@ -110,7 +110,7 @@ commit-ed/
 │   ├── core/              # PHP Symfony
 │   ├── code-analyzer/     # Python Flask
 │   └── notifications/     # .NET Core
-├── web/                   # React Frontend
+├── web/                   # React + Tailwind CSS Frontend
 └── docs/                  # Documentation
 ```
 

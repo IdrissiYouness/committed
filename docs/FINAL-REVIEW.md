@@ -32,7 +32,10 @@ commit-ed/
 │   ├── code-analyzer/      # Python Flask (Port 5000)
 │   └── notifications/      # .NET Core (Port 5001)
 │
-├── web/                    # React + Vite (Port 3000)
+├── web/                    # React + Vite + Tailwind CSS (Port 3000)
+│   ├── tailwind.config.js  # Tailwind CSS configuration
+│   ├── postcss.config.js   # PostCSS plugins (Tailwind + Autoprefixer)
+│   └── src/index.css       # Tailwind directives & global styles
 │
 └── docs/
     ├── SETUP.md            # IDE setup guides
@@ -179,17 +182,20 @@ commit-ed/
 **Port**: 5001  
 **Main file**: `services/notifications/Program.cs`
 
-### Web Frontend (React) ✅ Ready
+### Web Frontend (React + Tailwind CSS) ✅ Ready
 
 | Item | Status | Notes |
 |------|--------|-------|
 | Dockerfile | ✅ | Node 20 + Nginx |
 | Build | ✅ | Vite configured |
 | Dependencies | ✅ | React 18.2 |
+| Styling | ✅ | Tailwind CSS 3 with PostCSS + Autoprefixer |
 
 **IDE**: VSCode  
 **Port**: 3000  
-**Main file**: `web/src/App.jsx`
+**Main file**: `web/src/App.jsx`  
+**Styling**: Tailwind CSS utility classes (configured in `web/tailwind.config.js`)  
+**Key CSS file**: `web/src/index.css` (Tailwind directives)
 
 ---
 
@@ -267,7 +273,7 @@ registry.gitlab.com/iliassai/commit-ed/web:latest
 | Core | PHP developer | Main business logic |
 | Code Analyzer | Python developer | AI integration |
 | Notifications | .NET developer | Email handling |
-| Web | Frontend developer | UI/UX |
+| Web | Frontend developer | UI/UX (React + Tailwind CSS) |
 
 ---
 
@@ -313,6 +319,7 @@ registry.gitlab.com/iliassai/commit-ed/web:latest
 - **Flask**: https://flask.palletsprojects.com/
 - **.NET**: https://learn.microsoft.com/en-us/aspnet/core/
 - **React**: https://react.dev/learn
+- **Tailwind CSS**: https://tailwindcss.com/docs
 
 ---
 
@@ -328,6 +335,7 @@ registry.gitlab.com/iliassai/commit-ed/web:latest
 - ✅ Service-to-service communication configured
 - ✅ IDE setup guides
 - ✅ Collaboration guidelines
+- ✅ Tailwind CSS integrated into the Web frontend for utility-first styling
 
 ### What You'll Build
 - User authentication (Gateway)
