@@ -307,6 +307,7 @@ Install these recommended extensions:
 - ES7+ React/Redux/React-Native snippets
 - Prettier - Code formatter
 - ESLint
+- [Tailwind CSS IntelliSense](https://marketplace.visualstudio.com/items?itemName=bradlc.vscode-tailwindcss) - Autocomplete, linting, and hover previews for Tailwind classes
 
 ### Installing Dependencies
 
@@ -333,6 +334,16 @@ Create `.vscode/launch.json`:
     ]
 }
 ```
+
+### Tailwind CSS
+
+The frontend uses **Tailwind CSS** for styling. Key config files:
+
+- `tailwind.config.js` — Content paths, theme customizations, plugins
+- `postcss.config.js` — Wires up Tailwind and Autoprefixer as PostCSS plugins (Vite picks these up automatically)
+- `src/index.css` — Contains the Tailwind directives (`@tailwind base/components/utilities`)
+
+All styling is done via utility classes directly in JSX — no custom CSS files or inline style objects are needed.
 
 ### Running the Service
 

@@ -26,7 +26,7 @@ Committed is a microservices-based educational platform for automated code submi
                     ▼                                   ▼
 ┌───────────────────────────────┐     ┌───────────────────────────────┐
 │      Gateway Service          │     │       Web Frontend            │
-│    (Java Spring Boot)         │     │      (React + Vite)           │
+│    (Java Spring Boot)         │     │ (React + Vite + Tailwind CSS) │
 │        Port 8080              │     │        Port 3000              │
 │                               │     │                               │
 │  • Authentication (JWT)       │     │  • User Interface             │
@@ -89,11 +89,12 @@ Committed is a microservices-based educational platform for automated code submi
 - **In-App Notifications**: Real-time notifications
 - **Templates**: Manage notification templates
 
-### Web Frontend (React + Vite)
-- **User Interface**: Modern, responsive UI
+### Web Frontend (React + Vite + Tailwind CSS)
+- **User Interface**: Modern, responsive UI styled with Tailwind CSS utility classes
 - **Dashboard**: Overview of courses and submissions
 - **Course Management**: UI for managing courses
 - **Submission Interface**: Code submission and results view
+- **Styling**: Utility-first approach via Tailwind CSS — no custom CSS files or inline styles needed
 
 ## Communication Patterns
 
