@@ -15,6 +15,8 @@ Microservices architecture with:
 
 ## Quick Start
 
+> **🪟 Windows Users:** See [docs/WINDOWS-SETUP.md](docs/WINDOWS-SETUP.md) for detailed Windows-specific instructions!
+
 ### Prerequisites
 
 1. **Docker Desktop** (with at least 4GB RAM allocated)
@@ -100,7 +102,7 @@ See [docs/SETUP.md](docs/SETUP.md) for detailed IDE setup instructions.
 ## Project Structure
 
 ```
-commit-ed/
+committed/
 ├── docker/                 # Docker configuration
 │   ├── docker compose.yml
 │   ├── nginx/
@@ -118,6 +120,7 @@ commit-ed/
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) - **Start here!** Collaboration guide for the team
 - [SETUP.md](docs/SETUP.md) - IDE setup guides
+- [WINDOWS-SETUP.md](docs/WINDOWS-SETUP.md) - **Windows users guide** (Docker Desktop on Windows)
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) - System architecture
 - [API.md](docs/API.md) - API documentation
 

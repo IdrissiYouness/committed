@@ -41,7 +41,7 @@ flowchart TB
 ## Project Structure
 
 ```
-commit-ed/
+committed/
 ├── README.md
 ├── .gitignore
 ├── .env.example
@@ -52,6 +52,7 @@ commit-ed/
 │   ├── nginx/
 │   │   └── nginx.conf
 │   └── db/
+```
 │       └── init.sql
 │
 ├── services/
@@ -300,7 +301,7 @@ docker pull container-registry.oracle.com/database/express:21.3.0-xe
 
 ```bash
 # 1. Clone/navigate to project
-cd commit-ed
+cd committed
 
 # 2. Copy environment file
 cp .env.example .env
@@ -310,6 +311,7 @@ nano .env  # or use your preferred editor
 
 # 4. Start all services
 cd docker
+```
 docker compose up -d
 
 # 5. Wait for Oracle to be healthy (may take 2-3 minutes)
