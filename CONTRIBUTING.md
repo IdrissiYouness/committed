@@ -20,12 +20,14 @@ Welcome to the Committed project! This guide will help you and your team collabo
 
 ## 🚀 Getting Started
 
+> **🪟 Windows Users:** All commands work on Windows too! Use PowerShell, Command Prompt, or Git Bash. See [docs/WINDOWS-SETUP.md](docs/WINDOWS-SETUP.md) for detailed Windows instructions.
+
 ### First Time Setup
 
 1. **Clone the repository:**
    ```bash
-   git clone https://gitlab.com/your-group/commit-ed.git
-   cd commit-ed
+   git clone https://gitlab.com/your-group/committed.git
+   cd committed
    ```
 
 2. **Set up your Git identity:**
@@ -56,7 +58,7 @@ Every time you start working:
 
 ```bash
 # 1. Go to your project folder
-cd commit-ed
+cd committed
 
 # 2. Make sure you're on the develop branch
 git checkout develop

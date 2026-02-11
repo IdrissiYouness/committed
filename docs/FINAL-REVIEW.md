@@ -13,7 +13,7 @@ The project infrastructure is complete and ready for your team to start building
 ## 📁 Project Structure Overview
 
 ```
-commit-ed/
+committed/
 ├── .env                    # Your local secrets (DO NOT COMMIT)
 ├── .env.example            # Template for .env (safe to commit)
 ├── .gitignore              # Ignores .env, node_modules, etc.
@@ -76,8 +76,8 @@ commit-ed/
 
 - [ ] **Clone the repository**
   ```bash
-  git clone https://gitlab.com/iliassai/commit-ed.git
-  cd commit-ed
+  git clone https://gitlab.com/iliassai/committed.git
+  cd committed
   ```
 
 - [ ] **Copy environment file**
@@ -218,11 +218,11 @@ commit-ed/
 
 After successful build:
 ```
-registry.gitlab.com/iliassai/commit-ed/gateway:latest
-registry.gitlab.com/iliassai/commit-ed/core:latest
-registry.gitlab.com/iliassai/commit-ed/code-analyzer:latest
-registry.gitlab.com/iliassai/commit-ed/notifications:latest
-registry.gitlab.com/iliassai/commit-ed/web:latest
+registry.gitlab.com/iliassai/committed/gateway:latest
+registry.gitlab.com/iliassai/committed/core:latest
+registry.gitlab.com/iliassai/committed/code-analyzer:latest
+registry.gitlab.com/iliassai/committed/notifications:latest
+registry.gitlab.com/iliassai/committed/web:latest
 ```
 
 ---
