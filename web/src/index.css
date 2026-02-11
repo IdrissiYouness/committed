@@ -1,8 +1,11 @@
+/* Pairing 3: Friendly & Approachable — Quicksand + Nunito + Fira Code */
+@import url("https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&family=Nunito:wght@300;400;500;600;700;800&family=Fira+Code:wght@300;400;500;600;700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 body {
-  @apply min-h-screen bg-gray-50 text-gray-900 antialiased;
-  margin: 0;
+    @apply min-h-screen bg-neutral-50 font-body text-neutral-900 antialiased;
+    margin: 0;
 }
