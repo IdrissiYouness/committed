@@ -25,7 +25,7 @@ docker login container-registry.oracle.com
 
 1. Open **IntelliJ IDEA**
 2. Click **File → Open**
-3. Navigate to `commit-ed/services/gateway`
+3. Navigate to `committed/services/gateway`
 4. Click **OK**
 5. IntelliJ will detect the Maven project and start importing dependencies
 6. Wait for the indexing to complete (progress bar at bottom)
@@ -71,7 +71,7 @@ curl http://localhost:8080/actuator/health
 
 1. Open **PhpStorm**
 2. Click **File → Open**
-3. Navigate to `commit-ed/services/core`
+3. Navigate to `committed/services/core`
 4. Click **OK**
 5. PhpStorm will detect the Symfony project
 
@@ -131,7 +131,7 @@ curl http://localhost:8000/db-test
 
 1. Open **VSCode**
 2. Click **File → Open Folder**
-3. Navigate to `commit-ed/services/code-analyzer`
+3. Navigate to `committed/services/code-analyzer`
 4. Click **Select Folder**
 
 ### Installing Python Extension
@@ -213,7 +213,7 @@ curl http://localhost:5000/health
 
 1. Open **VSCode**
 2. Click **File → Open Folder**
-3. Navigate to `commit-ed/services/notifications`
+3. Navigate to `committed/services/notifications`
 4. Click **Select Folder**
 
 ### Installing C# Extension
@@ -298,7 +298,7 @@ curl http://localhost:5001/db-test
 
 1. Open **VSCode**
 2. Click **File → Open Folder**
-3. Navigate to `commit-ed/web`
+3. Navigate to `committed/web`
 4. Click **Select Folder**
 
 ### Installing Extensions
