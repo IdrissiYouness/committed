@@ -30,8 +30,10 @@ notification:
 
 # JWT Configuration
 jwt:
-  secret: ${JWT_SECRET:your-super-secret-jwt-key-change-this-in-production-min-256-bits}
+  secret: ${JWT_SECRET:8a7da2dbc6c2be6b72d6c66748787e71b11bf140c993c539b1064d39789a1e7324f920d1487327797ca8a3c7d64d3cc11e1a24b55ad4422d0a43909b96de599b}
   expiration: ${JWT_EXPIRATION:86400000}
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}  # 7 days in milliseconds
+  issuer: ${JWT_ISSUER:committed-platform}
 
 # Actuator endpoints
 management:
@@ -42,3 +44,9 @@ management:
   endpoint:
     health:
       show-details: always
+
+#logging configuration
+logging:
+  level:
+    com.committed.gateway: DEBUG
+    org.springframework.security: DEBUG
