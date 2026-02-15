@@ -49,6 +49,7 @@ docker compose ps
 5. Access application:
 - Frontend: http://localhost
 - API: http://localhost/api
+- API Docs: http://localhost/docs
 
 ## Service Ports
 
@@ -61,6 +62,7 @@ docker compose ps
 | Notifications | 5001 | .NET Core |
 | Web | 3000 | React + Vite + Tailwind CSS |
 | Oracle DB | 1521 | Oracle XE 21c |
+| API Docs | 80 | Scalar (via Nginx at `/docs`) |
 
 ## Testing Connectivity
 
