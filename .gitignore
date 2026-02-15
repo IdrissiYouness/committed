@@ -31,6 +31,9 @@ temp/
 target/
 .gradle/
 build/
+application.yml
+application.properties
+application-*.yml
 
 # PHP
 vendor/
