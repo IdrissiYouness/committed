@@ -32,6 +32,7 @@ docker login container-registry.oracle.com
 2. Set up environment:
 ```bash
 cp .env.example .env
+cp .env docker/
 # Edit .env with your configuration
 ```
 
