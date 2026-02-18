@@ -27,7 +27,7 @@ public class JwtTokenProvider {
     private final JwtConfig jwtConfig;
     
     private static final String CLAIM_USER_ID = "userId";
-    private static final String CLAIM_ROLE = "role";
+    private static final String CLAIM_SYS_ROLE = "systemRole";
     private static final String CLAIM_EMAIL = "email";
     private static final String CLAIM_FULL_NAME = "fullName";
     
@@ -37,10 +37,10 @@ public class JwtTokenProvider {
      * @param userId User ID
      * @param email User email
      * @param fullName User full name
-     * @param role User role (STUDENT, PROFESSOR, ADMIN)
+     * @param systemRole User system role (USER, ADMIN)
      * @return JWT token string
      */
-    public String generateToken(String userId, String email, String fullName, String role) {
+    public String generateToken(String userId, String email, String fullName, String systemRole) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + jwtConfig.getExpiration());
         
@@ -48,7 +48,7 @@ public class JwtTokenProvider {
         claims.put(CLAIM_USER_ID, userId);
         claims.put(CLAIM_EMAIL, email);
         claims.put(CLAIM_FULL_NAME, fullName);
-        claims.put(CLAIM_ROLE, role);
+        claims.put(CLAIM_SYS_ROLE, systemRole);
         
         return Jwts.builder()
             .subject(email)  
@@ -136,9 +136,9 @@ public class JwtTokenProvider {
     /**
      * Get role from token
      */
-    public String getRoleFromToken(String token) {
+    public String getSystemRoleFromToken(String token) {
         Claims claims = getClaimsFromToken(token);
-        return claims.get(CLAIM_ROLE, String.class);
+        return claims.get(CLAIM_SYS_ROLE, String.class);
     }
     
     /**

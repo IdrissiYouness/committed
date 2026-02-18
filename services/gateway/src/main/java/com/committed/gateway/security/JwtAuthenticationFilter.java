@@ -47,16 +47,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (tokenProvider.validateToken(token)) {
                     String email = tokenProvider.getEmailFromToken(token);
                     String userId = tokenProvider.getUserIdFromToken(token);
-                    String role = tokenProvider.getRoleFromToken(token);
+                    String systemRole = tokenProvider.getSystemRoleFromToken(token);
                     
                     List<SimpleGrantedAuthority> authorities = 
-                        Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role));
+                        Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + systemRole));
                     
                     UsernamePasswordAuthenticationToken authentication = 
                         new UsernamePasswordAuthenticationToken(
                             email,      // Principal (email)
                             null,       // Credentials (not needed)
-                            authorities // Authorities (roles)
+                            authorities // Authorities (system roles)
                         );
                     
                     authentication.setDetails(
@@ -65,7 +65,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     
                     SecurityContextHolder.getContext().setAuthentication(authentication);
                     
-                    log.debug("Set authentication for user: {} with role: {}", email, role);
+                    log.debug("Set authentication for user: {} with role: {}", email, systemRole);
                 }
             }
             

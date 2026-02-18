@@ -47,10 +47,10 @@ public class TokenController {
         // For now, return mock response
         String email = "user@example.com";
         String fullName = "Test User";
-        String role = "STUDENT";
+        String systemRole = "USER";
         
         // Generate new access token
-        String newAccessToken = tokenProvider.generateToken(userId, email, fullName, role);
+        String newAccessToken = tokenProvider.generateToken(userId, email, fullName, systemRole);
         
         // Build response
         JwtAuthenticationResponse response = JwtAuthenticationResponse.builder()
@@ -61,7 +61,7 @@ public class TokenController {
             .userId(userId)
             .email(email)
             .fullName(fullName)
-            .role(role)
+            .systemRole(systemRole)
             .build();
         
         return ResponseEntity.ok(response);
@@ -87,7 +87,7 @@ public class TokenController {
         if (isValid) {
             response.put("userId", tokenProvider.getUserIdFromToken(token));
             response.put("email", tokenProvider.getEmailFromToken(token));
-            response.put("role", tokenProvider.getRoleFromToken(token));
+            response.put("role", tokenProvider.getSystemRoleFromToken(token));
             response.put("expiresAt", tokenProvider.getExpirationFromToken(token));
         }
         

@@ -43,9 +43,9 @@ class JwtTokenProviderTest {
         String userId = "123";
         String email = "test@example.com";
         String fullName = "Test User";
-        String role = "STUDENT";
+        String systemRole = "USER";
         
-        String token = tokenProvider.generateToken(userId, email, fullName, role);
+        String token = tokenProvider.generateToken(userId, email, fullName, systemRole);
         
         assertNotNull(token);
         assertTrue(token.length() > 0);
@@ -74,7 +74,7 @@ class JwtTokenProviderTest {
     @Test
     void shouldExtractEmailFromToken() {
         String email = "test@example.com";
-        String token = tokenProvider.generateToken("123", email, "Test User", "STUDENT");
+        String token = tokenProvider.generateToken("123", email, "Test User", "USER");
         
         String extractedEmail = tokenProvider.getEmailFromToken(token);
         
@@ -82,13 +82,13 @@ class JwtTokenProviderTest {
     }
     
     @Test
-    void shouldExtractRoleFromToken() {
-        String role = "STUDENT";
-        String token = tokenProvider.generateToken("123", "test@example.com", "Test User", role);
+    void shouldExtractSystemRoleFromToken() {
+        String systemRole = "USER";
+        String token = tokenProvider.generateToken("123", "test@example.com", "Test User", systemRole);
         
-        String extractedRole = tokenProvider.getRoleFromToken(token);
+        String extractedRole = tokenProvider.getSystemRoleFromToken(token);
         
-        assertEquals(role, extractedRole);
+        assertEquals(systemRole, extractedRole);
     }
     
     @Test
@@ -105,7 +105,7 @@ class JwtTokenProviderTest {
         when(jwtConfig.getExpiration()).thenReturn(1L); // 1 millisecond
         JwtTokenProvider shortExpiryProvider = new JwtTokenProvider(jwtConfig);
         
-        String token = shortExpiryProvider.generateToken("123", "test@example.com", "Test User", "STUDENT");
+        String token = shortExpiryProvider.generateToken("123", "test@example.com", "Test User", "USER");
         
         try {
             Thread.sleep(10);
