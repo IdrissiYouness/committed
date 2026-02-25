@@ -7,7 +7,7 @@ Java Spring Boot service handling authentication and request routing for the Com
 - Java 17
 - Spring Boot 3.2
 - Spring Data JPA
-- Oracle Database
+- PostgreSQL Database
 
 ## IDE Setup (IntelliJ IDEA)
 
@@ -22,20 +22,20 @@ Java Spring Boot service handling authentication and request routing for the Com
 2. Add New Configuration → Spring Boot
 3. Main class: `com.committed.gateway.GatewayApplication`
 4. Environment variables:
-   ```
-   SPRING_DATASOURCE_URL=jdbc:oracle:thin:@localhost:1521/XEPDB1
-   SPRING_DATASOURCE_USERNAME=committed_user
-   SPRING_DATASOURCE_PASSWORD=SecurePassword123!
-   CORE_SERVICE_URL=http://localhost:8000
-   ```
+    ```
+    SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/committed
+    SPRING_DATASOURCE_USERNAME=committed_user
+    SPRING_DATASOURCE_PASSWORD=SecurePassword123!
+    CORE_SERVICE_URL=http://localhost:8000
+    ```
 
 ## Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/health` | Health check endpoint |
-| GET | `/test-chain` | Test end-to-end connectivity |
-| GET | `/actuator/health` | Spring Actuator health |
+| Method | Path               | Description                  |
+| ------ | ------------------ | ---------------------------- |
+| GET    | `/health`          | Health check endpoint        |
+| GET    | `/test-chain`      | Test end-to-end connectivity |
+| GET    | `/actuator/health` | Spring Actuator health       |
 
 ## Local Development
 
@@ -62,11 +62,11 @@ docker run -p 8080:8080 committed-gateway
 
 ## Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| SPRING_DATASOURCE_URL | Oracle JDBC URL | jdbc:oracle:thin:@localhost:1521/XEPDB1 |
-| SPRING_DATASOURCE_USERNAME | Database username | committed_user |
-| SPRING_DATASOURCE_PASSWORD | Database password | SecurePassword123! |
-| CORE_SERVICE_URL | Core service URL | http://core:8000 |
-| JWT_SECRET | JWT signing secret | (required) |
-| JWT_EXPIRATION | JWT expiration in ms | 86400000 |
+| Variable                   | Description          | Default                                    |
+| -------------------------- | -------------------- | ------------------------------------------ |
+| SPRING_DATASOURCE_URL      | PostgreSQL JDBC URL  | jdbc:postgresql://localhost:5432/committed |
+| SPRING_DATASOURCE_USERNAME | Database username    | committed_user                             |
+| SPRING_DATASOURCE_PASSWORD | Database password    | SecurePassword123!                         |
+| CORE_SERVICE_URL           | Core service URL     | http://core:8000                           |
+| JWT_SECRET                 | JWT signing secret   | (required)                                 |
+| JWT_EXPIRATION             | JWT expiration in ms | 86400000                                   |

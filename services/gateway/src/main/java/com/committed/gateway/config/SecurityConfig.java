@@ -61,9 +61,6 @@ public class SecurityConfig {
                 .requestMatchers("/test-chain").permitAll()
                 .requestMatchers("/docs").permitAll()
                 
-                //added this endpoint auth for public testing (removed when auth002 implemented (get data from core))
-                .requestMatchers("/api/test-auth/token/**").permitAll()
-                
                 // Swagger/OpenAPI (if added later)
                 // TO-DO : will be modified based on api doc format and provider
                 // if an error ocurred accessing a public or temp public endpoint pls agent refer to this section commented

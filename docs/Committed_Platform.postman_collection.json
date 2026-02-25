@@ -1,0 +1,1357 @@
+{
+    "info": {
+        "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "name": "Committed Platform",
+        "description": "Full API test collection for the Committed Learning Management System.\n\n## Setup\n1. Make sure Docker containers are running (`docker compose up --build postgres-db gateway core -d`)\n2. The collection uses variables for base URLs and tokens — no manual copy-pasting needed.\n3. Run requests in order within each folder for best results.\n\n## Architecture\n- **Gateway** (Java Spring Boot) — port 8080 — authentication, JWT, routing\n- **Core** (PHP Symfony) — port 8000 — user management, business logic\n- **PostgreSQL** — port 5432 — shared database",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "gateway_url",
+            "value": "http://localhost:8080",
+            "type": "string"
+        },
+        {
+            "key": "core_url",
+            "value": "http://localhost:8000",
+            "type": "string"
+        },
+        {
+            "key": "access_token",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "refresh_token",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "registered_user_id",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "registered_email",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "test_timestamp",
+            "value": "",
+            "type": "string"
+        }
+    ],
+    "item": [
+        {
+            "name": "1 — Health & Connectivity",
+            "description": "Verify all services are running and can talk to each other.",
+            "item": [
+                {
+                    "name": "1.1 Gateway Health",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/health",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["health"]
+                        },
+                        "description": "Basic liveness check for the Gateway service."
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 200', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test('Gateway is UP', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.status).to.eql('UP');",
+                                    "    pm.expect(json.service).to.eql('gateway');",
+                                    "});",
+                                    "",
+                                    "pm.test('Response has timestamp', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.timestamp).to.be.a('string');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "response": []
+                },
+                {
+                    "name": "1.2 Core Health",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{core_url}}/health",
+                            "host": ["{{core_url}}"],
+                            "path": ["health"]
+                        },
+                        "description": "Core service health check — returns DB connection status, table count, and sample users."
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 200', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test('Core status is OK', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.status).to.eql('ok');",
+                                    "});",
+                                    "",
+                                    "pm.test('Database is connected via pdo_pgsql', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.database.connected).to.be.true;",
+                                    "    pm.expect(json.database.driver).to.eql('pdo_pgsql');",
+                                    "});",
+                                    "",
+                                    "pm.test('Seed users exist', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.users.total_count).to.be.above(0);",
+                                    "    pm.expect(json.users.sample).to.be.an('array').that.is.not.empty;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "response": []
+                },
+                {
+                    "name": "1.3 Core DB Test (lightweight)",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{core_url}}/db-test",
+                            "host": ["{{core_url}}"],
+                            "path": ["db-test"]
+                        },
+                        "description": "Lightweight connectivity check used by the Gateway's chain test."
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 200', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test('Database is connected', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.database).to.eql('connected');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "response": []
+                },
+                {
+                    "name": "1.4 End-to-End Chain Test",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/test-chain",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["test-chain"]
+                        },
+                        "description": "Gateway calls Core which calls PostgreSQL. Verifies the entire Gateway → Core → DB chain."
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 200', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test('Full chain is connected', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.status).to.eql('success');",
+                                    "    pm.expect(json.chain.gateway).to.eql('connected');",
+                                    "    pm.expect(json.chain.core).to.eql('connected');",
+                                    "    pm.expect(json.chain.database).to.eql('connected');",
+                                    "});",
+                                    "",
+                                    "pm.test('Success message present', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.message).to.include('successful');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "response": []
+                },
+                {
+                    "name": "1.5 Spring Actuator Health",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/actuator/health",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["actuator", "health"]
+                        },
+                        "description": "Spring Boot Actuator health endpoint."
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 200', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test('Actuator status is UP', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.status).to.eql('UP');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "2 — User Registration (Gateway → Core → DB)",
+            "description": "Tests the full registration flow through the Gateway, which hashes the password, calls Core to persist the user, and returns JWT tokens.",
+            "item": [
+                {
+                    "name": "2.1 Register New User — Success",
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "// Generate unique email using timestamp to avoid conflicts",
+                                    "var ts = Date.now();",
+                                    "pm.collectionVariables.set('test_timestamp', ts);",
+                                    "pm.collectionVariables.set('registered_email', 'testuser_' + ts + '@committed.com');"
+                                ]
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 201 Created', function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "});",
+                                    "",
+                                    "pm.test('Response indicates success', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.message).to.eql('Registration successful');",
+                                    "});",
+                                    "",
+                                    "pm.test('Access token is present and is a JWT', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    var token = json.data.accessToken;",
+                                    "    pm.expect(token).to.be.a('string');",
+                                    "    pm.expect(token.split('.').length).to.eql(3);",
+                                    "    // Save for later requests",
+                                    "    pm.collectionVariables.set('access_token', token);",
+                                    "});",
+                                    "",
+                                    "pm.test('Refresh token is present and is a JWT', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    var token = json.data.refreshToken;",
+                                    "    pm.expect(token).to.be.a('string');",
+                                    "    pm.expect(token.split('.').length).to.eql(3);",
+                                    "    pm.collectionVariables.set('refresh_token', token);",
+                                    "});",
+                                    "",
+                                    "pm.test('Token type is Bearer', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.data.tokenType).to.eql('Bearer');",
+                                    "});",
+                                    "",
+                                    "pm.test('User data is correct', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    var user = json.data.user;",
+                                    "    var expectedEmail = pm.collectionVariables.get('registered_email');",
+                                    "",
+                                    "    pm.expect(user.userId).to.be.a('number');",
+                                    "    pm.expect(user.email).to.eql(expectedEmail);",
+                                    "    pm.expect(user.fullName).to.eql('Test User');",
+                                    "    pm.expect(user.systemRole).to.eql('user');",
+                                    "    pm.expect(user.isActive).to.be.true;",
+                                    "    pm.expect(user.createdAt).to.be.a('string');",
+                                    "",
+                                    "    pm.collectionVariables.set('registered_user_id', user.userId.toString());",
+                                    "});",
+                                    "",
+                                    "pm.test('Timestamp field is present', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.timestamp).to.be.a('string');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"{{registered_email}}\",\n    \"fullName\": \"Test User\",\n    \"password\": \"securepass123\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/auth/register",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "auth", "register"]
+                        },
+                        "description": "Register a new user. On success, the test auto-saves `access_token`, `refresh_token`, and `registered_user_id` variables for subsequent requests."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "2.2 Register Duplicate Email — 409 Conflict",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 409 Conflict', function () {",
+                                    "    pm.response.to.have.status(409);",
+                                    "});",
+                                    "",
+                                    "pm.test('Error response is correct', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.false;",
+                                    "    pm.expect(json.error).to.eql('Conflict');",
+                                    "    pm.expect(json.message).to.include('Email already registered');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"{{registered_email}}\",\n    \"fullName\": \"Duplicate User\",\n    \"password\": \"securepass123\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/auth/register",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "auth", "register"]
+                        },
+                        "description": "Attempt to register with the same email used in 2.1. Should return 409."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "2.3 Register — Invalid Email Format",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 400 Bad Request', function () {",
+                                    "    pm.response.to.have.status(400);",
+                                    "});",
+                                    "",
+                                    "pm.test('Validation error for email', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.error).to.eql('Bad Request');",
+                                    "    pm.expect(json.message).to.eql('Validation failed');",
+                                    "    pm.expect(json.fieldErrors).to.have.property('email');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"not-an-email\",\n    \"fullName\": \"Bad Email User\",\n    \"password\": \"securepass123\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/auth/register",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "auth", "register"]
+                        },
+                        "description": "Send an invalid email format. Should return 400 with field-level errors."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "2.4 Register — Password Too Short",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 400 Bad Request', function () {",
+                                    "    pm.response.to.have.status(400);",
+                                    "});",
+                                    "",
+                                    "pm.test('Validation error for password', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.fieldErrors).to.have.property('password');",
+                                    "    pm.expect(json.fieldErrors.password).to.include('at least 8');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"short@committed.com\",\n    \"fullName\": \"Short Pass\",\n    \"password\": \"abc\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/auth/register",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "auth", "register"]
+                        },
+                        "description": "Password under 8 characters. Should return 400."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "2.5 Register — Missing All Fields",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 400 Bad Request', function () {",
+                                    "    pm.response.to.have.status(400);",
+                                    "});",
+                                    "",
+                                    "pm.test('Multiple field errors returned', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.error).to.eql('Bad Request');",
+                                    "    var fieldErrors = json.fieldErrors;",
+                                    "    pm.expect(fieldErrors).to.be.an('object');",
+                                    "    // Should have errors for email, fullName, and password",
+                                    "    var keys = Object.keys(fieldErrors);",
+                                    "    pm.expect(keys.length).to.be.at.least(2);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{}"
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/auth/register",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "auth", "register"]
+                        },
+                        "description": "Empty JSON body. Should return 400 with errors for all required fields."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "2.6 Register — Empty Body (no JSON)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 400 or 415', function () {",
+                                    "    pm.expect(pm.response.code).to.be.oneOf([400, 415]);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": ""
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/auth/register",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "auth", "register"]
+                        },
+                        "description": "No body at all. Should return an error."
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "3 — JWT Token Operations",
+            "description": "Validate tokens, refresh tokens, and test protected endpoints.\n\n**Prerequisites:** Run '2.1 Register New User' first — it auto-saves the tokens.",
+            "item": [
+                {
+                    "name": "3.1 Validate Access Token",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 200', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test('Token is valid', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.valid).to.be.true;",
+                                    "});",
+                                    "",
+                                    "pm.test('Token claims are correct', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.userId).to.eql(pm.collectionVariables.get('registered_user_id'));",
+                                    "    pm.expect(json.email).to.eql(pm.collectionVariables.get('registered_email'));",
+                                    "    pm.expect(json.role).to.eql('USER');",
+                                    "});",
+                                    "",
+                                    "pm.test('Expiration date is present', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.expiresAt).to.not.be.undefined;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/token/validate",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "token", "validate"]
+                        },
+                        "description": "Validate the access token obtained during registration. Returns decoded claims."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "3.2 Refresh Token",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 200', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test('New access token returned', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.accessToken).to.be.a('string');",
+                                    "    pm.expect(json.accessToken.split('.').length).to.eql(3);",
+                                    "    // Save the new access token",
+                                    "    pm.collectionVariables.set('access_token', json.accessToken);",
+                                    "});",
+                                    "",
+                                    "pm.test('Token type is Bearer', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.tokenType).to.eql('Bearer');",
+                                    "});",
+                                    "",
+                                    "pm.test('User info is returned', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.userId).to.be.a('string');",
+                                    "    pm.expect(json.email).to.be.a('string');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"refreshToken\": \"{{refresh_token}}\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/token/refresh",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "token", "refresh"]
+                        },
+                        "description": "Use the refresh token to get a new access token. The new token is auto-saved."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "3.3 Validate Refreshed Token",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 200', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test('Refreshed token is valid', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.valid).to.be.true;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/token/validate",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "token", "validate"]
+                        },
+                        "description": "Validate the new access token obtained via refresh."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "3.4 Validate — Invalid Token",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 401 Unauthorized', function () {",
+                                    "    pm.response.to.have.status(401);",
+                                    "});",
+                                    "",
+                                    "pm.test('Error message indicates invalid token', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.error).to.eql('Unauthorized');",
+                                    "    pm.expect(json.message).to.be.a('string');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer invalid.token.here"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/token/validate",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "token", "validate"]
+                        },
+                        "description": "Pass a garbage JWT. Should return 401."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "3.5 Refresh — Invalid Refresh Token",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 401 Unauthorized', function () {",
+                                    "    pm.response.to.have.status(401);",
+                                    "});",
+                                    "",
+                                    "pm.test('Error message present', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.message).to.be.a('string');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"refreshToken\": \"totally.bogus.token\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/token/refresh",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "token", "refresh"]
+                        },
+                        "description": "Attempt to refresh with an invalid token. Should return 401."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "3.6 Refresh — Missing Refresh Token",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 400', function () {",
+                                    "    pm.response.to.have.status(400);",
+                                    "});",
+                                    "",
+                                    "pm.test('Validation error for refreshToken', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.fieldErrors || json.message).to.not.be.undefined;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{}"
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/token/refresh",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "token", "refresh"]
+                        },
+                        "description": "Empty body — refreshToken is required."
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "4 — Protected Endpoints (Auth Required)",
+            "description": "Verify that protected endpoints reject unauthenticated requests and accept valid tokens.",
+            "item": [
+                {
+                    "name": "4.1 Access Protected Endpoint — No Token (401)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 401 Unauthorized', function () {",
+                                    "    pm.response.to.have.status(401);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/token/validate",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "token", "validate"]
+                        },
+                        "description": "Hit a protected endpoint without an Authorization header. Should get 401."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "4.2 Access Protected Endpoint — With Token (200)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 200', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test('Token is valid', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.valid).to.be.true;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/token/validate",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "token", "validate"]
+                        },
+                        "description": "Same endpoint but with a valid Bearer token. Should succeed."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "4.3 Public Endpoints Don't Require Auth",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Health endpoint is public (200)', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/health",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["health"]
+                        },
+                        "description": "Confirm that health/public endpoints work without any auth header."
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "5 — Core Service Direct (Internal API)",
+            "description": "Direct calls to Core service on port 8000. These are internal APIs normally called only by the Gateway, not by end users. Useful for debugging.",
+            "item": [
+                {
+                    "name": "5.1 Create User via Core — Success",
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "var ts = Date.now();",
+                                    "pm.collectionVariables.set('test_timestamp', ts);"
+                                ]
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 201 Created', function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "});",
+                                    "",
+                                    "pm.test('User fields are returned', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.userId).to.be.a('number');",
+                                    "    pm.expect(json.email).to.include('core_direct_');",
+                                    "    pm.expect(json.fullName).to.eql('Core Direct User');",
+                                    "    pm.expect(json.systemRole).to.eql('user');",
+                                    "    pm.expect(json.isActive).to.be.true;",
+                                    "    pm.expect(json.createdAt).to.be.a('string');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"core_direct_{{test_timestamp}}@committed.com\",\n    \"fullName\": \"Core Direct User\",\n    \"passwordHash\": \"$2a$10$N9qo8uLOickgx2ZMRZoMy.MqrqQlBNe8Y5JqKQl9XqKQl9XqKQl9X\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{core_url}}/api/users/create",
+                            "host": ["{{core_url}}"],
+                            "path": ["api", "users", "create"]
+                        },
+                        "description": "Create a user directly on Core (bypassing Gateway). Uses a pre-hashed bcrypt password."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "5.2 Create User via Core — Duplicate Email (409)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 409 Conflict', function () {",
+                                    "    pm.response.to.have.status(409);",
+                                    "});",
+                                    "",
+                                    "pm.test('Error message indicates duplicate', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.error).to.eql('Conflict');",
+                                    "    pm.expect(json.message).to.include('Email already registered');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"core_direct_{{test_timestamp}}@committed.com\",\n    \"fullName\": \"Duplicate\",\n    \"passwordHash\": \"$2a$10$N9qo8uLOickgx2ZMRZoMy.MqrqQlBNe8Y5JqKQl9XqKQl9XqKQl9X\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{core_url}}/api/users/create",
+                            "host": ["{{core_url}}"],
+                            "path": ["api", "users", "create"]
+                        },
+                        "description": "Re-use the same email from 5.1. Core should return 409."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "5.3 Create User via Core — Validation Error",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 400 Bad Request', function () {",
+                                    "    pm.response.to.have.status(400);",
+                                    "});",
+                                    "",
+                                    "pm.test('Validation errors returned', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.error).to.eql('Bad Request');",
+                                    "    pm.expect(json.details).to.be.an('object');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"\",\n    \"fullName\": \"\",\n    \"passwordHash\": \"\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{core_url}}/api/users/create",
+                            "host": ["{{core_url}}"],
+                            "path": ["api", "users", "create"]
+                        },
+                        "description": "Empty fields sent to Core. Should trigger Symfony validation and return 400 with details."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "5.4 Create User via Core — Seed User Conflict",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 409 Conflict', function () {",
+                                    "    pm.response.to.have.status(409);",
+                                    "});",
+                                    "",
+                                    "pm.test('Admin email already exists', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.message).to.include('admin@committed.com');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"admin@committed.com\",\n    \"fullName\": \"Fake Admin\",\n    \"passwordHash\": \"$2a$10$N9qo8uLOickgx2ZMRZoMy.MqrqQlBNe8Y5JqKQl9XqKQl9XqKQl9X\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{core_url}}/api/users/create",
+                            "host": ["{{core_url}}"],
+                            "path": ["api", "users", "create"]
+                        },
+                        "description": "Try to create a user with the seed admin email. Confirms seed data integrity."
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "6 — Database Verification",
+            "description": "Confirm data actually persisted in PostgreSQL by querying Core's health endpoint which lists users.",
+            "item": [
+                {
+                    "name": "6.1 Verify Registered User in DB",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 200', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test('User count increased from seed data', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    // Seed has 11 users (1 admin + 3 profs + 6 students + 1 inactive)",
+                                    "    // We registered at least 1-2 more",
+                                    "    pm.expect(json.users.total_count).to.be.above(11);",
+                                    "});",
+                                    "",
+                                    "pm.test('is_active is boolean (PostgreSQL native)', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    var users = json.users.sample;",
+                                    "    if (users.length > 0) {",
+                                    "        pm.expect(users[0].is_active).to.be.a('boolean');",
+                                    "    }",
+                                    "});",
+                                    "",
+                                    "pm.test('system_role values are lowercase', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    var users = json.users.sample;",
+                                    "    users.forEach(function(u) {",
+                                    "        pm.expect(u.system_role).to.match(/^(user|admin)$/);",
+                                    "    });",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{core_url}}/health",
+                            "host": ["{{core_url}}"],
+                            "path": ["health"]
+                        },
+                        "description": "Use Core's health endpoint to verify that newly registered users exist in the database and that PostgreSQL-native booleans are returned."
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "7 — Edge Cases & Error Handling",
+            "description": "Miscellaneous edge cases to ensure robust error handling.",
+            "item": [
+                {
+                    "name": "7.1 Register — SQL Injection Attempt",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Request does not cause 500', function () {",
+                                    "    pm.expect(pm.response.code).to.not.eql(500);",
+                                    "});",
+                                    "",
+                                    "pm.test('Status is 400 (validation catches it)', function () {",
+                                    "    pm.response.to.have.status(400);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"'; DROP TABLE users; --\",\n    \"fullName\": \"Bobby Tables\",\n    \"password\": \"securepass123\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/auth/register",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "auth", "register"]
+                        },
+                        "description": "SQL injection in email field. Should be caught by email format validation (400), not cause a 500."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "7.2 Register — XSS in Full Name",
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "var ts = Date.now();",
+                                    "pm.collectionVariables.set('test_timestamp', ts);"
+                                ]
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Request does not cause 500', function () {",
+                                    "    pm.expect(pm.response.code).to.not.eql(500);",
+                                    "});",
+                                    "",
+                                    "pm.test('Status is 201 or 400 (no crash)', function () {",
+                                    "    pm.expect(pm.response.code).to.be.oneOf([201, 400]);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"xss_{{test_timestamp}}@committed.com\",\n    \"fullName\": \"<script>alert('xss')</script>\",\n    \"password\": \"securepass123\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/auth/register",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "auth", "register"]
+                        },
+                        "description": "XSS payload in fullName. The API should not crash — it may accept it (stored as text) or reject it."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "7.3 Register — Very Long Email (255+ chars)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Does not cause 500', function () {",
+                                    "    pm.expect(pm.response.code).to.not.eql(500);",
+                                    "});",
+                                    "",
+                                    "pm.test('Status is 400 Bad Request', function () {",
+                                    "    pm.response.to.have.status(400);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@committed.com\",\n    \"fullName\": \"Long Email User\",\n    \"password\": \"securepass123\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/auth/register",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "auth", "register"]
+                        },
+                        "description": "Email over 255 characters. Should be rejected by validation."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "7.4 Wrong HTTP Method — GET on POST endpoint",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status is 405 Method Not Allowed or 403', function () {",
+                                    "    pm.expect(pm.response.code).to.be.oneOf([403, 405]);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/auth/register",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "auth", "register"]
+                        },
+                        "description": "GET on a POST-only endpoint."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "7.5 Wrong Content-Type",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status is 415 or 400', function () {",
+                                    "    pm.expect(pm.response.code).to.be.oneOf([400, 415]);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "text/plain"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "this is not json"
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/auth/register",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "auth", "register"]
+                        },
+                        "description": "Send text/plain instead of application/json."
+                    },
+                    "response": []
+                }
+            ]
+        }
+    ]
+}
