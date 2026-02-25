@@ -51,8 +51,8 @@ Committed is a microservices-based educational platform for automated code submi
         └───────────────┼───────────────┘
                         ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Oracle Database XE 21c                              │
-│                              (Port 1521)                                    │
+│                        PostgreSQL 16 (Alpine)                               │
+│                              (Port 5432)                                    │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
 │  │  • Users & Authentication                                            │   │
 │  │  • Courses & Enrollments                                             │   │
@@ -66,30 +66,35 @@ Committed is a microservices-based educational platform for automated code submi
 ## Service Responsibilities
 
 ### Gateway Service (Java Spring Boot)
+
 - **Authentication**: JWT-based authentication and authorization
 - **Routing**: Routes requests to appropriate backend services
 - **Rate Limiting**: Prevents abuse and ensures fair usage
 - **API Gateway**: Single entry point for all API requests
 
 ### Core Service (PHP Symfony)
+
 - **Course Management**: CRUD operations for courses
 - **Assignment Management**: Create, update, delete assignments
 - **Submission Handling**: Process student code submissions
 - **User Management**: Student and instructor profiles
 
 ### Code Analyzer Service (Python Flask)
+
 - **Repository Cloning**: Clone GitHub repositories for analysis
 - **Code Parsing**: Parse and analyze code structure
 - **AI Analysis**: Use OpenAI for intelligent code review
 - **Grading**: Automated grading based on criteria
 
 ### Notifications Service (.NET Core)
+
 - **Email Notifications**: Send emails via SMTP
 - **Push Notifications**: Browser push notifications
 - **In-App Notifications**: Real-time notifications
 - **Templates**: Manage notification templates
 
 ### Web Frontend (React + Vite + Tailwind CSS)
+
 - **User Interface**: Modern, responsive UI styled with Tailwind CSS utility classes
 - **Dashboard**: Overview of courses and submissions
 - **Course Management**: UI for managing courses
@@ -99,6 +104,7 @@ Committed is a microservices-based educational platform for automated code submi
 ## Communication Patterns
 
 ### Synchronous (HTTP REST)
+
 All services communicate via HTTP REST APIs using Docker network DNS resolution.
 
 ```
@@ -136,8 +142,8 @@ All services are connected via the `committed-network` bridge network:
 
 ```yaml
 networks:
-  committed-network:
-    driver: bridge
+    committed-network:
+        driver: bridge
 ```
 
 This allows services to communicate using container names as hostnames.
@@ -184,6 +190,7 @@ docker compose up -d --scale core=3
 ```
 
 For production, consider:
+
 - Load balancer in front of Nginx
 - Database replication
 - Redis for caching
@@ -192,6 +199,7 @@ For production, consider:
 ## Monitoring
 
 Recommended monitoring stack:
+
 - **Prometheus**: Metrics collection
 - **Grafana**: Visualization
 - **ELK Stack**: Log aggregation

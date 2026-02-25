@@ -21,6 +21,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ## Phase 1: Foundation & Infrastructure (Week 1-2)
 
 ### INFRA-001: Environment Setup & Verification
+
 **Service**: All  
 **Priority**: Critical  
 **Effort**: Small  
@@ -29,14 +30,15 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Ensure all team members can run the complete stack locally.
 
 **Subtasks**:
+
 - [ ] Each developer clones repository
 - [ ] Install required IDEs (IntelliJ, PhpStorm, VSCode)
-- [ ] Login to Oracle Container Registry
 - [ ] Start Docker services and verify health endpoints
 - [ ] Test service-to-service communication
 - [ ] Verify database connectivity
 
 **Acceptance Criteria**:
+
 - All services start without errors
 - Health endpoints return 200 OK
 - Database connection successful
@@ -45,6 +47,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### INFRA-002: Database Schema Review & Validation
+
 **Service**: Core  
 **Priority**: Critical  
 **Effort**: Small  
@@ -53,6 +56,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Review and validate the existing database schema, ensure it meets all requirements.
 
 **Subtasks**:
+
 - [ ] Review all tables and relationships
 - [ ] Validate indexes are appropriate
 - [ ] Test seed data scripts
@@ -60,6 +64,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Create entity relationship diagram (ERD)
 
 **Acceptance Criteria**:
+
 - Schema supports all planned features
 - Seed data loads successfully
 - ERD documented in `/docs`
@@ -67,6 +72,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### INFRA-003: Shared API Contracts Definition
+
 **Service**: All  
 **Priority**: Critical  
 **Effort**: Medium  
@@ -75,6 +81,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Define API contracts between all services to enable parallel development.
 
 **Subtasks**:
+
 - [ ] Define Gateway → Core API endpoints
 - [ ] Define Gateway → AI Analysis API endpoints
 - [ ] Define Gateway → Notifications API endpoints
@@ -85,6 +92,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Update `/docs/API.md` with complete specifications
 
 **Acceptance Criteria**:
+
 - All inter-service APIs documented
 - Request/response examples provided
 - Error response formats standardized
@@ -95,6 +103,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ## Phase 2: Authentication & User Management (Week 2-3)
 
 ### AUTH-001: JWT Token Generation & Validation
+
 **Service**: Gateway  
 **Priority**: Critical  
 **Effort**: Medium  
@@ -103,6 +112,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Implement JWT-based authentication in Gateway service.
 
 **Subtasks**:
+
 - [ ] Create JWT utility class (generate, validate, refresh)
 - [ ] Implement token expiration handling
 - [ ] Add JWT secret configuration
@@ -111,6 +121,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write unit tests for JWT utilities
 
 **Acceptance Criteria**:
+
 - Tokens generated with proper claims
 - Token validation works correctly
 - Expired tokens rejected
@@ -120,6 +131,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### AUTH-002: User Registration Endpoint
+
 **Service**: Gateway + Core  
 **Priority**: Critical  
 **Effort**: Medium  
@@ -128,6 +140,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Implement user registration with email validation.
 
 **Subtasks**:
+
 - [ ] Create User entity/model in Core
 - [ ] Implement password hashing (bcrypt)
 - [ ] Create registration endpoint in Gateway
@@ -138,6 +151,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write integration tests
 
 **Acceptance Criteria**:
+
 - Users can register with email/password
 - Passwords hashed before storage
 - Duplicate emails rejected
@@ -147,6 +161,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### AUTH-003: User Login Endpoint
+
 **Service**: Gateway + Core  
 **Priority**: Critical  
 **Effort**: Small  
@@ -155,6 +170,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Implement user login with credentials validation.
 
 **Subtasks**:
+
 - [ ] Create login endpoint in Gateway
 - [ ] Validate credentials against database
 - [ ] Return JWT token on success
@@ -163,6 +179,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write integration tests
 
 **Acceptance Criteria**:
+
 - Users can login with email/password
 - JWT token returned on success
 - Invalid credentials return 401
@@ -171,6 +188,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### AUTH-004: User Profile Management
+
 **Service**: Gateway + Core  
 **Priority**: High  
 **Effort**: Medium  
@@ -179,6 +197,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Allow users to view and update their profiles.
 
 **Subtasks**:
+
 - [ ] Create GET /profile endpoint
 - [ ] Create PUT /profile endpoint
 - [ ] Allow updating: full_name, email (with re-verification)
@@ -187,6 +206,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write tests
 
 **Acceptance Criteria**:
+
 - Users can view their profile
 - Users can update profile fields
 - Email changes require verification
@@ -195,6 +215,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### AUTH-005: Admin User Management
+
 **Service**: Gateway + Core  
 **Priority**: High  
 **Effort**: Medium  
@@ -203,6 +224,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Admin dashboard for user management.
 
 **Subtasks**:
+
 - [ ] Create admin middleware/guard
 - [ ] Implement GET /admin/users (list all users)
 - [ ] Implement PUT /admin/users/:id (update user)
@@ -212,6 +234,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write tests
 
 **Acceptance Criteria**:
+
 - Only admins can access endpoints
 - Admins can list/update/deactivate users
 - Pagination works correctly
@@ -222,6 +245,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ## Phase 3: Course Management (Week 3-4)
 
 ### COURSE-001: Course CRUD Operations
+
 **Service**: Core  
 **Priority**: Critical  
 **Effort**: Medium  
@@ -230,6 +254,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Implement basic course management operations.
 
 **Subtasks**:
+
 - [ ] Create Course entity/model
 - [ ] Implement POST /courses (create course)
 - [ ] Implement GET /courses (list courses)
@@ -240,6 +265,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write tests
 
 **Acceptance Criteria**:
+
 - Professors can create courses
 - All users can view active courses
 - Only course owner can update/delete
@@ -248,6 +274,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### COURSE-002: Course Enrollment System
+
 **Service**: Core  
 **Priority**: Critical  
 **Effort**: Medium  
@@ -256,6 +283,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Allow students to enroll in courses.
 
 **Subtasks**:
+
 - [ ] Create Enrollment entity/model
 - [ ] Implement POST /courses/:id/enroll (student enrollment)
 - [ ] Implement DELETE /courses/:id/enroll (unenroll)
@@ -265,6 +293,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write tests
 
 **Acceptance Criteria**:
+
 - Students can enroll in open courses
 - Students can unenroll before deadline
 - Professors can view enrolled students
@@ -273,6 +302,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### COURSE-003: Course Dashboard & Statistics
+
 **Service**: Core  
 **Priority**: High  
 **Effort**: Medium  
@@ -281,6 +311,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Display course statistics for professors.
 
 **Subtasks**:
+
 - [ ] Implement GET /courses/:id/stats
 - [ ] Calculate total enrolled students
 - [ ] Calculate assignment completion rates
@@ -290,6 +321,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write tests
 
 **Acceptance Criteria**:
+
 - Professors see course statistics
 - Statistics update in real-time
 - Performance optimized with caching
@@ -297,6 +329,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### COURSE-004: Announcements System
+
 **Service**: Core  
 **Priority**: High  
 **Effort**: Medium  
@@ -305,6 +338,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Allow professors to post course announcements.
 
 **Subtasks**:
+
 - [ ] Create Announcement entity/model
 - [ ] Implement POST /courses/:id/announcements (create)
 - [ ] Implement GET /courses/:id/announcements (list)
@@ -315,6 +349,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write tests
 
 **Acceptance Criteria**:
+
 - Professors can post announcements
 - Students see announcements in their courses
 - File attachments supported
@@ -323,6 +358,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### COURSE-005: Comments & Discussion System
+
 **Service**: Core  
 **Priority**: Medium  
 **Effort**: Medium  
@@ -331,6 +367,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Enable discussion on announcements.
 
 **Subtasks**:
+
 - [ ] Create Comment entity/model
 - [ ] Implement POST /announcements/:id/comments (create)
 - [ ] Implement GET /announcements/:id/comments (list)
@@ -341,6 +378,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write tests
 
 **Acceptance Criteria**:
+
 - Users can comment on announcements
 - Nested replies supported
 - Users can edit/delete own comments
@@ -351,6 +389,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ## Phase 4: Assignment Management (Week 4-5)
 
 ### ASSIGN-001: Assignment CRUD Operations
+
 **Service**: Core  
 **Priority**: Critical  
 **Effort**: Medium  
@@ -359,6 +398,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Implement assignment creation and management.
 
 **Subtasks**:
+
 - [ ] Create Assignment entity/model
 - [ ] Implement POST /courses/:id/assignments (create)
 - [ ] Implement GET /courses/:id/assignments (list)
@@ -370,6 +410,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write tests
 
 **Acceptance Criteria**:
+
 - Professors can create assignments
 - Students see assignments in their courses
 - Due dates enforced
@@ -378,6 +419,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### ASSIGN-002: Assignment Submission System
+
 **Service**: Core  
 **Priority**: Critical  
 **Effort**: Large  
@@ -386,6 +428,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Allow students to submit assignments.
 
 **Subtasks**:
+
 - [ ] Create Submission entity/model
 - [ ] Implement POST /assignments/:id/submit (create submission)
 - [ ] Implement GET /assignments/:id/submissions (list - professor only)
@@ -398,6 +441,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write tests
 
 **Acceptance Criteria**:
+
 - Students can submit assignments
 - GitHub URLs validated
 - Late submissions marked appropriately
@@ -407,6 +451,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### ASSIGN-003: Manual Grading System
+
 **Service**: Core  
 **Priority**: High  
 **Effort**: Medium  
@@ -415,6 +460,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Allow professors to manually grade submissions.
 
 **Subtasks**:
+
 - [ ] Create Grade entity/model
 - [ ] Implement POST /submissions/:id/grade (create grade)
 - [ ] Implement PUT /grades/:id (update grade)
@@ -426,6 +472,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write tests
 
 **Acceptance Criteria**:
+
 - Professors can grade submissions
 - Grades validated against max points
 - Feedback provided to students
@@ -434,6 +481,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### ASSIGN-004: Student Assignment Dashboard
+
 **Service**: Core + Web  
 **Priority**: High  
 **Effort**: Medium  
@@ -442,6 +490,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Student view of all assignments and submissions.
 
 **Subtasks**:
+
 - [ ] Implement GET /students/assignments (all assignments)
 - [ ] Show assignment status (not submitted, submitted, graded)
 - [ ] Show due dates and late status
@@ -451,6 +500,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write tests
 
 **Acceptance Criteria**:
+
 - Students see all their assignments
 - Status clearly indicated
 - Grades and feedback visible
@@ -459,6 +509,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### ASSIGN-005: Professor Grading Dashboard
+
 **Service**: Core + Web  
 **Priority**: High  
 **Effort**: Medium  
@@ -467,6 +518,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Professor view for grading submissions.
 
 **Subtasks**:
+
 - [ ] Implement GET /professors/submissions (all submissions)
 - [ ] Show submission status (pending, graded)
 - [ ] Show student information
@@ -476,6 +528,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write tests
 
 **Acceptance Criteria**:
+
 - Professors see all submissions
 - AI analysis results visible
 - Bulk actions available
@@ -486,6 +539,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ## Phase 5: AI Code Analysis (Week 5-7)
 
 ### AI-001: GitHub Repository Cloning
+
 **Service**: AI Analysis  
 **Priority**: Critical  
 **Effort**: Medium  
@@ -494,6 +548,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Clone GitHub repositories in isolated Docker containers.
 
 **Subtasks**:
+
 - [ ] Implement Git clone functionality
 - [ ] Create temporary directory structure
 - [ ] Add timeout handling (max 5 minutes)
@@ -504,6 +559,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write tests
 
 **Acceptance Criteria**:
+
 - Public repos cloned successfully
 - Timeouts prevent hanging
 - Temporary files cleaned up
@@ -512,6 +568,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### AI-002: Kilo Code CLI Integration
+
 **Service**: AI Analysis  
 **Priority**: Critical  
 **Effort**: Large  
@@ -520,6 +577,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Integrate Kilo Code CLI for code analysis.
 
 **Subtasks**:
+
 - [ ] Install Kilo Code CLI in Docker container
 - [ ] Execute CLI on cloned repository
 - [ ] Parse CLI output (JSON format)
@@ -529,6 +587,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write tests
 
 **Acceptance Criteria**:
+
 - Kilo Code CLI runs successfully
 - Metrics extracted correctly
 - Errors handled properly
@@ -537,6 +596,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### AI-003: Code Quality Classification Algorithm
+
 **Service**: AI Analysis  
 **Priority**: Critical  
 **Effort**: Large  
@@ -545,6 +605,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Classify code quality based on metrics.
 
 **Subtasks**:
+
 - [ ] Define classification criteria (poor, average, good, excellent)
 - [ ] Implement scoring algorithm
 - [ ] Weight different metrics appropriately
@@ -554,6 +615,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write tests with various code samples
 
 **Acceptance Criteria**:
+
 - Classification algorithm works consistently
 - Scores align with code quality
 - Edge cases handled
@@ -562,6 +624,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### AI-004: OpenAI Integration for Feedback
+
 **Service**: AI Analysis  
 **Priority**: Critical  
 **Effort**: Large  
@@ -570,6 +633,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Generate personalized feedback using OpenAI.
 
 **Subtasks**:
+
 - [ ] Set up OpenAI API client
 - [ ] Create prompt templates for different quality levels
 - [ ] Poor quality → improvement suggestions
@@ -581,6 +645,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write tests (mock OpenAI responses)
 
 **Acceptance Criteria**:
+
 - Feedback generated for all quality levels
 - Feedback is specific and actionable
 - API errors handled gracefully
@@ -589,6 +654,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### AI-005: Analysis Report Generation
+
 **Service**: AI Analysis  
 **Priority**: High  
 **Effort**: Medium  
@@ -597,6 +663,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Generate comprehensive analysis reports.
 
 **Subtasks**:
+
 - [ ] Create report template (HTML/PDF)
 - [ ] Include metrics summary
 - [ ] Include quality classification
@@ -607,6 +674,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write tests
 
 **Acceptance Criteria**:
+
 - Reports generated successfully
 - All sections included
 - PDF format supported
@@ -615,6 +683,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### AI-006: Analysis Status Tracking
+
 **Service**: AI Analysis + Core  
 **Priority**: High  
 **Effort**: Medium  
@@ -623,6 +692,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Track analysis progress and status.
 
 **Subtasks**:
+
 - [ ] Create CodeAnalysis entity/model
 - [ ] Update status: pending → analyzing → completed/failed
 - [ ] Implement GET /analysis/:submissionId/status
@@ -632,6 +702,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write tests
 
 **Acceptance Criteria**:
+
 - Status tracked throughout process
 - Students can check analysis progress
 - Failed analyses can be retried
@@ -642,6 +713,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ## Phase 6: Notification System (Week 6-7)
 
 ### NOTIF-001: Email Service Configuration
+
 **Service**: Notifications  
 **Priority**: Critical  
 **Effort**: Small  
@@ -650,6 +722,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Configure SMTP for sending emails.
 
 **Subtasks**:
+
 - [ ] Set up SMTP client (Gmail/SendGrid)
 - [ ] Configure email templates
 - [ ] Add email validation
@@ -658,6 +731,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write tests (mock SMTP)
 
 **Acceptance Criteria**:
+
 - Emails sent successfully
 - Templates render correctly
 - Failed sends retried
@@ -666,6 +740,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### NOTIF-002: Email Templates
+
 **Service**: Notifications  
 **Priority**: High  
 **Effort**: Medium  
@@ -674,6 +749,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Create email templates for all notification types.
 
 **Subtasks**:
+
 - [ ] Welcome email (registration)
 - [ ] Assignment created notification
 - [ ] Assignment due reminder
@@ -685,6 +761,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write tests
 
 **Acceptance Criteria**:
+
 - All templates created
 - HTML and plain text versions
 - Templates use variables correctly
@@ -693,6 +770,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### NOTIF-003: Notification Triggers
+
 **Service**: All Services  
 **Priority**: High  
 **Effort**: Medium  
@@ -701,6 +779,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Trigger notifications from various services.
 
 **Subtasks**:
+
 - [ ] Core → Notifications: assignment created
 - [ ] Core → Notifications: announcement posted
 - [ ] Core → Notifications: grade published
@@ -710,6 +789,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write tests
 
 **Acceptance Criteria**:
+
 - Notifications triggered correctly
 - No duplicate notifications
 - Batching works for multiple events
@@ -718,6 +798,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### NOTIF-004: In-App Notifications (Optional)
+
 **Service**: Notifications + Web  
 **Priority**: Low  
 **Effort**: Large  
@@ -726,6 +807,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Display notifications within the application.
 
 **Subtasks**:
+
 - [ ] Create Notification entity/model
 - [ ] Implement POST /notifications (create)
 - [ ] Implement GET /notifications (list user notifications)
@@ -735,6 +817,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write tests
 
 **Acceptance Criteria**:
+
 - In-app notifications displayed
 - Real-time updates work
 - Notifications marked as read
@@ -745,6 +828,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ## Phase 7: Web Frontend Development (Week 3-8)
 
 ### WEB-001: Authentication Pages
+
 **Service**: Web  
 **Priority**: Critical  
 **Effort**: Medium  
@@ -753,6 +837,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Create login and registration pages.
 
 **Subtasks**:
+
 - [ ] Design login page UI
 - [ ] Design registration page UI
 - [ ] Implement form validation
@@ -765,6 +850,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write component tests
 
 **Acceptance Criteria**:
+
 - Users can login and register
 - Form validation works
 - JWT token stored securely
@@ -774,6 +860,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### WEB-002: Navigation & Layout
+
 **Service**: Web  
 **Priority**: Critical  
 **Effort**: Medium  
@@ -782,6 +869,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Create main navigation and layout components.
 
 **Subtasks**:
+
 - [ ] Design header with navigation
 - [ ] Design sidebar (optional)
 - [ ] Implement responsive menu
@@ -792,6 +880,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write component tests
 
 **Acceptance Criteria**:
+
 - Navigation works on all pages
 - Responsive on mobile/tablet/desktop
 - Protected routes redirect to login
@@ -800,6 +889,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### WEB-003: Home Dashboard
+
 **Service**: Web  
 **Priority**: High  
 **Effort**: Medium  
@@ -808,6 +898,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Create personalized home dashboard.
 
 **Subtasks**:
+
 - [ ] Design dashboard layout
 - [ ] Show enrolled courses (students)
 - [ ] Show teaching courses (professors)
@@ -818,6 +909,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write component tests
 
 **Acceptance Criteria**:
+
 - Dashboard shows relevant information
 - Different views for students/professors
 - Quick actions work
@@ -826,6 +918,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### WEB-004: Course Pages
+
 **Service**: Web  
 **Priority**: High  
 **Effort**: Large  
@@ -834,6 +927,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Create course listing and detail pages.
 
 **Subtasks**:
+
 - [ ] Design course list page
 - [ ] Design course detail page
 - [ ] Show course information
@@ -845,6 +939,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write component tests
 
 **Acceptance Criteria**:
+
 - Course list displays correctly
 - Course details show all information
 - Enrollment works
@@ -853,6 +948,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### WEB-005: Assignment Pages
+
 **Service**: Web  
 **Priority**: High  
 **Effort**: Large  
@@ -861,6 +957,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Create assignment pages for students and professors.
 
 **Subtasks**:
+
 - [ ] Design assignment list page
 - [ ] Design assignment detail page
 - [ ] Design submission form
@@ -873,6 +970,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write component tests
 
 **Acceptance Criteria**:
+
 - Students can view and submit assignments
 - Professors can view submissions
 - File uploads work
@@ -881,6 +979,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### WEB-006: Grading Interface
+
 **Service**: Web  
 **Priority**: High  
 **Effort**: Large  
@@ -889,6 +988,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Create grading interface for professors.
 
 **Subtasks**:
+
 - [ ] Design grading page
 - [ ] Show submission details
 - [ ] Show AI analysis results
@@ -900,6 +1000,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write component tests
 
 **Acceptance Criteria**:
+
 - Professors can grade submissions
 - AI results visible during grading
 - Feedback saved correctly
@@ -908,6 +1009,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### WEB-007: Admin Dashboard
+
 **Service**: Web  
 **Priority**: Medium  
 **Effort**: Medium  
@@ -916,6 +1018,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Create admin dashboard for user management.
 
 **Subtasks**:
+
 - [ ] Design admin dashboard
 - [ ] Show user list with pagination
 - [ ] Add user search and filters
@@ -926,6 +1029,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write component tests
 
 **Acceptance Criteria**:
+
 - Admins can manage users
 - Search and filters work
 - Role assignment functional
@@ -934,6 +1038,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### WEB-008: Profile Pages
+
 **Service**: Web  
 **Priority**: Medium  
 **Effort**: Medium  
@@ -942,6 +1047,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Create user profile pages.
 
 **Subtasks**:
+
 - [ ] Design profile view page
 - [ ] Design profile edit page
 - [ ] Show user information
@@ -951,6 +1057,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Write component tests
 
 **Acceptance Criteria**:
+
 - Users can view their profile
 - Users can edit profile information
 - Password change works
@@ -961,6 +1068,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ## Phase 8: Testing & Quality Assurance (Week 7-8)
 
 ### TEST-001: Unit Test Coverage
+
 **Service**: All  
 **Priority**: High  
 **Effort**: Large  
@@ -969,6 +1077,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Achieve minimum 80% unit test coverage.
 
 **Subtasks**:
+
 - [ ] Write unit tests for Gateway service
 - [ ] Write unit tests for Core service
 - [ ] Write unit tests for AI Analysis service
@@ -978,6 +1087,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Fix failing tests
 
 **Acceptance Criteria**:
+
 - 80%+ coverage for all services
 - All tests passing
 - Coverage reports generated
@@ -985,6 +1095,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### TEST-002: Integration Testing
+
 **Service**: All  
 **Priority**: High  
 **Effort**: Large  
@@ -993,6 +1104,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Test service-to-service communication.
 
 **Subtasks**:
+
 - [ ] Write integration tests for authentication flow
 - [ ] Write integration tests for course management
 - [ ] Write integration tests for assignment submission
@@ -1002,6 +1114,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Create test data fixtures
 
 **Acceptance Criteria**:
+
 - All integration tests passing
 - End-to-end flows tested
 - Test data isolated
@@ -1009,6 +1122,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### TEST-003: End-to-End Testing
+
 **Service**: Web  
 **Priority**: Medium  
 **Effort**: Medium  
@@ -1017,6 +1131,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Test complete user workflows.
 
 **Subtasks**:
+
 - [ ] Set up E2E testing framework (Cypress/Playwright)
 - [ ] Write E2E test for student registration and login
 - [ ] Write E2E test for course enrollment
@@ -1026,6 +1141,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Run tests in CI/CD pipeline
 
 **Acceptance Criteria**:
+
 - All E2E tests passing
 - Tests run in CI/CD
 - Critical user flows covered
@@ -1033,6 +1149,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### TEST-004: Performance Testing
+
 **Service**: All  
 **Priority**: Medium  
 **Effort**: Medium  
@@ -1041,6 +1158,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Test system performance under load.
 
 **Subtasks**:
+
 - [ ] Set up load testing tool (JMeter/k6)
 - [ ] Test API endpoint response times
 - [ ] Test concurrent user handling
@@ -1050,6 +1168,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Add caching where needed
 
 **Acceptance Criteria**:
+
 - API response times < 500ms
 - System handles 100+ concurrent users
 - Database queries optimized
@@ -1058,6 +1177,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### TEST-005: Security Testing
+
 **Service**: All  
 **Priority**: High  
 **Effort**: Medium  
@@ -1066,6 +1186,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Test security vulnerabilities.
 
 **Subtasks**:
+
 - [ ] Test SQL injection vulnerabilities
 - [ ] Test XSS vulnerabilities
 - [ ] Test CSRF protection
@@ -1076,6 +1197,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Fix identified vulnerabilities
 
 **Acceptance Criteria**:
+
 - No critical vulnerabilities
 - All security tests passing
 - Security scanner report clean
@@ -1085,6 +1207,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ## Phase 9: Documentation & Deployment (Week 8)
 
 ### DOC-001: API Documentation
+
 **Service**: All  
 **Priority**: High  
 **Effort**: Medium  
@@ -1093,6 +1216,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Complete API documentation.
 
 **Subtasks**:
+
 - [ ] Document all Gateway endpoints
 - [ ] Document all Core endpoints
 - [ ] Document all AI Analysis endpoints
@@ -1103,6 +1227,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Update `/docs/API.md`
 
 **Acceptance Criteria**:
+
 - All endpoints documented
 - Examples provided
 - Swagger UI accessible
@@ -1110,6 +1235,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### DOC-002: User Documentation
+
 **Service**: Web  
 **Priority**: Medium  
 **Effort**: Medium  
@@ -1118,6 +1244,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Create user guides and help documentation.
 
 **Subtasks**:
+
 - [ ] Write student user guide
 - [ ] Write professor user guide
 - [ ] Write admin user guide
@@ -1126,6 +1253,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Create FAQ section
 
 **Acceptance Criteria**:
+
 - User guides complete
 - Help accessible in app
 - FAQ covers common questions
@@ -1133,6 +1261,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### DOC-003: Developer Documentation
+
 **Service**: All  
 **Priority**: Medium  
 **Effort**: Medium  
@@ -1141,6 +1270,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Document codebase for future developers.
 
 **Subtasks**:
+
 - [ ] Add code comments
 - [ ] Document architecture decisions
 - [ ] Create contribution guidelines
@@ -1149,6 +1279,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Update README files
 
 **Acceptance Criteria**:
+
 - Code well-commented
 - Architecture documented
 - Deployment process clear
@@ -1156,6 +1287,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### DEPLOY-001: Production Environment Setup
+
 **Service**: All  
 **Priority**: High  
 **Effort**: Large  
@@ -1164,6 +1296,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Set up production environment.
 
 **Subtasks**:
+
 - [ ] Choose hosting provider (AWS/Azure/GCP)
 - [ ] Set up production database
 - [ ] Configure environment variables
@@ -1174,6 +1307,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Create backup strategy
 
 **Acceptance Criteria**:
+
 - Production environment ready
 - SSL configured
 - Domain accessible
@@ -1182,6 +1316,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 ---
 
 ### DEPLOY-002: CI/CD Pipeline Enhancement
+
 **Service**: All  
 **Priority**: Medium  
 **Effort**: Medium  
@@ -1190,6 +1325,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 **Description**: Enhance CI/CD for production deployment.
 
 **Subtasks**:
+
 - [ ] Add production deployment stage
 - [ ] Add manual approval step
 - [ ] Add rollback mechanism
@@ -1198,6 +1334,7 @@ This document provides a comprehensive task breakdown for the Committed platform
 - [ ] Test deployment process
 
 **Acceptance Criteria**:
+
 - Automated deployment works
 - Rollback mechanism tested
 - Health checks pass
@@ -1208,17 +1345,20 @@ This document provides a comprehensive task breakdown for the Committed platform
 ## Summary Statistics
 
 ### By Priority
+
 - **Critical**: 20 tasks
 - **High**: 18 tasks
 - **Medium**: 14 tasks
 - **Low**: 1 task
 
 ### By Effort
+
 - **Small**: 5 tasks
 - **Medium**: 30 tasks
 - **Large**: 18 tasks
 
 ### By Service
+
 - **Gateway**: 5 tasks
 - **Core**: 15 tasks
 - **AI Analysis**: 6 tasks
@@ -1231,21 +1371,25 @@ This document provides a comprehensive task breakdown for the Committed platform
 ## Recommended Team Assignment
 
 ### Developer 1 (Java/Spring Boot Expert)
+
 - **Primary**: Gateway Service
 - **Tasks**: AUTH-001 to AUTH-005, INFRA-003
 - **Backup**: Help with Core service integration
 
 ### Developer 2 (PHP/Symfony Expert)
+
 - **Primary**: Core Service
 - **Tasks**: COURSE-001 to COURSE-005, ASSIGN-001 to ASSIGN-005
 - **Backup**: Help with database optimization
 
 ### Developer 3 (Python Expert)
+
 - **Primary**: AI Analysis Service
 - **Tasks**: AI-001 to AI-006
 - **Backup**: Help with Notifications service
 
 ### Developer 4 (Frontend/Full-stack)
+
 - **Primary**: Web Frontend + Notifications
 - **Tasks**: WEB-001 to WEB-008, NOTIF-001 to NOTIF-004
 - **Backup**: Help with integration testing
@@ -1270,17 +1414,15 @@ Any delays in these tasks will impact the overall project timeline.
 ## Risk Mitigation
 
 ### High-Risk Areas
+
 1. **AI Analysis Integration**: Complex, depends on external CLI tool
-   - **Mitigation**: Start early, create mock responses for testing
-   
+    - **Mitigation**: Start early, create mock responses for testing
 2. **OpenAI API**: Rate limits and costs
-   - **Mitigation**: Implement caching, use cheaper models for testing
-   
+    - **Mitigation**: Implement caching, use cheaper models for testing
 3. **Performance**: Multiple services, database queries
-   - **Mitigation**: Early performance testing, implement caching
-   
+    - **Mitigation**: Early performance testing, implement caching
 4. **Team Coordination**: 4 developers, multiple services
-   - **Mitigation**: Clear API contracts, regular sync meetings
+    - **Mitigation**: Clear API contracts, regular sync meetings
 
 ---
 

@@ -22,10 +22,33 @@ function StatusBadge({ status }) {
     );
 }
 
+function HealthBadge({ ok }) {
+    return (
+        <span
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold ${
+                ok
+                    ? "bg-secondary-100 text-secondary-700"
+                    : "bg-red-100 text-error"
+            }`}
+        >
+            <span
+                className={`h-2 w-2 rounded-full ${
+                    ok ? "bg-success" : "bg-error"
+                }`}
+            />
+            {ok ? "Healthy" : "Unhealthy"}
+        </span>
+    );
+}
+
 function App() {
     const [chainStatus, setChainStatus] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+
+    const [healthData, setHealthData] = useState(null);
+    const [healthLoading, setHealthLoading] = useState(false);
+    const [healthError, setHealthError] = useState(null);
 
     const testChain = async () => {
         setLoading(true);
@@ -65,6 +88,46 @@ function App() {
         }
     };
 
+    const testCoreHealth = async () => {
+        setHealthLoading(true);
+        setHealthError(null);
+        try {
+            const response = await fetch(`${API_URL}/core/health`);
+
+            const contentType = response.headers.get("content-type") || "";
+
+            if (!contentType.includes("application/json")) {
+                throw new Error(
+                    `Core service is not reachable — received ${contentType || "non-JSON"} response (HTTP ${response.status}). ` +
+                        "Make sure the core service is running.",
+                );
+            }
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(
+                    data?.database?.error ||
+                        `Core returned HTTP ${response.status}`,
+                );
+            }
+
+            setHealthData(data);
+        } catch (err) {
+            if (err.name === "TypeError" && err.message === "Failed to fetch") {
+                setHealthError(
+                    "Could not connect to the Core service. Make sure it is running " +
+                        "(Docker: docker compose up core).",
+                );
+            } else {
+                setHealthError(err.message);
+            }
+            setHealthData(null);
+        } finally {
+            setHealthLoading(false);
+        }
+    };
+
     return (
         <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-4 py-6 font-body sm:px-6 lg:px-8">
             {/* Header */}
@@ -79,11 +142,209 @@ function App() {
 
             {/* Main Content */}
             <main className="flex-1 space-y-10">
+                {/* Core Healthcheck Section */}
+                <section className="animate-slide-up rounded-xl bg-white p-6 shadow-elevated ring-1 ring-neutral-200">
+                    <h2 className="mb-4 font-display text-2xl font-bold text-neutral-800">
+                        Core Service Healthcheck
+                    </h2>
+                    <p className="mb-5 text-sm text-neutral-500">
+                        Tests the Symfony Core service and its Doctrine
+                        connection to PostgreSQL.
+                    </p>
+
+                    <button
+                        onClick={testCoreHealth}
+                        disabled={healthLoading}
+                        className="inline-flex items-center gap-2 rounded-lg bg-secondary-500 px-6 py-3 text-base font-medium text-white shadow-elegant transition ease-smooth hover:bg-secondary-600 focus:outline-none focus:ring-2 focus:ring-secondary-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        {healthLoading && (
+                            <svg
+                                className="h-5 w-5 animate-spin"
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                            >
+                                <circle
+                                    className="opacity-25"
+                                    cx="12"
+                                    cy="12"
+                                    r="10"
+                                    stroke="currentColor"
+                                    strokeWidth="4"
+                                />
+                                <path
+                                    className="opacity-75"
+                                    fill="currentColor"
+                                    d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                                />
+                            </svg>
+                        )}
+                        {healthLoading ? "Checking…" : "Test Core + Database"}
+                    </button>
+
+                    {/* Health Error */}
+                    {healthError && (
+                        <div className="animate-scale-in mt-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-error">
+                            <strong>Error:</strong> {healthError}
+                        </div>
+                    )}
+
+                    {/* Health Result */}
+                    {healthData && (
+                        <div className="animate-scale-in mt-6 space-y-6">
+                            {/* Status Overview */}
+                            <div className="rounded-lg border border-neutral-100 bg-neutral-50 p-5 shadow-elegant">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="font-display text-lg font-semibold text-neutral-800">
+                                        Status Overview
+                                    </h3>
+                                    <HealthBadge
+                                        ok={healthData.status === "ok"}
+                                    />
+                                </div>
+
+                                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                                    <div className="rounded-lg border border-neutral-200 bg-white p-4 text-center">
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400">
+                                            Database
+                                        </p>
+                                        <p
+                                            className={`mt-1 text-lg font-bold ${healthData.database?.connected ? "text-success" : "text-error"}`}
+                                        >
+                                            {healthData.database?.connected
+                                                ? "Connected"
+                                                : "Disconnected"}
+                                        </p>
+                                        <p className="mt-0.5 text-xs text-neutral-400">
+                                            {healthData.database?.driver}
+                                        </p>
+                                    </div>
+                                    <div className="rounded-lg border border-neutral-200 bg-white p-4 text-center">
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400">
+                                            Tables
+                                        </p>
+                                        <p className="mt-1 text-lg font-bold text-primary-600">
+                                            {healthData.database
+                                                ?.tables_count ?? "—"}
+                                        </p>
+                                        <p className="mt-0.5 text-xs text-neutral-400">
+                                            in public schema
+                                        </p>
+                                    </div>
+                                    <div className="rounded-lg border border-neutral-200 bg-white p-4 text-center">
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400">
+                                            Users
+                                        </p>
+                                        <p className="mt-1 text-lg font-bold text-primary-600">
+                                            {healthData.users?.total_count ??
+                                                "—"}
+                                        </p>
+                                        <p className="mt-0.5 text-xs text-neutral-400">
+                                            total records
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Users Table */}
+                            {healthData.users?.sample?.length > 0 && (
+                                <div className="rounded-lg border border-neutral-100 bg-neutral-50 p-5 shadow-elegant">
+                                    <h3 className="mb-3 font-display text-lg font-semibold text-neutral-800">
+                                        Users Sample
+                                    </h3>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-sm">
+                                            <thead>
+                                                <tr className="border-b border-neutral-200 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                                                    <th className="px-3 py-2">
+                                                        ID
+                                                    </th>
+                                                    <th className="px-3 py-2">
+                                                        Full Name
+                                                    </th>
+                                                    <th className="px-3 py-2">
+                                                        Email
+                                                    </th>
+                                                    <th className="px-3 py-2">
+                                                        Role
+                                                    </th>
+                                                    <th className="px-3 py-2">
+                                                        Active
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-neutral-100">
+                                                {healthData.users.sample.map(
+                                                    (user) => (
+                                                        <tr
+                                                            key={user.user_id}
+                                                            className="transition ease-smooth hover:bg-white"
+                                                        >
+                                                            <td className="px-3 py-2.5 font-mono text-xs text-neutral-500">
+                                                                {user.user_id}
+                                                            </td>
+                                                            <td className="px-3 py-2.5 font-medium text-neutral-800">
+                                                                {user.full_name}
+                                                            </td>
+                                                            <td className="px-3 py-2.5 text-neutral-600">
+                                                                {user.email}
+                                                            </td>
+                                                            <td className="px-3 py-2.5">
+                                                                <span
+                                                                    className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                                                                        user.system_role ===
+                                                                        "admin"
+                                                                            ? "bg-primary-100 text-primary-700"
+                                                                            : "bg-neutral-100 text-neutral-600"
+                                                                    }`}
+                                                                >
+                                                                    {
+                                                                        user.system_role
+                                                                    }
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-3 py-2.5">
+                                                                {user.is_active ? (
+                                                                    <span className="text-success">
+                                                                        ✓
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-error">
+                                                                        ✗
+                                                                    </span>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    ),
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Timestamp */}
+                            {healthData.timestamp && (
+                                <p className="text-right text-xs text-neutral-400">
+                                    Checked at:{" "}
+                                    {new Date(
+                                        healthData.timestamp,
+                                    ).toLocaleString()}
+                                </p>
+                            )}
+                        </div>
+                    )}
+                </section>
+
                 {/* Service Status Section */}
                 <section className="animate-slide-up rounded-xl bg-white p-6 shadow-elevated ring-1 ring-neutral-200">
                     <h2 className="mb-4 font-display text-2xl font-bold text-neutral-800">
-                        Service Status
+                        Service Chain Test
                     </h2>
+                    <p className="mb-5 text-sm text-neutral-500">
+                        Tests the full chain: Web → Gateway → all backend
+                        services.
+                    </p>
 
                     <button
                         onClick={testChain}
@@ -225,7 +486,7 @@ function App() {
 
                         {/* Database */}
                         <div className="w-full max-w-md rounded-lg bg-primary-500 px-6 py-4 text-center font-medium text-white shadow-elegant transition ease-smooth hover:bg-primary-600">
-                            Oracle Database (Port 1521)
+                            🐘 PostgreSQL Database (Port 5432)
                         </div>
                     </div>
                 </section>

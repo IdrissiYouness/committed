@@ -6,7 +6,7 @@
 
 - .NET 8.0
 - ASP.NET Core Web API
-- Oracle.ManagedDataAccess.Core
+- Npgsql (PostgreSQL)
 
 ## IDE Setup (VSCode)
 
@@ -24,6 +24,7 @@ dotnet restore
 ### Launch Configuration
 
 Create `.vscode/launch.json`:
+
 ```json
 {
     "version": "0.2.0",
@@ -47,6 +48,7 @@ Create `.vscode/launch.json`:
 ```
 
 Create `.vscode/tasks.json`:
+
 ```json
 {
     "version": "2.0.0",
@@ -69,11 +71,10 @@ Create `.vscode/tasks.json`:
 
 ## Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/health` | Health check endpoint |
-| GET | `/db-test` | Database connectivity test |
-| POST | `/notify` | Send notification (placeholder) |
+| Method | Path      | Description           |
+| ------ | --------- | --------------------- |
+| GET    | `/health` | Health check endpoint |
+| POST   | `/notify` | Send notification     |
 
 ## Local Development
 
@@ -100,13 +101,13 @@ docker run -p 5001:5001 committed-notifications
 
 ## Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| ConnectionStrings__OracleDb | Oracle connection string | (required) |
-| SmtpSettings__Host | SMTP server host | smtp.gmail.com |
-| SmtpSettings__Port | SMTP server port | 587 |
-| SmtpSettings__Username | SMTP username | (required) |
-| SmtpSettings__Password | SMTP password | (required) |
-| SmtpSettings__FromEmail | Sender email | noreply@committed.com |
-| SmtpSettings__FromName | Sender name | Committed Platform |
-| ASPNETCORE_URLS | Server URL | http://+:5001 |
+| Variable                               | Description                  | Default                                                                                           |
+| -------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------- |
+| ConnectionStrings\_\_DefaultConnection | PostgreSQL connection string | Host=postgres-db;Port=5432;Database=committed_core;Username=core_user;Password=CoreSecurePass123! |
+| SmtpSettings\_\_Host                   | SMTP server host             | smtp.gmail.com                                                                                    |
+| SmtpSettings\_\_Port                   | SMTP server port             | 587                                                                                               |
+| SmtpSettings\_\_Username               | SMTP username                | (required)                                                                                        |
+| SmtpSettings\_\_Password               | SMTP password                | (required)                                                                                        |
+| SmtpSettings\_\_FromEmail              | Sender email                 | noreply@committed.com                                                                             |
+| SmtpSettings\_\_FromName               | Sender name                  | Committed Platform                                                                                |
+| ASPNETCORE_URLS                        | Server URL                   | http://+:5001                                                                                     |

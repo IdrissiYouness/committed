@@ -1,5 +1,5 @@
 -- ============================================================================
--- Committed Example SQL Queries
+-- Committed Example SQL Queries (PostgreSQL)
 -- File: 04_example_queries.sql
 -- Reference file with useful queries for development
 -- ============================================================================
@@ -27,7 +27,7 @@ WHERE user_id = 5;
 SELECT u.user_id, u.email, u.full_name
 FROM users u
 WHERE EXISTS (
-    SELECT 1 FROM enrollment e 
+    SELECT 1 FROM enrollment e
     WHERE e.user_id = u.user_id AND e.course_role = 'professor'
 );
 
@@ -44,7 +44,7 @@ WHERE e.course_role = 'student';
 -- Get all active courses
 SELECT course_id, course_code, course_name, section, subject, teacher_id
 FROM course
-WHERE is_active = 1
+WHERE is_active = TRUE
 ORDER BY course_code;
 
 -- Get course with teacher info
@@ -52,7 +52,7 @@ SELECT c.course_id, c.course_code, c.course_name, c.description,
        u.full_name AS teacher_name, u.email AS teacher_email
 FROM course c
 JOIN users u ON c.teacher_id = u.user_id
-WHERE c.is_active = 1;
+WHERE c.is_active = TRUE;
 
 -- Get course by ID with full details
 SELECT c.*, u.full_name AS teacher_name
@@ -63,7 +63,7 @@ WHERE c.course_id = 1;
 -- Get courses by subject
 SELECT course_id, course_code, course_name
 FROM course
-WHERE subject = 'Computer Science' AND is_active = 1;
+WHERE subject = 'Computer Science' AND is_active = TRUE;
 
 -- ============================================================================
 -- ENROLLMENT QUERIES
@@ -77,7 +77,7 @@ JOIN course c ON e.course_id = c.course_id
 JOIN users u ON c.teacher_id = u.user_id
 WHERE e.user_id = 5  -- Alice's user_id
   AND e.course_role = 'student'
-  AND c.is_active = 1
+  AND c.is_active = TRUE
 ORDER BY c.course_name;
 
 -- Get all students in a course
@@ -133,7 +133,7 @@ ORDER BY a.posted_at DESC;
 SELECT a.announcement_id, a.title, c.course_code, a.posted_at
 FROM announcement a
 JOIN course c ON a.course_id = c.course_id
-WHERE a.posted_at >= CURRENT_TIMESTAMP - INTERVAL '7' DAY
+WHERE a.posted_at >= NOW() - INTERVAL '7 days'
 ORDER BY a.posted_at DESC;
 
 -- ============================================================================
@@ -193,7 +193,7 @@ JOIN course c ON a.course_id = c.course_id
 WHERE a.course_id IN (
     SELECT course_id FROM enrollment WHERE user_id = 5 AND course_role = 'student'
 )
-AND a.due_date > CURRENT_TIMESTAMP
+AND a.due_date > NOW()
 ORDER BY a.due_date;
 
 -- Get overdue assignments for a student
@@ -203,9 +203,9 @@ JOIN course c ON a.course_id = c.course_id
 WHERE a.course_id IN (
     SELECT course_id FROM enrollment WHERE user_id = 5 AND course_role = 'student'
 )
-AND a.due_date < CURRENT_TIMESTAMP
+AND a.due_date < NOW()
 AND NOT EXISTS (
-    SELECT 1 FROM submission s 
+    SELECT 1 FROM submission s
     WHERE s.assignment_id = a.assignment_id AND s.student_id = 5
 )
 ORDER BY a.due_date;
@@ -249,7 +249,7 @@ GROUP BY status;
 
 -- Get all grades for a student
 SELECT a.title AS assignment_title, c.course_code,
-       g.points_earned, g.max_points, 
+       g.points_earned, g.max_points,
        ROUND(g.points_earned / g.max_points * 100, 2) AS percentage,
        g.feedback
 FROM grade g
@@ -270,7 +270,7 @@ WHERE c.course_id = 1
 GROUP BY c.course_id, c.course_code, c.course_name;
 
 -- Get ungraded submissions for a professor
-SELECT s.submission_id, a.title AS assignment_title, 
+SELECT s.submission_id, a.title AS assignment_title,
        u.full_name AS student_name, s.submitted_at
 FROM submission s
 JOIN assignment a ON s.assignment_id = a.assignment_id
@@ -294,9 +294,9 @@ WHERE user_id = 5 AND course_role = 'student';
 SELECT COUNT(*) AS upcoming_assignments
 FROM assignment a
 JOIN enrollment e ON a.course_id = e.course_id
-WHERE e.user_id = 5 
+WHERE e.user_id = 5
   AND e.course_role = 'student'
-  AND a.due_date > CURRENT_TIMESTAMP;
+  AND a.due_date > NOW();
 
 -- Professor dashboard: courses taught, pending submissions
 -- Courses taught
@@ -316,64 +316,65 @@ WHERE a.created_by = 2
 -- SEARCH QUERIES
 -- ============================================================================
 
--- Search courses by name or code
+-- Search courses by name or code (ILIKE = case-insensitive LIKE)
 SELECT course_id, course_code, course_name, description
 FROM course
-WHERE UPPER(course_name) LIKE UPPER('%programming%')
-   OR UPPER(course_code) LIKE UPPER('%CS%');
+WHERE course_name ILIKE '%programming%'
+   OR course_code ILIKE '%CS%';
 
 -- Search users by name or email
 SELECT user_id, email, full_name
 FROM users
-WHERE UPPER(full_name) LIKE UPPER('%smith%')
-   OR UPPER(email) LIKE UPPER('%smith%');
+WHERE full_name ILIKE '%smith%'
+   OR email ILIKE '%smith%';
 
 -- Search announcements by content
 SELECT a.announcement_id, a.title, c.course_code
 FROM announcement a
 JOIN course c ON a.course_id = c.course_id
-WHERE UPPER(a.title) LIKE UPPER('%welcome%')
-   OR UPPER(a.content) LIKE UPPER('%welcome%');
+WHERE a.title ILIKE '%welcome%'
+   OR a.content ILIKE '%welcome%';
 
 -- ============================================================================
 -- PAGINATION EXAMPLE
 -- ============================================================================
 
 -- Get announcements with pagination (page 1, 10 per page)
-SELECT * FROM (
-    SELECT a.*, ROWNUM AS rn
-    FROM (
-        SELECT announcement_id, title, posted_at
-        FROM announcement
-        WHERE course_id = 1
-        ORDER BY posted_at DESC
-    ) a
-    WHERE ROWNUM <= 10  -- page_size * page_number
-)
-WHERE rn > 0;  -- page_size * (page_number - 1)
+SELECT announcement_id, title, posted_at
+FROM announcement
+WHERE course_id = 1
+ORDER BY posted_at DESC
+LIMIT 10 OFFSET 0;  -- OFFSET = page_size * (page_number - 1)
+
+-- Page 2 example
+SELECT announcement_id, title, posted_at
+FROM announcement
+WHERE course_id = 1
+ORDER BY posted_at DESC
+LIMIT 10 OFFSET 10;
 
 -- ============================================================================
 -- USEFUL AGGREGATIONS
 -- ============================================================================
 
 -- Course statistics
-SELECT 
+SELECT
     c.course_code,
     c.course_name,
     (SELECT COUNT(*) FROM enrollment e WHERE e.course_id = c.course_id AND e.course_role = 'student') AS student_count,
     (SELECT COUNT(*) FROM announcement a WHERE a.course_id = c.course_id) AS announcement_count,
     (SELECT COUNT(*) FROM assignment a WHERE a.course_id = c.course_id) AS assignment_count
 FROM course c
-WHERE c.is_active = 1;
+WHERE c.is_active = TRUE;
 
 -- Student progress in a course
-SELECT 
+SELECT
     u.full_name,
     (SELECT COUNT(*) FROM assignment a WHERE a.course_id = 1) AS total_assignments,
-    (SELECT COUNT(*) FROM submission s 
-     JOIN assignment a ON s.assignment_id = a.assignment_id 
+    (SELECT COUNT(*) FROM submission s
+     JOIN assignment a ON s.assignment_id = a.assignment_id
      WHERE a.course_id = 1 AND s.student_id = u.user_id) AS submitted,
-    (SELECT COUNT(*) FROM grade g 
+    (SELECT COUNT(*) FROM grade g
      JOIN submission s ON g.submission_id = s.submission_id
      JOIN assignment a ON s.assignment_id = a.assignment_id
      WHERE a.course_id = 1 AND s.student_id = u.user_id) AS graded

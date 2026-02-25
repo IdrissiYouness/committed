@@ -4,7 +4,7 @@
 
 This plan outlines the steps to initialize the Committed microservices project structure, Docker configuration, and create minimal "hello world" services that demonstrate end-to-end connectivity.
 
-**End Goal**: Be able to `curl` a request to the Gateway service and receive a response after the Gateway connects with Core, and Core connects with the Oracle database.
+**End Goal**: Be able to `curl` a request to the Gateway service and receive a response after the Gateway connects with Core, and Core connects with the PostgreSQL database.
 
 ## Architecture Diagram
 
@@ -13,7 +13,7 @@ flowchart TB
     subgraph External
         Client[Client/Browser]
     end
-    
+
     subgraph Docker Network: committed-network
         Nginx[Nginx :80]
         Gateway[Gateway - Java Spring Boot :8080]
@@ -21,21 +21,21 @@ flowchart TB
         Analyzer[Code Analyzer - Python Flask :5000]
         Notifications[Notifications - .NET Core :5001]
         Web[Web - React :3000]
-        Oracle[(Oracle DB :1521)]
+        PostgreSQL[(PostgreSQL DB :5432)]
     end
-    
+
     Client --> Nginx
     Nginx -->|/api/*| Gateway
     Nginx -->|/*| Web
     Gateway --> Core
     Gateway --> Analyzer
     Gateway --> Notifications
-    Core --> Oracle
+    Core --> PostgreSQL
     Core --> Analyzer
     Core --> Notifications
     Analyzer --> Notifications
-    Analyzer --> Oracle
-    Notifications --> Oracle
+    Analyzer --> PostgreSQL
+    Notifications --> PostgreSQL
 ```
 
 ## Project Structure
@@ -53,67 +53,69 @@ committed/
 │   │   └── nginx.conf
 │   └── db/
 ```
-│       └── init.sql
+
+│ └── init.sql
 │
 ├── services/
-│   ├── gateway/                 # Java Spring Boot - IntelliJ IDEA
-│   │   ├── Dockerfile
-│   │   ├── README.md
-│   │   ├── pom.xml
-│   │   └── src/
-│   │       └── main/
-│   │           ├── java/com/committed/gateway/
-│   │           │   ├── GatewayApplication.java
-│   │           │   └── controller/
-│   │           │       └── HealthController.java
-│   │           └── resources/
-│   │               └── application.yml
-│   │
-│   ├── core/                    # PHP Symfony - PhpStorm
-│   │   ├── Dockerfile
-│   │   ├── README.md
-│   │   ├── composer.json
-│   │   ├── public/
-│   │   │   └── index.php
-│   │   ├── config/
-│   │   └── src/
-│   │       └── Controller/
-│   │           └── HealthController.php
-│   │
-│   ├── code-analyzer/           # Python Flask - VSCode
-│   │   ├── Dockerfile
-│   │   ├── README.md
-│   │   ├── requirements.txt
-│   │   ├── app.py
-│   │   └── config.py
-│   │
-│   └── notifications/           # .NET Core - VSCode
-│       ├── Dockerfile
-│       ├── README.md
-│       ├── Notifications.csproj
-│       ├── Program.cs
-│       └── Controllers/
-│           └── HealthController.cs
+│ ├── gateway/ # Java Spring Boot - IntelliJ IDEA
+│ │ ├── Dockerfile
+│ │ ├── README.md
+│ │ ├── pom.xml
+│ │ └── src/
+│ │ └── main/
+│ │ ├── java/com/committed/gateway/
+│ │ │ ├── GatewayApplication.java
+│ │ │ └── controller/
+│ │ │ └── HealthController.java
+│ │ └── resources/
+│ │ └── application.yml
+│ │
+│ ├── core/ # PHP Symfony - PhpStorm
+│ │ ├── Dockerfile
+│ │ ├── README.md
+│ │ ├── composer.json
+│ │ ├── public/
+│ │ │ └── index.php
+│ │ ├── config/
+│ │ └── src/
+│ │ └── Controller/
+│ │ └── HealthController.php
+│ │
+│ ├── code-analyzer/ # Python Flask - VSCode
+│ │ ├── Dockerfile
+│ │ ├── README.md
+│ │ ├── requirements.txt
+│ │ ├── app.py
+│ │ └── config.py
+│ │
+│ └── notifications/ # .NET Core - VSCode
+│ ├── Dockerfile
+│ ├── README.md
+│ ├── Notifications.csproj
+│ ├── Program.cs
+│ └── Controllers/
+│ └── HealthController.cs
 │
-├── web/                         # React + Vite - VSCode
-│   ├── Dockerfile
-│   ├── nginx.conf
-│   ├── README.md
-│   ├── package.json
-│   ├── vite.config.js
-│   ├── index.html
-│   └── src/
-│       ├── main.jsx
-│       └── App.jsx
+├── web/ # React + Vite - VSCode
+│ ├── Dockerfile
+│ ├── nginx.conf
+│ ├── README.md
+│ ├── package.json
+│ ├── vite.config.js
+│ ├── index.html
+│ └── src/
+│ ├── main.jsx
+│ └── App.jsx
 │
 ├── docs/
-│   ├── SETUP.md
-│   ├── ARCHITECTURE.md
-│   └── API.md
+│ ├── SETUP.md
+│ ├── ARCHITECTURE.md
+│ └── API.md
 │
 └── plans/
-    └── project-initialization-plan.md
-```
+└── project-initialization-plan.md
+
+````
 
 ## Implementation Steps
 
@@ -178,7 +180,7 @@ Each service will have minimal code to demonstrate:
 
 10. **Startup Guide**
     - Prerequisites (Docker, IDE installations)
-    - Oracle Container Registry login
+    - PostgreSQL setup (pulled directly from Docker Hub — no registry login needed)
     - Step-by-step startup instructions
     - End-to-end test commands
 
@@ -190,112 +192,111 @@ sequenceDiagram
     participant Nginx
     participant Gateway
     participant Core
-    participant Oracle
-    
+    participant PostgreSQL
+
     Client->>Nginx: GET /api/test-chain
     Nginx->>Gateway: GET /test-chain
-    Gateway->>Core: GET /db-test
-    Core->>Oracle: SELECT 1 FROM DUAL
-    Oracle-->>Core: Result: 1
+    Gateway->>Core: GET /health
+    Core->>PostgreSQL: SELECT 1
+    PostgreSQL-->>Core: Result: 1
     Core-->>Gateway: DB Connected: true
     Gateway-->>Nginx: Chain test successful
     Nginx-->>Client: 200 OK - All services connected
-```
+````
 
 ## Files to Create
 
 ### Root Level
-| File | Description |
-|------|-------------|
-| `.gitignore` | Git ignore patterns |
-| `.env.example` | Environment template |
-| `.env` | Environment variables |
-| `README.md` | Project documentation |
+
+| File           | Description           |
+| -------------- | --------------------- |
+| `.gitignore`   | Git ignore patterns   |
+| `.env.example` | Environment template  |
+| `.env`         | Environment variables |
+| `README.md`    | Project documentation |
 
 ### Docker Configuration
-| File | Description |
-|------|-------------|
+
+| File                        | Description           |
+| --------------------------- | --------------------- |
 | `docker/docker compose.yml` | Service orchestration |
-| `docker/nginx/nginx.conf` | Reverse proxy config |
-| `docker/db/init.sql` | Database init script |
+| `docker/nginx/nginx.conf`   | Reverse proxy config  |
+| `docker/db/init.sql`        | Database init script  |
 
 ### Gateway Service (services/gateway/)
-| File | Description |
-|------|-------------|
-| `Dockerfile` | Container build instructions |
-| `README.md` | Service documentation |
-| `pom.xml` | Maven dependencies |
-| `src/main/java/.../GatewayApplication.java` | Main application |
-| `src/main/java/.../controller/HealthController.java` | Health endpoints |
-| `src/main/resources/application.yml` | Spring configuration |
+
+| File                                                 | Description                  |
+| ---------------------------------------------------- | ---------------------------- |
+| `Dockerfile`                                         | Container build instructions |
+| `README.md`                                          | Service documentation        |
+| `pom.xml`                                            | Maven dependencies           |
+| `src/main/java/.../GatewayApplication.java`          | Main application             |
+| `src/main/java/.../controller/HealthController.java` | Health endpoints             |
+| `src/main/resources/application.yml`                 | Spring configuration         |
 
 ### Core Service (services/core/)
-| File | Description |
-|------|-------------|
-| `Dockerfile` | Container build instructions |
-| `README.md` | Service documentation |
-| `composer.json` | PHP dependencies |
-| `public/index.php` | Entry point |
-| `src/Controller/HealthController.php` | Health endpoints |
-| `config/routes.yaml` | Route definitions |
+
+| File                                  | Description                  |
+| ------------------------------------- | ---------------------------- |
+| `Dockerfile`                          | Container build instructions |
+| `README.md`                           | Service documentation        |
+| `composer.json`                       | PHP dependencies             |
+| `public/index.php`                    | Entry point                  |
+| `src/Controller/HealthController.php` | Health endpoints             |
+| `config/routes.yaml`                  | Route definitions            |
 
 ### Code Analyzer Service (services/code-analyzer/)
-| File | Description |
-|------|-------------|
-| `Dockerfile` | Container build instructions |
-| `README.md` | Service documentation |
-| `requirements.txt` | Python dependencies |
-| `app.py` | Main application |
-| `config.py` | Configuration |
+
+| File               | Description                  |
+| ------------------ | ---------------------------- |
+| `Dockerfile`       | Container build instructions |
+| `README.md`        | Service documentation        |
+| `requirements.txt` | Python dependencies          |
+| `app.py`           | Main application             |
+| `config.py`        | Configuration                |
 
 ### Notifications Service (services/notifications/)
-| File | Description |
-|------|-------------|
-| `Dockerfile` | Container build instructions |
-| `README.md` | Service documentation |
-| `Notifications.csproj` | .NET project file |
-| `Program.cs` | Main application |
-| `Controllers/HealthController.cs` | Health endpoints |
+
+| File                              | Description                  |
+| --------------------------------- | ---------------------------- |
+| `Dockerfile`                      | Container build instructions |
+| `README.md`                       | Service documentation        |
+| `Notifications.csproj`            | .NET project file            |
+| `Program.cs`                      | Main application             |
+| `Controllers/HealthController.cs` | Health endpoints             |
 
 ### Web Frontend (web/)
-| File | Description |
-|------|-------------|
-| `Dockerfile` | Container build instructions |
-| `nginx.conf` | Web server config |
-| `README.md` | Service documentation |
-| `package.json` | NPM dependencies |
-| `vite.config.js` | Vite configuration |
-| `index.html` | HTML entry point |
-| `src/main.jsx` | React entry point |
-| `src/App.jsx` | Main component |
+
+| File             | Description                  |
+| ---------------- | ---------------------------- |
+| `Dockerfile`     | Container build instructions |
+| `nginx.conf`     | Web server config            |
+| `README.md`      | Service documentation        |
+| `package.json`   | NPM dependencies             |
+| `vite.config.js` | Vite configuration           |
+| `index.html`     | HTML entry point             |
+| `src/main.jsx`   | React entry point            |
+| `src/App.jsx`    | Main component               |
 
 ### Documentation (docs/)
-| File | Description |
-|------|-------------|
-| `SETUP.md` | IDE setup guides |
+
+| File              | Description         |
+| ----------------- | ------------------- |
+| `SETUP.md`        | IDE setup guides    |
 | `ARCHITECTURE.md` | System architecture |
-| `API.md` | API documentation |
+| `API.md`          | API documentation   |
 
 ## Prerequisites
 
 Before starting, ensure you have:
 
 1. **Docker Desktop** (with at least 4GB RAM allocated)
-2. **Oracle Container Registry account** - Sign up at https://container-registry.oracle.com
-3. **IDEs installed**:
-   - PhpStorm (for Core service)
-   - IntelliJ IDEA (for Gateway service)
-   - VSCode (for Notifications, Code Analyzer, Web)
+2. **IDEs installed**:
+    - PhpStorm (for Core service)
+    - IntelliJ IDEA (for Gateway service)
+    - VSCode (for Notifications, Code Analyzer, Web)
 
-## Oracle Container Registry Setup
-
-```bash
-# Login to Oracle Container Registry
-docker login container-registry.oracle.com
-
-# Pull Oracle XE image (this will be done automatically by docker compose)
-docker pull container-registry.oracle.com/database/express:21.3.0-xe
-```
+> **Note**: PostgreSQL images are pulled directly from Docker Hub — no registry login or license agreement is needed.
 
 ## Quick Start Commands
 
@@ -312,14 +313,22 @@ nano .env  # or use your preferred editor
 # 4. Start all services
 cd docker
 ```
+
 docker compose up -d
 
-# 5. Wait for Oracle to be healthy (may take 2-3 minutes)
+# 5. Wait for PostgreSQL to be healthy (usually under 10 seconds)
+
 docker compose ps
 
-# 6. Test the chain
+# 6. Test Core healthcheck (database connectivity + user data)
+
+curl http://localhost:8000/health
+
+# 7. Test the full chain
+
 curl http://localhost/api/test-chain
-```
+
+````
 
 ## Expected Test Response
 
@@ -334,7 +343,7 @@ curl http://localhost/api/test-chain
   },
   "timestamp": "2026-02-03T13:30:00Z"
 }
-```
+````
 
 ## Next Steps After Approval
 

@@ -24,7 +24,10 @@ committed/
 ├── docker/
 │   ├── docker compose.yml  # Orchestrates all services
 │   ├── nginx/nginx.conf    # Reverse proxy config
-│   └── db/init.sql         # Database initialization
+│   └── db/                 # PostgreSQL init scripts
+│       ├── init.sql        # Extensions & grants
+│       ├── 01_schema.sql   # Tables, indexes, triggers
+│       └── 02_seed_data.sql # Test data
 │
 ├── services/
 │   ├── gateway/            # Java Spring Boot (Port 8080)
@@ -49,24 +52,24 @@ committed/
 
 ### In `.env` file (LOCAL ONLY - never commit!)
 
-| Variable | Current Value | What to Change | When |
-|----------|---------------|----------------|------|
-| `OPENAI_API_KEY` | `sk-your-openai-api-key-here` | Your actual OpenAI API key | When implementing AI analysis |
-| `SMTP_USER` | `your-email@gmail.com` | Your Gmail address | When implementing email notifications |
-| `SMTP_PASSWORD` | `your-app-specific-password` | Gmail App Password* | When implementing email notifications |
-| `JWT_SECRET` | `your-super-secret-jwt-key...` | Any random 64+ character string | Before implementing authentication |
-| `APP_SECRET` | `symfony-secret-key-change-this` | Any random 32+ character string | Before deploying to production |
+| Variable         | Current Value                    | What to Change                  | When                                  |
+| ---------------- | -------------------------------- | ------------------------------- | ------------------------------------- |
+| `OPENAI_API_KEY` | `sk-your-openai-api-key-here`    | Your actual OpenAI API key      | When implementing AI analysis         |
+| `SMTP_USER`      | `your-email@gmail.com`           | Your Gmail address              | When implementing email notifications |
+| `SMTP_PASSWORD`  | `your-app-specific-password`     | Gmail App Password\*            | When implementing email notifications |
+| `JWT_SECRET`     | `your-super-secret-jwt-key...`   | Any random 64+ character string | Before implementing authentication    |
+| `APP_SECRET`     | `symfony-secret-key-change-this` | Any random 32+ character string | Before deploying to production        |
 
 **\*Gmail App Password**: Go to Google Account → Security → 2-Step Verification → App passwords
 
 ### What You DON'T Need to Change (for development)
 
-| Variable | Value | Why It's Fine |
-|----------|-------|---------------|
-| `DB_PASSWORD` | `SecurePassword123!` | Only used locally in Docker |
-| `ORACLE_PASSWORD` | `OracleAdminPass123!` | Only used locally in Docker |
-| `DB_USER` | `committed_user` | Matches init.sql script |
-| All `*_PORT` variables | Default ports | Standard development ports |
+| Variable               | Value                | Why It's Fine               |
+| ---------------------- | -------------------- | --------------------------- |
+| `POSTGRES_PASSWORD`    | `CoreSecurePass123!` | Only used locally in Docker |
+| `POSTGRES_USER`        | `core_user`          | Matches init.sql script     |
+| `POSTGRES_DB`          | `committed_core`     | Matches init.sql script     |
+| All `*_PORT` variables | Default ports        | Standard development ports  |
 
 ---
 
@@ -75,56 +78,58 @@ committed/
 ### One-Time Setup (Do Once)
 
 - [ ] **Clone the repository**
-  ```bash
-  git clone https://gitlab.com/iliassai/committed.git
-  cd committed
-  ```
+
+    ```bash
+    git clone https://gitlab.com/iliassai/committed.git
+    cd committed
+    ```
 
 - [ ] **Copy environment file**
-  ```bash
-  cp .env.example .env
-  ```
 
-- [ ] **Login to Oracle Container Registry**
-  1. Create account at https://container-registry.oracle.com
-  2. Accept license for "Database Express Edition"
-  3. Run: `docker login container-registry.oracle.com`
+    ```bash
+    cp .env.example .env
+    ```
 
 - [ ] **Verify Docker has 4GB+ RAM**
-  - Docker Desktop → Settings → Resources → Memory ≥ 4GB
+    - Docker Desktop → Settings → Resources → Memory ≥ 4GB
 
-- [ ] **Start the database (first time takes 3-5 minutes)**
-  ```bash
-  cd docker
-  docker compose up -d oracle-db
-  docker compose logs -f oracle-db  # Wait for "DATABASE IS READY"
-  ```
+- [ ] **Start the database (first time takes under 10 seconds)**
+    ```bash
+    cd docker
+    docker compose up -d postgres-db
+    docker compose logs -f postgres-db  # Wait for "database system is ready to accept connections"
+    ```
+
+> **Note**: PostgreSQL images are pulled directly from Docker Hub — no registry login or license agreement is needed.
 
 ### Daily Development Workflow
 
 1. **Start services**:
-   ```bash
-   cd docker
-   docker compose up -d
-   ```
+
+    ```bash
+    cd docker
+    docker compose up -d
+    ```
 
 2. **Check all services are running**:
-   ```bash
-   docker compose ps
-   ```
+
+    ```bash
+    docker compose ps
+    ```
 
 3. **Test connectivity**:
-   ```bash
-   curl http://localhost:8080/health  # Gateway
-   curl http://localhost:8000/health  # Core
-   curl http://localhost:5000/health  # Analyzer
-   curl http://localhost:5001/health  # Notifications
-   ```
+
+    ```bash
+    curl http://localhost:8080/health  # Gateway
+    curl http://localhost:8000/health  # Core (includes DB status + user data)
+    curl http://localhost:5000/health  # Analyzer
+    curl http://localhost:5001/health  # Notifications
+    ```
 
 4. **Stop when done**:
-   ```bash
-   docker compose down
-   ```
+    ```bash
+    docker compose down
+    ```
 
 ---
 
@@ -132,12 +137,12 @@ committed/
 
 ### Gateway (Java Spring Boot) ✅ Ready
 
-| Item | Status | Notes |
-|------|--------|-------|
-| Dockerfile | ✅ | Multi-stage build |
-| Health endpoint | ✅ | `/health` |
-| Database connection | ✅ | Oracle JDBC configured |
-| Dependencies | ✅ | Spring Boot 3.4.2, Oracle JDBC 23.6 |
+| Item                | Status | Notes                              |
+| ------------------- | ------ | ---------------------------------- |
+| Dockerfile          | ✅     | Multi-stage build                  |
+| Health endpoint     | ✅     | `/health`                          |
+| Database connection | ✅     | PostgreSQL JDBC configured         |
+| Dependencies        | ✅     | Spring Boot 3.4.2, PostgreSQL JDBC |
 
 **IDE**: IntelliJ IDEA  
 **Port**: 8080  
@@ -145,25 +150,26 @@ committed/
 
 ### Core (PHP Symfony) ✅ Ready
 
-| Item | Status | Notes |
-|------|--------|-------|
-| Dockerfile | ✅ | PHP 8.2 with OCI8 |
-| Health endpoint | ✅ | `/health` |
-| Database connection | ✅ | OCI8 configured |
-| Dependencies | ✅ | Symfony 7.2 |
+| Item                | Status | Notes                                     |
+| ------------------- | ------ | ----------------------------------------- |
+| Dockerfile          | ✅     | PHP 8.3 Alpine with pdo_pgsql             |
+| Health endpoint     | ✅     | `/health` (returns DB status + user data) |
+| Database connection | ✅     | Doctrine DBAL via pdo_pgsql               |
+| Dependencies        | ✅     | Symfony 7.4, Doctrine ORM 3.6             |
 
 **IDE**: PhpStorm  
 **Port**: 8000  
-**Main file**: `services/core/public/index.php`
+**Main file**: `services/core/public/index.php`  
+**Healthcheck**: `http://localhost:8000/health`
 
 ### Code Analyzer (Python Flask) ✅ Ready
 
-| Item | Status | Notes |
-|------|--------|-------|
-| Dockerfile | ✅ | Python 3.11 slim |
-| Health endpoint | ✅ | `/health` |
-| Database connection | ❌ | Not needed - receives data from Gateway |
-| Dependencies | ✅ | Flask 3.0, requests |
+| Item                | Status | Notes                                   |
+| ------------------- | ------ | --------------------------------------- |
+| Dockerfile          | ✅     | Python 3.11 slim                        |
+| Health endpoint     | ✅     | `/health`                               |
+| Database connection | ❌     | Not needed - receives data from Gateway |
+| Dependencies        | ✅     | Flask 3.0, requests                     |
 
 **IDE**: VSCode  
 **Port**: 5000  
@@ -171,12 +177,12 @@ committed/
 
 ### Notifications (.NET Core) ✅ Ready
 
-| Item | Status | Notes |
-|------|--------|-------|
-| Dockerfile | ✅ | .NET 8.0 |
-| Health endpoint | ✅ | `/health` |
-| Database connection | ✅ | Oracle.ManagedDataAccess |
-| Dependencies | ✅ | .NET 8.0 |
+| Item                | Status | Notes               |
+| ------------------- | ------ | ------------------- |
+| Dockerfile          | ✅     | .NET 8.0            |
+| Health endpoint     | ✅     | `/health`           |
+| Database connection | ✅     | Npgsql (PostgreSQL) |
+| Dependencies        | ✅     | .NET 8.0            |
 
 **IDE**: VSCode  
 **Port**: 5001  
@@ -184,12 +190,12 @@ committed/
 
 ### Web Frontend (React + Tailwind CSS) ✅ Ready
 
-| Item | Status | Notes |
-|------|--------|-------|
-| Dockerfile | ✅ | Node 20 + Nginx |
-| Build | ✅ | Vite configured |
-| Dependencies | ✅ | React 18.2 |
-| Styling | ✅ | Tailwind CSS 3 with PostCSS + Autoprefixer |
+| Item         | Status | Notes                                      |
+| ------------ | ------ | ------------------------------------------ |
+| Dockerfile   | ✅     | Node 20 + Nginx                            |
+| Build        | ✅     | Vite configured                            |
+| Dependencies | ✅     | React 18.2                                 |
+| Styling      | ✅     | Tailwind CSS 3 with PostCSS + Autoprefixer |
 
 **IDE**: VSCode  
 **Port**: 3000  
@@ -203,11 +209,11 @@ committed/
 
 ### Pipeline Stages
 
-| Stage | Purpose | Blocks Next? |
-|-------|---------|--------------|
-| **compile** | Verify code compiles | ✅ Yes |
-| **test** | Run unit tests | ❌ No (optional) |
-| **build** | Build Docker images | ✅ Yes |
+| Stage       | Purpose              | Blocks Next?     |
+| ----------- | -------------------- | ---------------- |
+| **compile** | Verify code compiles | ✅ Yes           |
+| **test**    | Run unit tests       | ❌ No (optional) |
+| **build**   | Build Docker images  | ✅ Yes           |
 
 ### What Triggers Pipeline
 
@@ -217,6 +223,7 @@ committed/
 ### Where Docker Images Go
 
 After successful build:
+
 ```
 registry.gitlab.com/iliassai/committed/gateway:latest
 registry.gitlab.com/iliassai/committed/core:latest
@@ -230,29 +237,34 @@ registry.gitlab.com/iliassai/committed/web:latest
 ## ⚠️ Known Limitations (Acceptable for Academic Project)
 
 ### 1. No HTTPS
+
 - **Impact**: Data sent in plain text
 - **Why it's OK**: Local development only
 - **For production**: Add SSL certificates to Nginx
 
 ### 2. Hardcoded Database Credentials
-- **Impact**: Same password for all developers
-- **Why it's OK**: Only runs in Docker, not exposed
-- **For production**: Use secrets management
+
+- **Impact**: Same password (`CoreSecurePass123!`) for all developers
+- **Why it's OK**: Only runs in Docker, not exposed externally
+- **For production**: Use secrets management (e.g., Docker Secrets, Vault)
 
 ### 3. No Rate Limiting
+
 - **Impact**: APIs can be spammed
 - **Why it's OK**: No public exposure
 - **For production**: Add rate limiting in Gateway
 
 ### 4. Tests Are Optional
+
 - **Impact**: Broken code can be merged
 - **Why it's OK**: Team is learning, tests come later
 - **For production**: Make tests required
 
-### 5. No Database Migrations
-- **Impact**: Schema changes require manual SQL
-- **Why it's OK**: Schema is simple initially
-- **For production**: Add Flyway/Doctrine migrations
+### 5. Database Migrations Not Yet Used
+
+- **Impact**: Schema is managed by SQL init scripts; Doctrine Migrations bundle is installed but no migration files exist yet
+- **Why it's OK**: Schema is simple initially and auto-loaded via `docker-entrypoint-initdb.d/`
+- **For production**: Generate Doctrine migrations from your entities with `bin/console make:migration` and apply them with `bin/console doctrine:migrations:migrate`
 
 ---
 
@@ -267,34 +279,38 @@ registry.gitlab.com/iliassai/committed/web:latest
 
 ### Service Ownership Suggestion
 
-| Service | Suggested Owner | Why |
-|---------|-----------------|-----|
-| Gateway | Most experienced | Central routing, auth |
-| Core | PHP developer | Main business logic |
-| Code Analyzer | Python developer | AI integration |
-| Notifications | .NET developer | Email handling |
-| Web | Frontend developer | UI/UX (React + Tailwind CSS) |
+| Service       | Suggested Owner    | Why                          |
+| ------------- | ------------------ | ---------------------------- |
+| Gateway       | Most experienced   | Central routing, auth        |
+| Core          | PHP developer      | Main business logic          |
+| Code Analyzer | Python developer   | AI integration               |
+| Notifications | .NET developer     | Email handling               |
+| Web           | Frontend developer | UI/UX (React + Tailwind CSS) |
 
 ---
 
 ## 🎯 Recommended First Tasks
 
 ### Week 1: Foundation
+
 - [ ] Each developer runs their service locally
 - [ ] Add a simple "hello world" endpoint to each service
 - [ ] Test service-to-service communication
 
 ### Week 2: Database
+
 - [ ] Design database schema (tables, relationships)
 - [ ] Create entities/models in Gateway and Core
 - [ ] Test database CRUD operations
 
 ### Week 3: Core Features
+
 - [ ] Implement user registration/login in Gateway
 - [ ] Implement course creation in Core
 - [ ] Connect frontend to backend APIs
 
 ### Week 4: Integration
+
 - [ ] Implement submission flow (Web → Gateway → Core)
 - [ ] Implement analysis flow (Core → Analyzer)
 - [ ] Implement notification flow (Analyzer → Notifications)
@@ -305,21 +321,22 @@ registry.gitlab.com/iliassai/committed/web:latest
 
 ### Common Issues
 
-| Problem | Solution |
-|---------|----------|
-| Oracle won't start | Increase Docker RAM to 4GB+ |
-| Port already in use | Change port in `.env` or kill process |
-| Can't connect to database | Wait for Oracle healthcheck to pass |
-| Pipeline fails | Check job logs in GitLab CI/CD |
+| Problem                   | Solution                                |
+| ------------------------- | --------------------------------------- |
+| PostgreSQL won't start    | Increase Docker RAM to 4GB+             |
+| Port already in use       | Change port in `.env` or kill process   |
+| Can't connect to database | Wait for PostgreSQL healthcheck to pass |
+| Pipeline fails            | Check job logs in GitLab CI/CD          |
 
 ### Resources
 
-- **Symfony**: https://symfony.com/doc/current/index.html
+- **Symfony**: https://symfony.com/doc/7.4/index.html
 - **Spring Boot**: https://spring.io/guides
 - **Flask**: https://flask.palletsprojects.com/
 - **.NET**: https://learn.microsoft.com/en-us/aspnet/core/
 - **React**: https://react.dev/learn
 - **Tailwind CSS**: https://tailwindcss.com/docs
+- **PostgreSQL**: https://www.postgresql.org/docs/16/
 
 ---
 
@@ -328,6 +345,7 @@ registry.gitlab.com/iliassai/committed/web:latest
 **This project is READY for junior developers to start building features.**
 
 ### What's Done
+
 - ✅ Complete folder structure
 - ✅ Docker configuration for all services
 - ✅ CI/CD pipeline (compile → test → build)
@@ -336,10 +354,15 @@ registry.gitlab.com/iliassai/committed/web:latest
 - ✅ IDE setup guides
 - ✅ Collaboration guidelines
 - ✅ Tailwind CSS integrated into the Web frontend for utility-first styling
+- ✅ PostgreSQL 16 database with auto-initialized schema and seed data
+- ✅ Core service healthcheck endpoint (`/health`) with Doctrine DBAL → PostgreSQL connectivity
+- ✅ Web frontend healthcheck UI (calls Core `/health` via `/api/core/health` proxy)
 
 ### What You'll Build
+
 - User authentication (Gateway)
 - Course/Assignment management (Core)
+- Doctrine ORM entities mapped to existing PostgreSQL tables (Core)
 - Code analysis with AI (Code Analyzer)
 - Email notifications (Notifications)
 - User interface (Web)
