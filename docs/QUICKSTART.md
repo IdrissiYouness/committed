@@ -9,98 +9,49 @@ Step-by-step guide to run the entire platform, initialize the database, and veri
 Before starting, ensure you have:
 
 1. **Docker Desktop** installed and running
-   - Download: https://www.docker.com/products/docker-desktop
-   - Allocate at least **4GB RAM** to Docker (Settings → Resources → Memory)
+    - Download: https://www.docker.com/products/docker-desktop
+    - Allocate at least **4GB RAM** to Docker (Settings → Resources → Memory)
 
 2. **DBeaver** installed (for database visualization)
-   - Download: https://dbeaver.io/download/
+    - Download: https://dbeaver.io/download/
 
-3. **Oracle Container Registry account** (free)
-   - Sign up: https://container-registry.oracle.com
-   - Accept the license for "Database Express Edition"
+> **Note**: PostgreSQL images are pulled directly from Docker Hub — no container registry login or license agreement is needed.
 
 ---
 
-## Step 1: Login to Oracle Container Registry
+## Step 1: Start the Database
 
-Oracle Database image requires authentication:
-
-```bash
-docker login container-registry.oracle.com
-```
-
-Enter your Oracle account credentials when prompted.
-
----
-
-## Step 2: Start the Database
-
-Navigate to the docker directory and start only the Oracle database first:
+Navigate to the docker directory and start only the PostgreSQL database first:
 
 ```bash
 cd docker
-docker compose up -d oracle-db
+docker compose up -d postgres-db
 ```
 
-**Wait for the database to be ready** (3-5 minutes on first run):
+**Wait for the database to be ready** (usually under 10 seconds):
 
 ```bash
-docker compose logs -f oracle-db
+docker compose logs -f postgres-db
 ```
 
 Look for this message:
+
 ```
-DATABASE IS READY TO USE!
+database system is ready to accept connections
 ```
 
 Press `Ctrl+C` to exit the logs once you see this message.
 
----
-
-## Step 3: Create the Database Schema
-
-Run the schema creation script:
-
-```bash
-docker exec -i committed-oracle sqlplus 'committed_user/SecurePassword123!@XEPDB1' < db/01_schema.sql
-```
-
-You should see output like:
-```
-Sequence created.
-Table created.
-Index created.
-Trigger created.
-...
-Commit complete.
-```
+> The schema and seed data are loaded **automatically** on first start via scripts mounted to `/docker-entrypoint-initdb.d/`. No manual SQL execution is needed.
 
 ---
 
-## Step 4: Populate Test Data
+## Step 2: Verify Data with psql (Quick Check)
 
-Run the seed data script:
-
-```bash
-docker exec -i committed-oracle sqlplus 'committed_user/SecurePassword123!@XEPDB1' < db/02_seed_data.sql
-```
-
-You should see:
-```
-1 row created.
-1 row created.
-...
-Commit complete.
-```
-
----
-
-## Step 5: Verify Data with SQL*Plus (Quick Check)
-
-Quick verification from command line:
+Quick verification from the command line:
 
 ```bash
-docker exec -it committed-oracle sqlplus 'committed_user/SecurePassword123!@XEPDB1'
+docker exec -it committed-postgres psql -U core_user -d committed_core
 ```
 
 Run these queries:
@@ -121,79 +72,86 @@ SELECT COUNT(*) AS enrollment_count FROM enrollment;
 -- List all users
 SELECT user_id, full_name, system_role FROM users ORDER BY user_id;
 
--- Exit SQL*Plus
-EXIT
+-- List all tables
+\dt
+
+-- Exit psql
+\q
 ```
 
 ---
 
-## Step 6: Connect DBeaver to Oracle Database
+## Step 3: Connect DBeaver to PostgreSQL
 
-### 6.1 Create New Connection
+### 3.1 Create New Connection
 
 1. Open DBeaver
 2. Click **Database** → **New Database Connection** (or press `Ctrl+Shift+N`)
-3. Select **Oracle** from the list
+3. Select **PostgreSQL** from the list
 4. Click **Next**
 
-### 6.2 Configure Connection Settings
+### 3.2 Configure Connection Settings
 
 Fill in the connection details:
 
-| Field | Value |
-|-------|-------|
-| **Host** | `localhost` |
-| **Port** | `1521` |
-| **Database** | `XEPDB1` |
-| **Authentication** | Database Native |
-| **Username** | `committed_user` |
-| **Password** | `SecurePassword123!` |
+| Field              | Value                |
+| ------------------ | -------------------- |
+| **Host**           | `localhost`          |
+| **Port**           | `5432`               |
+| **Database**       | `committed_core`     |
+| **Authentication** | Database Native      |
+| **Username**       | `core_user`          |
+| **Password**       | `CoreSecurePass123!` |
 
-### 6.3 Download Oracle Driver (First Time Only)
+### 3.3 Download PostgreSQL Driver (First Time Only)
 
 1. Click **Test Connection**
-2. If prompted to download the Oracle JDBC driver, click **Download**
+2. If prompted to download the PostgreSQL JDBC driver, click **Download**
 3. Wait for the download to complete
 4. Click **Test Connection** again
 
 You should see: **"Connected"**
 
-### 6.4 Finish Connection
+### 3.4 Finish Connection
 
 1. Click **Finish**
 2. The connection will appear in the Database Navigator panel
 
 ---
 
-## Step 7: Explore Data in DBeaver
+## Step 4: Explore Data in DBeaver
 
-### 7.1 Navigate to Tables
+### 4.1 Navigate to Tables
 
 In the Database Navigator:
+
 ```
-committed-oracle
-└── XEPDB1
+committed-postgres
+└── committed_core
     └── Schemas
-        └── COMMITTED_USER
+        └── public
             └── Tables
-                ├── ANNOUNCEMENT
-                ├── ASSIGNMENT
-                ├── CODE_ANALYSIS
-                ├── COMMENT
-                ├── COURSE
-                ├── ENROLLMENT
-                ├── GRADE
-                ├── SUBMISSION
-                └── USERS
+                ├── announcement
+                ├── announcement_attachment
+                ├── assignment
+                ├── assignment_attachment
+                ├── code_analysis
+                ├── comment
+                ├── course
+                ├── enrollment
+                ├── grade
+                ├── submission
+                ├── submission_attachment
+                └── users
 ```
 
-### 7.2 View Table Data
+### 4.2 View Table Data
 
-1. Double-click on any table (e.g., `USERS`)
+1. Double-click on any table (e.g., `users`)
 2. Click the **Data** tab at the bottom
 3. You'll see all the test data
 
-### 7.3 Run Custom Queries
+### 4.3 Run Custom Queries
 
 1. Right-click on the connection → **SQL Editor** → **New SQL Script**
 2. Try these queries:
@@ -226,7 +184,7 @@ JOIN course c ON a.course_id = c.course_id;
 
 ---
 
-## Step 8: Start All Services
+## Step 5: Start All Services
 
 Now start the remaining services:
 
@@ -242,9 +200,10 @@ docker compose ps
 ```
 
 Expected output:
+
 ```
 NAME                    STATUS
-committed-oracle        Up (healthy)
+committed-postgres      Up (healthy)
 committed-gateway       Up
 committed-core          Up
 committed-analyzer      Up
@@ -255,16 +214,47 @@ committed-nginx         Up
 
 ---
 
-## Step 9: Test Service Connectivity
+## Step 6: Test Service Connectivity
+
+### Test the Core healthcheck (database connectivity):
+
+```bash
+# Core service healthcheck (returns DB status + user data)
+curl -s http://localhost:8000/health | python3 -m json.tool
+```
+
+Expected response:
+
+```json
+{
+    "status": "ok",
+    "database": {
+        "connected": true,
+        "driver": "pdo_pgsql",
+        "tables_count": 12
+    },
+    "users": {
+        "total_count": 11,
+        "sample": [
+            {
+                "user_id": 1,
+                "email": "admin@committed.com",
+                "full_name": "System Administrator",
+                "system_role": "admin",
+                "is_active": true,
+                "created_at": "..."
+            }
+        ]
+    },
+    "timestamp": "..."
+}
+```
 
 ### Test individual services:
 
 ```bash
 # Gateway (Java Spring Boot)
 curl http://localhost:8080/health
-
-# Core (PHP Symfony)
-curl http://localhost:8000/health
 
 # Code Analyzer (Python Flask)
 curl http://localhost:5000/health
@@ -286,9 +276,15 @@ curl http://localhost/api/health
 curl http://localhost:8080/test-chain
 ```
 
+### Test Core healthcheck via web frontend proxy:
+
+```bash
+curl -s http://localhost:3000/api/core/health | python3 -m json.tool
+```
+
 ---
 
-## Step 10: Access the Web Interface
+## Step 7: Access the Web Interface
 
 Open your browser and go to:
 
@@ -302,32 +298,56 @@ Or through Nginx:
 http://localhost
 ```
 
-Click **"Test Service Chain"** to verify all services are connected.
+You'll see two test buttons:
+
+- **"Test Core + Database"** — Calls the Core service healthcheck and displays database connectivity, table count, user count, and a sample user table
+- **"Test Service Chain"** — Verifies all services are connected end-to-end
 
 ---
 
 ## Troubleshooting
 
-### Oracle won't start
-- Increase Docker memory to 4GB+
-- Check logs: `docker compose logs oracle-db`
+### PostgreSQL won't start
 
-### "ORA-01017: invalid username/password"
-- Wait for Oracle to fully start
-- Verify password: `SecurePassword123!`
+- Check logs: `docker compose logs postgres-db`
+- Ensure port 5432 isn't already in use: `netstat -ano | findstr :5432`
+
+### "FATAL: password authentication failed"
+
+- Verify credentials match your `.env` file: `core_user` / `CoreSecurePass123!`
+- If you changed credentials after first run, delete the volume: `docker compose down -v`
+
+### "FATAL: database "committed_core" does not exist"
+
+- The database is created automatically from `POSTGRES_DB` env var on first start
+- If the volume already exists with a different config, remove it: `docker compose down -v`
 
 ### DBeaver can't connect
-- Ensure Oracle container is running: `docker ps`
-- Check port 1521 is exposed: `docker compose ps`
+
+- Ensure the PostgreSQL container is running: `docker ps`
+- Check port 5432 is exposed: `docker compose ps`
 - Try `127.0.0.1` instead of `localhost`
 
 ### Services can't connect to database
-- Wait for Oracle healthcheck to pass
-- Check: `docker compose ps` (oracle-db should show "healthy")
 
-### Schema already exists error
-- Run cleanup first: `docker exec -i committed-oracle sqlplus 'committed_user/SecurePassword123!@XEPDB1' < db/03_cleanup.sql`
-- Then run schema and seed again
+- Wait for the PostgreSQL healthcheck to pass
+- Check: `docker compose ps` (postgres-db should show "healthy")
+
+### Schema already exists / want to start fresh
+
+- Remove the volume and recreate:
+    ```bash
+    docker compose down -v
+    docker compose up -d postgres-db
+    # Wait for startup, schema and seed data load automatically
+    ```
+
+### Core returns "could not find driver"
+
+- The Docker image needs to be rebuilt with the `pdo_pgsql` extension:
+    ```bash
+    docker compose up -d --build core
+    ```
 
 ---
 
@@ -346,30 +366,36 @@ docker compose down
 # Stop and remove all data (fresh start)
 docker compose down -v
 
-# Access Oracle SQL*Plus
-docker exec -it committed-oracle sqlplus 'committed_user/SecurePassword123!@XEPDB1'
+# Access PostgreSQL via psql
+docker exec -it committed-postgres psql -U core_user -d committed_core
+
+# Test Core DB connectivity via Doctrine DBAL
+docker exec committed-core php bin/console dbal:run-sql "SELECT COUNT(*) FROM users"
+
+# Test Core DB connectivity via HTTP
+curl http://localhost:8000/health
 
 # Reset database to clean state
-docker exec -i committed-oracle sqlplus 'committed_user/SecurePassword123!@XEPDB1' < db/03_cleanup.sql
-docker exec -i committed-oracle sqlplus 'committed_user/SecurePassword123!@XEPDB1' < db/02_seed_data.sql
+docker exec -i committed-postgres psql -U core_user -d committed_core < db/03_cleanup.sql
+docker exec -i committed-postgres psql -U core_user -d committed_core < db/02_seed_data.sql
 ```
 
 ---
 
 ## Test Data Summary
 
-After running the seed script, you'll have:
+The seed data is loaded automatically on first container start. You'll have:
 
-| Entity | Count | Examples |
-|--------|-------|----------|
-| Users | 11 | 1 admin, 3 professors, 7 students |
-| Courses | 6 | CS101, CS201, WEB101, WEB201, DB101, JAVA101 |
-| Enrollments | 24 | Students enrolled in various courses |
-| Announcements | 13 | Welcome messages, schedules, etc. |
-| Comments | 16 | Including nested replies |
-| Assignments | 9 | Various programming tasks |
-| Submissions | 8 | Student code submissions |
-| Grades | 2 | Sample graded submissions |
+| Entity        | Count | Examples                                     |
+| ------------- | ----- | -------------------------------------------- |
+| Users         | 11    | 1 admin, 3 professors, 7 students            |
+| Courses       | 6     | CS101, CS201, WEB101, WEB201, DB101, JAVA101 |
+| Enrollments   | 24    | Students enrolled in various courses         |
+| Announcements | 13    | Welcome messages, schedules, etc.            |
+| Comments      | 16    | Including nested replies                     |
+| Assignments   | 9     | Various programming tasks                    |
+| Submissions   | 8     | Student code submissions                     |
+| Grades        | 2     | Sample graded submissions                    |
 
 ---
 
@@ -384,17 +410,23 @@ After running the seed script, you'll have:
 
 ## Quick Reference
 
-| Service | Port | URL |
-|---------|------|-----|
-| Nginx (Reverse Proxy) | 80 | http://localhost |
-| Web Frontend | 3000 | http://localhost:3000 |
-| Gateway (Java) | 8080 | http://localhost:8080 |
-| Core (PHP) | 8000 | http://localhost:8000 |
-| Code Analyzer (Python) | 5000 | http://localhost:5000 |
-| Notifications (.NET) | 5001 | http://localhost:5001 |
-| Oracle Database | 1521 | localhost:1521/XEPDB1 |
+| Service                | Port | URL                          |
+| ---------------------- | ---- | ---------------------------- |
+| Nginx (Reverse Proxy)  | 80   | http://localhost             |
+| Web Frontend           | 3000 | http://localhost:3000        |
+| Gateway (Java)         | 8080 | http://localhost:8080        |
+| Core (PHP)             | 8000 | http://localhost:8000        |
+| Core Healthcheck       | 8000 | http://localhost:8000/health |
+| Code Analyzer (Python) | 5000 | http://localhost:5000        |
+| Notifications (.NET)   | 5001 | http://localhost:5001        |
+| PostgreSQL Database    | 5432 | localhost:5432               |
 
 **Database Credentials:**
-- Username: `committed_user`
-- Password: `SecurePassword123!`
-- Service: `XEPDB1`
+
+- Username: `core_user`
+- Password: `CoreSecurePass123!`
+- Database: `committed_core`
+
+---
+
+_Last updated: February 2026_

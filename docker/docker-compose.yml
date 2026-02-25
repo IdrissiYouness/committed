@@ -1,26 +1,28 @@
 services:
-    # Oracle Database
-    oracle-db:
-        image: container-registry.oracle.com/database/express:21.3.0-xe
-        container_name: committed-oracle
+    # PostgreSQL Database (shared by all services)
+    postgres-db:
+        image: postgres:16-alpine
+        container_name: committed-postgres
         environment:
-            - ORACLE_PWD=${ORACLE_PASSWORD}
-            - ORACLE_CHARACTERSET=AL32UTF8
+            - POSTGRES_DB=${POSTGRES_DB}
+            - POSTGRES_USER=${POSTGRES_USER}
+            - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
         ports:
-            - "${DB_PORT}:1521"
+            - "${POSTGRES_PORT:-5432}:5432"
         volumes:
-            - oracle-data:/opt/oracle/oradata
-            - ./db/init.sql:/opt/oracle/scripts/startup/init.sql
+            - postgres-data:/var/lib/postgresql/data
+            - ./db/init.sql:/docker-entrypoint-initdb.d/00_init.sql:ro
+            - ./db/01_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+            - ./db/02_seed_data.sql:/docker-entrypoint-initdb.d/02_seed_data.sql:ro
         healthcheck:
             test:
                 [
                     "CMD-SHELL",
-                    "echo 'SELECT 1 FROM DUAL;' | sqlplus -s system/$$ORACLE_PWD@//localhost:1521/XEPDB1 || exit 1",
+                    "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}",
                 ]
-            interval: 30s
-            timeout: 30s
-            retries: 10
-            start_period: 180s
+            interval: 10s
+            timeout: 5s
+            retries: 5
         networks:
             - committed-network
 
@@ -33,16 +35,18 @@ services:
         ports:
             - "${GATEWAY_PORT}:8080"
         environment:
-            - SPRING_DATASOURCE_URL=jdbc:oracle:thin:@oracle-db:${DB_PORT}/${DB_SERVICE}
-            - SPRING_DATASOURCE_USERNAME=${DB_USER}
-            - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
+            - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-db:5432/${POSTGRES_DB}
+            - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
+            - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+            - SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.postgresql.Driver
+            - SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.PostgreSQLDialect
             - JWT_SECRET=${JWT_SECRET}
             - JWT_EXPIRATION=${JWT_EXPIRATION}
             - CORE_SERVICE_URL=http://core:8000
             - ANALYZER_SERVICE_URL=http://code-analyzer:5000
             - NOTIFICATION_SERVICE_URL=http://notifications:5001
         depends_on:
-            oracle-db:
+            postgres-db:
                 condition: service_healthy
         networks:
             - committed-network
@@ -57,14 +61,16 @@ services:
         ports:
             - "${CORE_PORT}:8000"
         environment:
-            - DATABASE_URL=oci8://${DB_USER}:${DB_PASSWORD}@oracle-db:${DB_PORT}/${DB_SERVICE}
+            - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres-db:5432/${POSTGRES_DB}?serverVersion=16&charset=utf8
             - APP_ENV=${APP_ENV}
             - APP_SECRET=${APP_SECRET}
+            - CORS_ALLOW_ORIGIN='^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$$'
+            - DEFAULT_URI=http://localhost:${CORE_PORT:-8000}
             - GATEWAY_SERVICE_URL=http://gateway:8080
             - ANALYZER_SERVICE_URL=http://code-analyzer:5000
             - NOTIFICATION_SERVICE_URL=http://notifications:5001
         depends_on:
-            oracle-db:
+            postgres-db:
                 condition: service_healthy
         networks:
             - committed-network
@@ -100,7 +106,7 @@ services:
         ports:
             - "${NOTIFICATION_PORT}:5001"
         environment:
-            - ConnectionStrings__OracleDb=User Id=${DB_USER};Password=${DB_PASSWORD};Data Source=oracle-db:${DB_PORT}/${DB_SERVICE}
+            - ConnectionStrings__DefaultConnection=Host=postgres-db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
             - SmtpSettings__Host=${SMTP_HOST}
             - SmtpSettings__Port=${SMTP_PORT}
             - SmtpSettings__Username=${SMTP_USER}
@@ -108,7 +114,7 @@ services:
             - SmtpSettings__FromEmail=${FROM_EMAIL}
             - SmtpSettings__FromName=${FROM_NAME}
         depends_on:
-            oracle-db:
+            postgres-db:
                 condition: service_healthy
         networks:
             - committed-network
@@ -148,8 +154,8 @@ services:
         restart: unless-stopped
 
 volumes:
-    oracle-data:
     analyzer-temp:
+    postgres-data:
 
 networks:
     committed-network:

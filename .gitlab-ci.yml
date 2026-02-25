@@ -5,198 +5,199 @@
 # =============================================================================
 
 stages:
-  - compile
-  - test
-  - build
+    - compile
+    - test
+    - build
 
 variables:
-  DOCKER_REGISTRY: $CI_REGISTRY
-  DOCKER_IMAGE_PREFIX: $CI_REGISTRY_IMAGE
-  DOCKER_HOST: tcp://docker:2376
-  DOCKER_TLS_CERTDIR: "/certs"
+    DOCKER_REGISTRY: $CI_REGISTRY
+    DOCKER_IMAGE_PREFIX: $CI_REGISTRY_IMAGE
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
 
 # =============================================================================
 # COMPILE STAGE - Verify code compiles and dependencies install
 # =============================================================================
 
 compile:gateway:
-  stage: compile
-  image: maven:3.9-eclipse-temurin-17
-  script:
-    - cd services/gateway
-    - mvn compile -B -q
-  only:
-    changes:
-      - services/gateway/**/*
+    stage: compile
+    image: maven:3.9-eclipse-temurin-17
+    script:
+        - cd services/gateway
+        - mvn compile -B -q
+    only:
+        changes:
+            - services/gateway/**/*
 
 compile:core:
-  stage: compile
-  image: php:8.2-cli
-  before_script:
-    - apt-get update && apt-get install -y git unzip
-    - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-  script:
-    - cd services/core
-    - composer install --no-interaction --prefer-dist
-  only:
-    changes:
-      - services/core/**/*
+    stage: compile
+    image: php:8.3-cli
+    before_script:
+        - apt-get update && apt-get install -y git unzip libpq-dev
+        - docker-php-ext-install pdo_pgsql
+        - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+    script:
+        - cd services/core
+        - composer install --no-interaction --prefer-dist --no-scripts
+    only:
+        changes:
+            - services/core/**/*
 
 compile:code-analyzer:
-  stage: compile
-  image: python:3.11-slim
-  script:
-    - cd services/code-analyzer
-    - pip install -r requirements.txt
-  only:
-    changes:
-      - services/code-analyzer/**/*
+    stage: compile
+    image: python:3.11-slim
+    script:
+        - cd services/code-analyzer
+        - pip install -r requirements.txt
+    only:
+        changes:
+            - services/code-analyzer/**/*
 
 compile:notifications:
-  stage: compile
-  image: mcr.microsoft.com/dotnet/sdk:8.0
-  script:
-    - cd services/notifications
-    - dotnet build
-  only:
-    changes:
-      - services/notifications/**/*
+    stage: compile
+    image: mcr.microsoft.com/dotnet/sdk:8.0
+    script:
+        - cd services/notifications
+        - dotnet build
+    only:
+        changes:
+            - services/notifications/**/*
 
 compile:web:
-  stage: compile
-  image: node:20-alpine
-  script:
-    - cd web
-    - npm install
-    - npm run build
-  only:
-    changes:
-      - web/**/*
+    stage: compile
+    image: node:20-alpine
+    script:
+        - cd web
+        - npm install
+        - npm run build
+    only:
+        changes:
+            - web/**/*
 
 # =============================================================================
 # TEST STAGE - Run unit tests (optional, won't block builds)
 # =============================================================================
 
 test:gateway:
-  stage: test
-  image: maven:3.9-eclipse-temurin-17
-  script:
-    - cd services/gateway
-    - mvn test -B
-  allow_failure: true
-  only:
-    changes:
-      - services/gateway/**/*
+    stage: test
+    image: maven:3.9-eclipse-temurin-17
+    script:
+        - cd services/gateway
+        - mvn test -B
+    allow_failure: true
+    only:
+        changes:
+            - services/gateway/**/*
 
 test:core:
-  stage: test
-  image: php:8.2-cli
-  before_script:
-    - apt-get update && apt-get install -y git unzip libzip-dev
-    - docker-php-ext-install zip
-    - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-  script:
-    - cd services/core
-    - composer install --no-interaction --prefer-dist
-    - php bin/phpunit || echo "No tests yet"
-  allow_failure: true
-  only:
-    changes:
-      - services/core/**/*
+    stage: test
+    image: php:8.3-cli
+    before_script:
+        - apt-get update && apt-get install -y git unzip libzip-dev libpq-dev
+        - docker-php-ext-install zip pdo_pgsql
+        - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+    script:
+        - cd services/core
+        - composer install --no-interaction --prefer-dist --no-scripts
+        - php bin/phpunit || echo "No tests yet"
+    allow_failure: true
+    only:
+        changes:
+            - services/core/**/*
 
 test:code-analyzer:
-  stage: test
-  image: python:3.11-slim
-  script:
-    - cd services/code-analyzer
-    - pip install -r requirements.txt pytest
-    - pytest tests/ -v || echo "No tests yet"
-  allow_failure: true
-  only:
-    changes:
-      - services/code-analyzer/**/*
+    stage: test
+    image: python:3.11-slim
+    script:
+        - cd services/code-analyzer
+        - pip install -r requirements.txt pytest
+        - pytest tests/ -v || echo "No tests yet"
+    allow_failure: true
+    only:
+        changes:
+            - services/code-analyzer/**/*
 
 test:notifications:
-  stage: test
-  image: mcr.microsoft.com/dotnet/sdk:8.0
-  script:
-    - cd services/notifications
-    - dotnet test || echo "No tests yet"
-  allow_failure: true
-  only:
-    changes:
-      - services/notifications/**/*
+    stage: test
+    image: mcr.microsoft.com/dotnet/sdk:8.0
+    script:
+        - cd services/notifications
+        - dotnet test || echo "No tests yet"
+    allow_failure: true
+    only:
+        changes:
+            - services/notifications/**/*
 
 test:web:
-  stage: test
-  image: node:20-alpine
-  script:
-    - cd web
-    - npm install
-    - npm run test -- --run || echo "No tests yet"
-  allow_failure: true
-  only:
-    changes:
-      - web/**/*
+    stage: test
+    image: node:20-alpine
+    script:
+        - cd web
+        - npm install
+        - npm run test -- --run || echo "No tests yet"
+    allow_failure: true
+    only:
+        changes:
+            - web/**/*
 
 # =============================================================================
 # BUILD STAGE - Build and push Docker images
 # =============================================================================
 
 .build_template: &build_template
-  stage: build
-  image: docker:24
-  services:
-    - docker:24-dind
-  before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    stage: build
+    image: docker:24
+    services:
+        - docker:24-dind
+    before_script:
+        - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
 
 build:gateway:
-  <<: *build_template
-  script:
-    - cd services/gateway
-    - docker build -t $DOCKER_IMAGE_PREFIX/gateway:$CI_COMMIT_SHORT_SHA -t $DOCKER_IMAGE_PREFIX/gateway:latest .
-    - docker push $DOCKER_IMAGE_PREFIX/gateway --all-tags
-  only:
-    changes:
-      - services/gateway/**/*
+    <<: *build_template
+    script:
+        - cd services/gateway
+        - docker build -t $DOCKER_IMAGE_PREFIX/gateway:$CI_COMMIT_SHORT_SHA -t $DOCKER_IMAGE_PREFIX/gateway:latest .
+        - docker push $DOCKER_IMAGE_PREFIX/gateway --all-tags
+    only:
+        changes:
+            - services/gateway/**/*
 
 build:core:
-  <<: *build_template
-  script:
-    - cd services/core
-    - docker build -t $DOCKER_IMAGE_PREFIX/core:$CI_COMMIT_SHORT_SHA -t $DOCKER_IMAGE_PREFIX/core:latest .
-    - docker push $DOCKER_IMAGE_PREFIX/core --all-tags
-  only:
-    changes:
-      - services/core/**/*
+    <<: *build_template
+    script:
+        - cd services/core
+        - docker build -t $DOCKER_IMAGE_PREFIX/core:$CI_COMMIT_SHORT_SHA -t $DOCKER_IMAGE_PREFIX/core:latest .
+        - docker push $DOCKER_IMAGE_PREFIX/core --all-tags
+    only:
+        changes:
+            - services/core/**/*
 
 build:code-analyzer:
-  <<: *build_template
-  script:
-    - cd services/code-analyzer
-    - docker build -t $DOCKER_IMAGE_PREFIX/code-analyzer:$CI_COMMIT_SHORT_SHA -t $DOCKER_IMAGE_PREFIX/code-analyzer:latest .
-    - docker push $DOCKER_IMAGE_PREFIX/code-analyzer --all-tags
-  only:
-    changes:
-      - services/code-analyzer/**/*
+    <<: *build_template
+    script:
+        - cd services/code-analyzer
+        - docker build -t $DOCKER_IMAGE_PREFIX/code-analyzer:$CI_COMMIT_SHORT_SHA -t $DOCKER_IMAGE_PREFIX/code-analyzer:latest .
+        - docker push $DOCKER_IMAGE_PREFIX/code-analyzer --all-tags
+    only:
+        changes:
+            - services/code-analyzer/**/*
 
 build:notifications:
-  <<: *build_template
-  script:
-    - cd services/notifications
-    - docker build -t $DOCKER_IMAGE_PREFIX/notifications:$CI_COMMIT_SHORT_SHA -t $DOCKER_IMAGE_PREFIX/notifications:latest .
-    - docker push $DOCKER_IMAGE_PREFIX/notifications --all-tags
-  only:
-    changes:
-      - services/notifications/**/*
+    <<: *build_template
+    script:
+        - cd services/notifications
+        - docker build -t $DOCKER_IMAGE_PREFIX/notifications:$CI_COMMIT_SHORT_SHA -t $DOCKER_IMAGE_PREFIX/notifications:latest .
+        - docker push $DOCKER_IMAGE_PREFIX/notifications --all-tags
+    only:
+        changes:
+            - services/notifications/**/*
 
 build:web:
-  <<: *build_template
-  script:
-    - cd web
-    - docker build -t $DOCKER_IMAGE_PREFIX/web:$CI_COMMIT_SHORT_SHA -t $DOCKER_IMAGE_PREFIX/web:latest .
-    - docker push $DOCKER_IMAGE_PREFIX/web --all-tags
-  only:
-    changes:
-      - web/**/*
+    <<: *build_template
+    script:
+        - cd web
+        - docker build -t $DOCKER_IMAGE_PREFIX/web:$CI_COMMIT_SHORT_SHA -t $DOCKER_IMAGE_PREFIX/web:latest .
+        - docker push $DOCKER_IMAGE_PREFIX/web --all-tags
+    only:
+        changes:
+            - web/**/*

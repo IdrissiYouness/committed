@@ -19,6 +19,8 @@ This guide is specifically for team members using **Windows** with **Docker Desk
 
 ### 2. Verify Installation
 
+> **Note**: PostgreSQL images are pulled directly from Docker Hub — no container registry login or license agreement is needed.
+
 Open **PowerShell** or **Command Prompt** and run:
 
 ```powershell
@@ -53,15 +55,15 @@ Copy-Item .env.example .env
 # 3. Edit .env (use any text editor)
 notepad .env
 
-# 4. Login to Oracle Container Registry
-docker login container-registry.oracle.com
-
-# 5. Start the services
+# 4. Start the services
 cd docker
 docker compose up -d
 
-# 6. Check status
+# 5. Check status
 docker compose ps
+
+# 6. Test Core healthcheck (database connectivity)
+curl http://localhost:8000/health
 
 # 7. View logs
 docker compose logs -f
@@ -83,15 +85,15 @@ copy .env.example .env
 :: 3. Edit .env
 notepad .env
 
-:: 4. Login to Oracle Container Registry
-docker login container-registry.oracle.com
-
-:: 5. Start the services
+:: 4. Start the services
 cd docker
 docker compose up -d
 
-:: 6. Check status
+:: 5. Check status
 docker compose ps
+
+:: 6. Test Core healthcheck
+curl http://localhost:8000/health
 
 :: 7. View logs
 docker compose logs -f
@@ -108,10 +110,10 @@ git clone https://gitlab.com/iliassai/committed.git
 cd committed
 cp .env.example .env
 nano .env  # or use: notepad .env
-docker login container-registry.oracle.com
 cd docker
 docker compose up -d
 docker compose ps
+curl http://localhost:8000/health
 docker compose logs -f
 docker compose down
 ```
@@ -127,10 +129,10 @@ git clone https://gitlab.com/iliassai/committed.git
 cd committed
 cp .env.example .env
 nano .env
-docker login container-registry.oracle.com
 cd docker
 docker compose up -d
 docker compose ps
+curl http://localhost:8000/health
 docker compose logs -f
 docker compose down
 ```
@@ -178,6 +180,7 @@ docker compose -f docker\docker-compose.yml up -d
 Docker Desktop automatically shares your `C:\Users` folder with Docker.
 
 If your project is in a different drive (like `D:\`):
+
 1. Open Docker Desktop
 2. Go to **Settings** → **Resources** → **File Sharing**
 3. Add your drive (e.g., `D:\`)
@@ -186,6 +189,7 @@ If your project is in a different drive (like `D:\`):
 ### 4. Firewall Issues
 
 If services can't communicate:
+
 1. Open **Windows Defender Firewall**
 2. Click **Allow an app through firewall**
 3. Ensure **Docker Desktop** is allowed on both Private and Public networks
@@ -199,33 +203,36 @@ If services can't communicate:
 **Cause:** Docker Desktop not installed or not in PATH
 
 **Solution:**
+
 1. Restart PowerShell/Command Prompt after installing Docker Desktop
 2. If still not working, add Docker to PATH:
-   - Open **System Properties** → **Environment Variables**
-   - Add to PATH: `C:\Program Files\Docker\Docker\resources\bin`
-   - Restart terminal
+    - Open **System Properties** → **Environment Variables**
+    - Add to PATH: `C:\Program Files\Docker\Docker\resources\bin`
+    - Restart terminal
 
 ### Issue 2: "Error: daemon is not running"
 
 **Cause:** Docker Desktop service not started
 
 **Solution:**
+
 1. Open **Docker Desktop** application
 2. Wait for the whale icon in system tray to stop animating
 3. You should see "Docker Desktop is running"
 
-### Issue 3: "This container requires Oracle Database"
+### Issue 3: PostgreSQL won't start
 
-**Cause:** Oracle needs more time to initialize on Windows
+**Cause:** Port conflict or Docker resource issue
 
 **Solution:**
-```powershell
-# Start Oracle first and wait
-cd docker
-docker compose up -d oracle-db
 
-# Watch logs until you see "DATABASE IS READY TO USE"
-docker compose logs -f oracle-db
+```powershell
+# Start PostgreSQL first and wait
+cd docker
+docker compose up -d postgres-db
+
+# Watch logs until you see "database system is ready to accept connections"
+docker compose logs -f postgres-db
 
 # Then start other services (Ctrl+C to stop logs first)
 docker compose up -d
@@ -236,6 +243,7 @@ docker compose up -d
 **Cause:** Another application is using the same port
 
 **Solution:**
+
 ```powershell
 # Find what's using port 8080 (example)
 netstat -ano | findstr :8080
@@ -252,31 +260,34 @@ notepad .env
 **Cause:** File permissions or antivirus blocking Docker
 
 **Solution:**
+
 1. Run PowerShell/Command Prompt **as Administrator**
 2. Or temporarily disable antivirus for Docker folders
 3. Or add Docker folders to antivirus exclusions:
-   - `C:\Program Files\Docker`
-   - `C:\ProgramData\Docker`
-   - Your project folder
+    - `C:\Program Files\Docker`
+    - `C:\ProgramData\Docker`
+    - Your project folder
 
 ### Issue 6: Containers are very slow
 
 **Cause:** Antivirus scanning Docker volumes
 
 **Solution:**
+
 1. Open **Windows Security**
 2. Go to **Virus & threat protection** → **Manage settings**
 3. Scroll to **Exclusions** → **Add or remove exclusions**
 4. Add these folders:
-   - `C:\ProgramData\Docker`
-   - `%LOCALAPPDATA%\Docker`
-   - Your project directory
+    - `C:\ProgramData\Docker`
+    - `%LOCALAPPDATA%\Docker`
+    - Your project directory
 
 ### Issue 7: "invalid mount config for type bind"
 
 **Cause:** Windows path format issue
 
 **Solution:**
+
 ```powershell
 # Instead of:
 # ./db/init.sql  (may fail on some Windows versions)
@@ -294,18 +305,21 @@ docker compose up -d
 ## 💻 Recommended Terminal for Windows
 
 ### PowerShell (Built-in, Recommended)
+
 - ✅ Pre-installed
 - ✅ Supports all Docker commands
 - ✅ Modern and powerful
 - ✅ Tab completion works
 
 ### Windows Terminal (Best Experience)
+
 1. Install from **Microsoft Store**: "Windows Terminal"
 2. Supports multiple tabs
 3. Better colors and fonts
 4. Can run PowerShell, CMD, WSL2 in tabs
 
 ### Git Bash (If you prefer Linux-style)
+
 - Comes with Git for Windows
 - Use Linux commands on Windows
 - Familiar for Linux users
@@ -317,25 +331,19 @@ docker compose up -d
 ### Step 1: Install Required Software
 
 1. **Docker Desktop**
-   - Download: https://www.docker.com/products/docker-desktop/
-   - Install and restart
+    - Download: https://www.docker.com/products/docker-desktop/
+    - Install and restart
 
 2. **Git for Windows**
-   - Download: https://git-scm.com/download/win
-   - Install with default options
+    - Download: https://git-scm.com/download/win
+    - Install with default options
 
 3. **Your IDE** (choose based on service):
-   - IntelliJ IDEA (for Gateway - Java)
-   - PhpStorm (for Core - PHP)
-   - Visual Studio Code (for others)
+    - IntelliJ IDEA (for Gateway - Java)
+    - PhpStorm (for Core - PHP)
+    - Visual Studio Code (for others)
 
-### Step 2: Create Oracle Container Registry Account
-
-1. Go to: https://container-registry.oracle.com
-2. Click **Sign In** → **Create Account**
-3. Accept the **Database Express Edition** license
-
-### Step 3: Clone and Setup Project
+### Step 2: Clone and Setup Project
 
 Open PowerShell and run:
 
@@ -357,15 +365,7 @@ Copy-Item .env.example .env
 notepad .env
 ```
 
-### Step 4: Login to Docker Registries
-
-```powershell
-# Login to Oracle Container Registry
-docker login container-registry.oracle.com
-# Enter your Oracle account credentials
-```
-
-### Step 5: Start Services
+### Step 3: Start Services
 
 ```powershell
 # Navigate to docker folder
@@ -377,14 +377,14 @@ docker compose up -d
 # This will take 3-5 minutes on first run (downloading images)
 ```
 
-### Step 6: Verify Everything Works
+### Step 4: Verify Everything Works
 
 ```powershell
 # Check all containers are running
 docker compose ps
 
-# You should see 7 services:
-# - committed-oracle (healthy)
+# You should see these services:
+# - committed-postgres (healthy)
 # - committed-gateway
 # - committed-core
 # - committed-analyzer
@@ -392,14 +392,17 @@ docker compose ps
 # - committed-web
 # - committed-nginx
 
-# Test the chain
+# Test Core healthcheck (database connectivity + user data)
+curl http://localhost:8000/health
+
+# Test the full chain
 curl http://localhost/api/test-chain
 
 # Or open in browser:
 # http://localhost
 ```
 
-### Step 7: View Logs (if needed)
+### Step 5: View Logs (if needed)
 
 ```powershell
 # View all logs
@@ -411,7 +414,7 @@ docker compose logs -f gateway
 # Press Ctrl+C to stop viewing logs
 ```
 
-### Step 8: Stop Services When Done
+### Step 6: Stop Services When Done
 
 ```powershell
 # Stop all services
@@ -440,8 +443,11 @@ docker compose restart gateway
 # View logs
 docker compose logs -f [service-name]
 
-# Execute command in container
-docker exec -it committed-oracle bash
+# Execute command in PostgreSQL container
+docker exec -it committed-postgres psql -U core_user -d committed_core
+
+# Test Core healthcheck
+curl http://localhost:8000/health
 
 # Remove everything and start fresh
 docker compose down -v
@@ -490,6 +496,9 @@ Get-PSDrive C
 │ Check Status:                                                │
 │   docker compose ps                                          │
 │                                                              │
+│ Test Core + Database:                                        │
+│   curl http://localhost:8000/health                           │
+│                                                              │
 │ View Logs:                                                   │
 │   docker compose logs -f                                     │
 │                                                              │
@@ -499,6 +508,7 @@ Get-PSDrive C
 │ Access Application:                                          │
 │   - Frontend: http://localhost                               │
 │   - API: http://localhost/api                                │
+│   - Core Health: http://localhost:8000/health                 │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -520,6 +530,7 @@ git config --global core.autocrlf true
 ```
 
 **Linux/Mac users should run:**
+
 ```bash
 git config --global core.autocrlf input
 ```
@@ -527,12 +538,14 @@ git config --global core.autocrlf input
 ### Path Separators
 
 Always use forward slashes `/` in:
+
 - `.env` files
 - `docker-compose.yml`
 - Documentation
 - Git commits
 
 Example:
+
 ```env
 # ✅ Good (works on all OS)
 TEMP_CLONE_DIR=/tmp/code-analysis
@@ -544,6 +557,7 @@ TEMP_CLONE_DIR=C:\temp\code-analysis
 ### Script Compatibility
 
 If you create shell scripts (`.sh` files):
+
 1. Use LF line endings (not CRLF)
 2. Test in Git Bash on Windows
 3. Add shebang: `#!/bin/bash`
@@ -557,12 +571,11 @@ Before starting development:
 - [ ] Docker Desktop installed and running
 - [ ] Docker has 4GB+ RAM allocated
 - [ ] Git for Windows installed
-- [ ] Oracle Container Registry account created
-- [ ] Logged in: `docker login container-registry.oracle.com`
 - [ ] Git line ending configured: `git config core.autocrlf true`
 - [ ] Project cloned
 - [ ] `.env` file created from `.env.example`
 - [ ] Services start successfully: `docker compose up -d`
+- [ ] Core healthcheck works: `curl http://localhost:8000/health`
 - [ ] Can access: http://localhost
 - [ ] IDE installed and opened the correct service folder
 
@@ -573,19 +586,20 @@ Before starting development:
 ### If Commands Don't Work
 
 1. **Ensure Docker Desktop is running**
-   - Look for whale icon in system tray
-   - Should say "Docker Desktop is running"
+    - Look for whale icon in system tray
+    - Should say "Docker Desktop is running"
 
 2. **Restart PowerShell/Terminal**
-   - Close and reopen after installing Docker
+    - Close and reopen after installing Docker
 
 3. **Check Docker is in PATH**
-   ```powershell
-   $env:PATH -split ';' | Select-String -Pattern 'docker'
-   ```
+
+    ```powershell
+    $env:PATH -split ';' | Select-String -Pattern 'docker'
+    ```
 
 4. **Run as Administrator** (if permission issues)
-   - Right-click PowerShell → Run as Administrator
+    - Right-click PowerShell → Run as Administrator
 
 ### Ask Your Team
 
@@ -607,10 +621,11 @@ Before starting development:
 Windows works great with Docker Desktop. All the same commands from the main documentation work on Windows too!
 
 **Next steps:**
+
 1. Read [CONTRIBUTING.md](../CONTRIBUTING.md) for team workflow
 2. Read [SETUP.md](./SETUP.md) for IDE configuration
 3. Start coding! 🚀
 
 ---
 
-*Last updated: February 2026*
+_Last updated: February 2026_
