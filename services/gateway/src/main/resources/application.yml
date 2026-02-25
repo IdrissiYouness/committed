@@ -1,52 +1,52 @@
 server:
-  port: 8080
+    port: 8080
 
 spring:
-  application:
-    name: gateway
-  datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:oracle:thin:@localhost:1521/XEPDB1}
-    username: ${SPRING_DATASOURCE_USERNAME:committed_user}
-    password: ${SPRING_DATASOURCE_PASSWORD:SecurePassword123!}
-    driver-class-name: oracle.jdbc.OracleDriver
-  jpa:
-    hibernate:
-      ddl-auto: none
-    show-sql: false
-    database-platform: org.hibernate.dialect.OracleDialect
+    application:
+        name: gateway
+    datasource:
+        url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/committed}
+        username: ${SPRING_DATASOURCE_USERNAME:committed_user}
+        password: ${SPRING_DATASOURCE_PASSWORD:SecurePassword123!}
+        driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.postgresql.Driver}
+    jpa:
+        hibernate:
+            ddl-auto: none
+        show-sql: false
+        database-platform: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.PostgreSQLDialect}
 
 # Service URLs
 core:
-  service:
-    url: ${CORE_SERVICE_URL:http://core:8000}
+    service:
+        url: ${CORE_SERVICE_URL:http://core:8000}
 
 analyzer:
-  service:
-    url: ${ANALYZER_SERVICE_URL:http://code-analyzer:5000}
+    service:
+        url: ${ANALYZER_SERVICE_URL:http://code-analyzer:5000}
 
 notification:
-  service:
-    url: ${NOTIFICATION_SERVICE_URL:http://notifications:5001}
+    service:
+        url: ${NOTIFICATION_SERVICE_URL:http://notifications:5001}
 
 # JWT Configuration
 jwt:
-  secret: ${JWT_SECRET:8a7da2dbc6c2be6b72d6c66748787e71b11bf140c993c539b1064d39789a1e7324f920d1487327797ca8a3c7d64d3cc11e1a24b55ad4422d0a43909b96de599b}
-  expiration: ${JWT_EXPIRATION:86400000}
-  refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}  # 7 days in milliseconds
-  issuer: ${JWT_ISSUER:committed-platform}
+    secret: ${JWT_SECRET:8a7da2dbc6c2be6b72d6c66748787e71b11bf140c993c539b1064d39789a1e7324f920d1487327797ca8a3c7d64d3cc11e1a24b55ad4422d0a43909b96de599b}
+    expiration: ${JWT_EXPIRATION:86400000}
+    refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000} # 7 days in milliseconds
+    issuer: ${JWT_ISSUER:committed-platform}
 
 # Actuator endpoints
 management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info
-  endpoint:
-    health:
-      show-details: always
+    endpoints:
+        web:
+            exposure:
+                include: health,info
+    endpoint:
+        health:
+            show-details: always
 
 #logging configuration
 logging:
-  level:
-    com.committed.gateway: DEBUG
-    org.springframework.security: DEBUG
+    level:
+        com.committed.gateway: DEBUG
+        org.springframework.security: DEBUG
