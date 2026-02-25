@@ -120,35 +120,16 @@ services:
             - committed-network
         restart: unless-stopped
 
-    # Web Frontend (React)
-    web:
-        build:
-            context: ../web
-            dockerfile: Dockerfile
-        container_name: committed-web
-        ports:
-            - "3000:80"
-        environment:
-            - VITE_API_URL=${VITE_API_URL}
-        depends_on:
-            - gateway
-        networks:
-            - committed-network
-        restart: unless-stopped
-
-    # Nginx Reverse Proxy
+    # Nginx Reverse Proxy + Frontend (React static files built inside)
     nginx:
-        image: nginx:alpine
+        build:
+            context: ..
+            dockerfile: docker/nginx/Dockerfile
         container_name: committed-nginx
         ports:
             - "${NGINX_PORT}:80"
-        volumes:
-            - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-            - ./nginx/scalar.html:/usr/share/nginx/html/docs/scalar.html:ro
-            - ../docs/openapi.yaml:/usr/share/nginx/html/docs/openapi.yaml:ro
         depends_on:
             - gateway
-            - web
         networks:
             - committed-network
         restart: unless-stopped

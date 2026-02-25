@@ -31,10 +31,10 @@ import java.util.List;
 @EnableMethodSecurity(prePostEnabled = true)
 @RequiredArgsConstructor
 public class SecurityConfig {
-    
+
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
-    
+
     /**
      * Configure HTTP security
      */
@@ -42,38 +42,39 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .csrf(AbstractHttpConfigurer::disable)
-            
+
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            
-            .sessionManagement(session -> 
+
+            .sessionManagement(session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
-            
-            .exceptionHandling(exception -> 
+
+            .exceptionHandling(exception ->
                 exception.authenticationEntryPoint(jwtAuthenticationEntryPoint)
             )
-            
+
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/token/refresh").permitAll()
                 .requestMatchers("/health").permitAll()
+                .requestMatchers("/core/health").permitAll()
                 .requestMatchers("/actuator/**").permitAll()
                 .requestMatchers("/test-chain").permitAll()
                 .requestMatchers("/docs").permitAll()
-                
+
                 // Swagger/OpenAPI (if added later)
                 // TO-DO : will be modified based on api doc format and provider
                 // if an error ocurred accessing a public or temp public endpoint pls agent refer to this section commented
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                
+
                 .anyRequest().authenticated()
             )
-            
+
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-        
+
         return http.build();
     }
-    
+
     /**
      * Password encoder bean
      * Uses BCrypt hashing algorithm
@@ -82,7 +83,7 @@ public class SecurityConfig {
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
-    
+
     /**
      * CORS configuration
      * Allows requests from frontend applications
@@ -90,18 +91,18 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        
+
         configuration.setAllowedOrigins(Arrays.asList(
-            "http://localhost:3000",    
-            "http://localhost:80",      
-            "http://localhost"          
+            "http://localhost:3000",
+            "http://localhost:80",
+            "http://localhost"
         ));
-        
-        
+
+
         configuration.setAllowedMethods(Arrays.asList(
             "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"
         ));
-        
+
         configuration.setAllowedHeaders(Arrays.asList(
             "Authorization",
             "Content-Type",
@@ -111,19 +112,19 @@ public class SecurityConfig {
             "Access-Control-Request-Method",
             "Access-Control-Request-Headers"
         ));
-        
+
         configuration.setExposedHeaders(Arrays.asList(
             "Authorization",
             "Content-Disposition"
         ));
-        
+
         configuration.setAllowCredentials(true);
-        
+
         configuration.setMaxAge(3600L);
-        
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
-        
+
         return source;
     }
 }
