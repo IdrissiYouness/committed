@@ -18,6 +18,33 @@ public class HealthController {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
+    @GetMapping("/core/health")
+    public ResponseEntity<Map<String, Object>> coreHealth() {
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> coreResponse = restTemplate.getForObject(
+                coreServiceUrl + "/health",
+                Map.class
+            );
+            if (coreResponse != null) {
+                return ResponseEntity.ok(coreResponse);
+            } else {
+                Map<String, Object> error = new HashMap<>();
+                error.put("status", "error");
+                error.put("message", "Core service returned empty response");
+                error.put("timestamp", Instant.now().toString());
+                return ResponseEntity.status(503).body(error);
+            }
+        } catch (Exception e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("database", Map.of("connected", false, "error", e.getMessage()));
+            error.put("message", "Failed to connect to Core service: " + e.getMessage());
+            error.put("timestamp", Instant.now().toString());
+            return ResponseEntity.status(503).body(error);
+        }
+    }
+
     @GetMapping("/health")
     public ResponseEntity<Map<String, Object>> health() {
         Map<String, Object> response = new HashMap<>();
@@ -31,18 +58,18 @@ public class HealthController {
     public ResponseEntity<Map<String, Object>> testChain() {
         Map<String, Object> response = new HashMap<>();
         Map<String, String> chain = new HashMap<>();
-        
+
         // Gateway is always connected if we reach here
         chain.put("gateway", "connected");
-        
+
         try {
             // Call Core service to test the chain
             @SuppressWarnings("unchecked")
             Map<String, Object> coreResponse = restTemplate.getForObject(
-                coreServiceUrl + "/db-test", 
+                coreServiceUrl + "/db-test",
                 Map.class
             );
-            
+
             if (coreResponse != null && "connected".equals(coreResponse.get("database"))) {
                 chain.put("core", "connected");
                 chain.put("database", "connected");
@@ -60,10 +87,10 @@ public class HealthController {
             response.put("status", "error");
             response.put("message", "Failed to connect to Core service: " + e.getMessage());
         }
-        
+
         response.put("chain", chain);
         response.put("timestamp", Instant.now().toString());
-        
+
         return ResponseEntity.ok(response);
     }
 }
