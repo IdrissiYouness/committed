@@ -182,5 +182,25 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(body);
     }
+    
+    /**
+     * Handle InvalidCredentialsException — HTTP 401
+     */
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidCredentials(
+        InvalidCredentialsException ex,
+        WebRequest request
+    ) {
+        log.warn("Invalid login attempt: {}", ex.getMessage());
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("success", false);
+        body.put("error", "Unauthorized");
+        body.put("message", ex.getMessage());
+        body.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME));
+        body.put("path", ((ServletWebRequest) request).getRequest().getRequestURI());
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
+    }
 
 }

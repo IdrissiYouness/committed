@@ -2,13 +2,16 @@ package com.committed.gateway.service;
 
 import com.committed.gateway.client.CoreServiceClient;
 import com.committed.gateway.dto.*;
+import com.committed.gateway.dto.LoginRequest;
 import com.committed.gateway.dto.internal.CreateUserRequest;
 import com.committed.gateway.dto.internal.CreateUserResponse;
+import com.committed.gateway.dto.internal.UserDetailsResponse;
 import com.committed.gateway.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import com.committed.gateway.exception.InvalidCredentialsException;
 
 /**
  * Authentication Service
@@ -80,4 +83,63 @@ public class AuthService {
         
         return ApiResponse.success(authResponse, "Registration successful");
     }
+    
+    /**
+     * Login an existing user.
+     * Fetches user from Core, verifies BCrypt password, issues JWT.
+     *
+     * @throws InvalidCredentialsException if email unknown or password wrong
+     */
+    public ApiResponse<AuthResponse> login(LoginRequest request) {
+        log.info("Starting login for email: {}", request.getEmail());
+
+        
+        UserDetailsResponse coreUser = coreServiceClient.getUserByEmail(request.getEmail());
+
+    
+        if (Boolean.FALSE.equals(coreUser.getIsActive())) {
+            log.warn("Login attempt for inactive account: {}", request.getEmail());
+            throw new InvalidCredentialsException();
+        }
+
+        
+        if (!passwordEncoder.matches(request.getPassword(), coreUser.getPasswordHash())) {
+            log.warn("Invalid password for email: {}", request.getEmail());
+            throw new InvalidCredentialsException();
+        }
+
+        
+        String accessToken = jwtTokenProvider.generateToken(
+            coreUser.getUserId().toString(),
+            coreUser.getEmail(),
+            coreUser.getFullName(),
+            coreUser.getSystemRole().toUpperCase()
+        );
+
+        String refreshToken = jwtTokenProvider.generateRefreshToken(
+            coreUser.getUserId().toString()
+        );
+
+        log.info("Login successful for userId={}", coreUser.getUserId());
+
+        
+        UserResponse userResponse = UserResponse.builder()
+            .userId(coreUser.getUserId())
+            .email(coreUser.getEmail())
+            .fullName(coreUser.getFullName())
+            .systemRole(coreUser.getSystemRole())
+            .isActive(coreUser.getIsActive())
+            .createdAt(coreUser.getCreatedAt())
+            .build();
+
+        AuthResponse authResponse = AuthResponse.builder()
+            .accessToken(accessToken)
+            .refreshToken(refreshToken)
+            .user(userResponse)
+            .tokenType("Bearer")
+            .build();
+
+        return ApiResponse.success(authResponse, "Login successful");
+    }
+
 }

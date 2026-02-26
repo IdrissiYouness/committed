@@ -3,6 +3,7 @@
 namespace App\EventListener;
 
 use App\Exception\DuplicateEmailException;
+use App\Exception\UserNotFoundException;
 use App\Exception\ValidationException;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -25,56 +26,45 @@ class ExceptionListener
     public function __invoke(ExceptionEvent $event): void
     {
         $exception = $event->getThrowable();
-
-        // Create response based on exception type
-        $response = $this->createResponse($exception);
-
-        // Set the response
-        $event->setResponse($response);
+        $event->setResponse($this->createResponse($exception));
     }
 
     private function createResponse(\Throwable $exception): JsonResponse
     {
         $statusCode = 500;
-        $error = 'Internal Server Error';
-        $message = 'An unexpected error occurred';
-        $details = null;
+        $error      = 'Internal Server Error';
+        $message    = 'An unexpected error occurred';
+        $details    = null;
 
-        // Handle specific exception types
         if ($exception instanceof DuplicateEmailException) {
             $statusCode = 409;
-            $error = 'Conflict';
-            $message = $exception->getMessage();
+            $error      = 'Conflict';
+            $message    = $exception->getMessage();
+        } elseif ($exception instanceof UserNotFoundException) {
+            $statusCode = 404;
+            $error      = 'Not Found';
+            $message    = $exception->getMessage();
         } elseif ($exception instanceof ValidationException) {
             $statusCode = 400;
-            $error = 'Bad Request';
-            $message = 'Validation failed';
-            $details = $exception->getErrors();
+            $error      = 'Bad Request';
+            $message    = 'Validation failed';
+            $details    = $exception->getErrors();
         } elseif ($exception instanceof HttpExceptionInterface) {
             $statusCode = $exception->getStatusCode();
-            $error = $this->getErrorTitle($statusCode);
-            $message = $exception->getMessage();
+            $error      = $this->getErrorTitle($statusCode);
+            $message    = $exception->getMessage();
         } else {
-            // Log unexpected errors
             $this->logger->error('Unexpected exception', [
                 'exception' => get_class($exception),
-                'message' => $exception->getMessage(),
-                'trace' => $exception->getTraceAsString()
+                'message'   => $exception->getMessage(),
+                'trace'     => $exception->getTraceAsString()
             ]);
-
-            // Don't expose internal error details in production
-            if ($this->environment === 'prod') {
-                $message = 'An unexpected error occurred';
-            } else {
-                $message = $exception->getMessage();
-            }
+            $message = $this->environment === 'prod'
+                ? 'An unexpected error occurred'
+                : $exception->getMessage();
         }
 
-        $responseData = [
-            'error' => $error,
-            'message' => $message,
-        ];
-
+        $responseData = ['error' => $error, 'message' => $message];
         if ($details !== null) {
             $responseData['details'] = $details;
         }

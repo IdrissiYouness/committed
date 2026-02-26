@@ -3,8 +3,10 @@
 namespace App\Controller;
 
 use App\DTO\CreateUserRequest;
-use App\Service\UserService;
+use App\DTO\FindUserByEmailRequest;
+use App\Exception\UserNotFoundException;
 use App\Exception\ValidationException;
+use App\Service\UserService;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -18,15 +20,15 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
 class InternalUserController extends AbstractController
 {
     public function __construct(
-        private UserService $userService,
+        private UserService         $userService,
         private SerializerInterface $serializer,
-        private ValidatorInterface $validator,
-        private LoggerInterface $logger
+        private ValidatorInterface  $validator,
+        private LoggerInterface     $logger
     ) {
     }
 
     /**
-     * Internal endpoint for creating users (called by Gateway)
+     * Create user — called by Gateway during registration.
      * POST /api/users/create
      */
     #[Route('/create', name: 'internal_user_create', methods: ['POST'])]
@@ -35,14 +37,12 @@ class InternalUserController extends AbstractController
         $this->logger->info('Received user creation request');
 
         try {
-            // Deserialize JSON request to DTO
             $createUserRequest = $this->serializer->deserialize(
                 $request->getContent(),
                 CreateUserRequest::class,
                 'json'
             );
 
-            // Validate the DTO
             $errors = $this->validator->validate($createUserRequest);
             if (count($errors) > 0) {
                 $errorMessages = [];
@@ -52,28 +52,62 @@ class InternalUserController extends AbstractController
                 throw new ValidationException($errorMessages);
             }
 
-            // Create user via service
             $response = $this->userService->createUser($createUserRequest);
 
             $this->logger->info('User created successfully', [
                 'userId' => $response->toArray()['userId']
             ]);
 
-            // Return 201 Created with user data
-            return $this->json(
-                $response->toArray(),
-                Response::HTTP_CREATED
-            );
+            return $this->json($response->toArray(), Response::HTTP_CREATED);
 
         } catch (ValidationException | \App\Exception\DuplicateEmailException $e) {
-            // These exceptions are handled by ExceptionListener
             throw $e;
         } catch (\Exception $e) {
             $this->logger->error('Unexpected error creating user', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
+            throw $e;
+        }
+    }
 
+    /**
+     * Find user by email — called by Gateway during login.
+     * Returns user details including passwordHash for credential verification.
+     * POST /api/users/find-by-email
+     */
+    #[Route('/find-by-email', name: 'internal_user_find_by_email', methods: ['POST'])]
+    public function findByEmail(Request $request): JsonResponse
+    {
+        $this->logger->info('Received find-by-email request');
+
+        try {
+            $findRequest = $this->serializer->deserialize(
+                $request->getContent(),
+                FindUserByEmailRequest::class,
+                'json'
+            );
+
+            $errors = $this->validator->validate($findRequest);
+            if (count($errors) > 0) {
+                $errorMessages = [];
+                foreach ($errors as $error) {
+                    $errorMessages[$error->getPropertyPath()] = $error->getMessage();
+                }
+                throw new ValidationException($errorMessages);
+            }
+
+            $userDetails = $this->userService->getUserDetails($findRequest->getEmail());
+
+            return $this->json($userDetails->toArray(), Response::HTTP_OK);
+
+        } catch (ValidationException | UserNotFoundException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            $this->logger->error('Unexpected error in find-by-email', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             throw $e;
         }
     }

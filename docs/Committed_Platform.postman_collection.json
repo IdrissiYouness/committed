@@ -548,11 +548,357 @@
             ]
         },
         {
-            "name": "3 — JWT Token Operations",
+            "name": "3 — Login (AUTH-003)",
+            "description": "Tests POST /api/auth/login through the Gateway.\n\n**Prerequisites:** Run '2.1 Register New User' first — it sets `registered_email` (unique timestamped email) and `access_token` variables used here.\n\nKey security check: both wrong-password and unknown-email return the exact same 401 message to prevent email enumeration.",
+            "item": [
+                {
+                    "name": "3.1 Login — Success",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 200 OK', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test('Response indicates success', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.message).to.eql('Login successful');",
+                                    "});",
+                                    "",
+                                    "pm.test('Access token is present and is a JWT', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    var token = json.data.accessToken;",
+                                    "    pm.expect(token).to.be.a('string');",
+                                    "    pm.expect(token.split('.').length).to.eql(3);",
+                                    "    // Overwrite token saved from registration with a fresh login token",
+                                    "    pm.collectionVariables.set('access_token', token);",
+                                    "});",
+                                    "",
+                                    "pm.test('Refresh token is present and is a JWT', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    var token = json.data.refreshToken;",
+                                    "    pm.expect(token).to.be.a('string');",
+                                    "    pm.expect(token.split('.').length).to.eql(3);",
+                                    "    pm.collectionVariables.set('refresh_token', token);",
+                                    "});",
+                                    "",
+                                    "pm.test('Token type is Bearer', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.data.tokenType).to.eql('Bearer');",
+                                    "});",
+                                    "",
+                                    "pm.test('User data matches registered user', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    var user = json.data.user;",
+                                    "    var expectedEmail = pm.collectionVariables.get('registered_email');",
+                                    "",
+                                    "    pm.expect(user.userId).to.be.a('number');",
+                                    "    pm.expect(user.email).to.eql(expectedEmail);",
+                                    "    pm.expect(user.fullName).to.eql('Test User');",
+                                    "    pm.expect(user.systemRole).to.eql('user');",
+                                    "    pm.expect(user.isActive).to.be.true;",
+                                    "    pm.expect(user.createdAt).to.be.a('string');",
+                                    "});",
+                                    "",
+                                    "pm.test('Response does NOT expose passwordHash', function () {",
+                                    "    pm.expect(pm.response.text()).to.not.include('passwordHash');",
+                                    "});",
+                                    "",
+                                    "pm.test('Timestamp field is present', function () {",
+                                    "    pm.expect(pm.response.json().timestamp).to.be.a('string');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"{{registered_email}}\",\n    \"password\": \"securepass123\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/auth/login",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "auth", "login"]
+                        },
+                        "description": "Login with the credentials used in 2.1 Register. On success, overwrites `access_token` and `refresh_token` collection variables with fresh login tokens."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "3.2 Login — Wrong Password → 401",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 401 Unauthorized', function () {",
+                                    "    pm.response.to.have.status(401);",
+                                    "});",
+                                    "",
+                                    "pm.test('Error is Unauthorized', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.error).to.eql('Unauthorized');",
+                                    "});",
+                                    "",
+                                    "pm.test('Generic message — no password hint', function () {",
+                                    "    pm.expect(pm.response.json().message).to.eql('Invalid email or password');",
+                                    "});",
+                                    "",
+                                    "pm.test('No token in response', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json).to.not.have.property('data');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"{{registered_email}}\",\n    \"password\": \"wrongpassword!\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/auth/login",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "auth", "login"]
+                        },
+                        "description": "Correct email but wrong password. Must return 401 with the same generic message as unknown email to prevent password-vs-email distinguishing."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "3.3 Login — Unknown Email → 401",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 401 Unauthorized', function () {",
+                                    "    pm.response.to.have.status(401);",
+                                    "});",
+                                    "",
+                                    "pm.test('Error message is identical to wrong-password (anti-enumeration)', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.error).to.eql('Unauthorized');",
+                                    "    pm.expect(json.message).to.eql('Invalid email or password');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"ghost_nobody@doesnotexist.com\",\n    \"password\": \"securepass123\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/auth/login",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "auth", "login"]
+                        },
+                        "description": "Email that was never registered. Must return the exact same 401 as wrong password — prevents attackers from enumerating valid emails."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "3.4 Login — Missing Email → 400",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 400 Bad Request', function () {",
+                                    "    pm.response.to.have.status(400);",
+                                    "});",
+                                    "",
+                                    "pm.test('Validation error on email field', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.error).to.eql('Bad Request');",
+                                    "    pm.expect(json.message).to.eql('Validation failed');",
+                                    "    pm.expect(json.fieldErrors).to.have.property('email');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"password\": \"securepass123\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/auth/login",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "auth", "login"]
+                        },
+                        "description": "Body is missing the email field. Should return 400 with a field-level validation error before any DB lookup."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "3.5 Login — Invalid Email Format → 400",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 400 Bad Request', function () {",
+                                    "    pm.response.to.have.status(400);",
+                                    "});",
+                                    "",
+                                    "pm.test('Validation error on email format', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.error).to.eql('Bad Request');",
+                                    "    pm.expect(json.fieldErrors).to.have.property('email');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"not-an-email\",\n    \"password\": \"securepass123\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/auth/login",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "auth", "login"]
+                        },
+                        "description": "Malformed email value. Should fail Bean Validation before touching the database."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "3.6 Login — Missing Password → 400",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 400 Bad Request', function () {",
+                                    "    pm.response.to.have.status(400);",
+                                    "});",
+                                    "",
+                                    "pm.test('Validation error on password field', function () {",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.error).to.eql('Bad Request');",
+                                    "    pm.expect(json.fieldErrors).to.have.property('password');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"{{registered_email}}\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/auth/login",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "auth", "login"]
+                        },
+                        "description": "Body is missing the password field. Should return 400 with a field-level validation error."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "3.7 Login — Empty Body → 400",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status code is 400 Bad Request', function () {",
+                                    "    pm.response.to.have.status(400);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": ""
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/auth/login",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "auth", "login"]
+                        },
+                        "description": "No body at all. Should return 400."
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "4 — JWT Token Operations",
             "description": "Validate tokens, refresh tokens, and test protected endpoints.\n\n**Prerequisites:** Run '2.1 Register New User' first — it auto-saves the tokens.",
             "item": [
                 {
-                    "name": "3.1 Validate Access Token",
+                    "name": "4.1 Validate Access Token",
                     "event": [
                         {
                             "listen": "test",
@@ -601,7 +947,7 @@
                     "response": []
                 },
                 {
-                    "name": "3.2 Refresh Token",
+                    "name": "4.2 Refresh Token",
                     "event": [
                         {
                             "listen": "test",
@@ -656,7 +1002,7 @@
                     "response": []
                 },
                 {
-                    "name": "3.3 Validate Refreshed Token",
+                    "name": "4.3 Validate Refreshed Token",
                     "event": [
                         {
                             "listen": "test",
@@ -693,7 +1039,7 @@
                     "response": []
                 },
                 {
-                    "name": "3.4 Validate — Invalid Token",
+                    "name": "4.4 Validate — Invalid Token",
                     "event": [
                         {
                             "listen": "test",
@@ -731,7 +1077,7 @@
                     "response": []
                 },
                 {
-                    "name": "3.5 Refresh — Invalid Refresh Token",
+                    "name": "4.5 Refresh — Invalid Refresh Token",
                     "event": [
                         {
                             "listen": "test",
@@ -772,7 +1118,7 @@
                     "response": []
                 },
                 {
-                    "name": "3.6 Refresh — Missing Refresh Token",
+                    "name": "4.6 Refresh — Missing Refresh Token",
                     "event": [
                         {
                             "listen": "test",
@@ -815,11 +1161,11 @@
             ]
         },
         {
-            "name": "4 — Protected Endpoints (Auth Required)",
+            "name": "5 — Protected Endpoints (Auth Required)",
             "description": "Verify that protected endpoints reject unauthenticated requests and accept valid tokens.",
             "item": [
                 {
-                    "name": "4.1 Access Protected Endpoint — No Token (401)",
+                    "name": "5.1 Access Protected Endpoint — No Token (401)",
                     "event": [
                         {
                             "listen": "test",
@@ -846,7 +1192,7 @@
                     "response": []
                 },
                 {
-                    "name": "4.2 Access Protected Endpoint — With Token (200)",
+                    "name": "5.2 Access Protected Endpoint — With Valid Token (200)",
                     "event": [
                         {
                             "listen": "test",
@@ -912,11 +1258,11 @@
             ]
         },
         {
-            "name": "5 — Core Service Direct (Internal API)",
+            "name": "6 — Core Service Direct (Internal API)",
             "description": "Direct calls to Core service on port 8000. These are internal APIs normally called only by the Gateway, not by end users. Useful for debugging.",
             "item": [
                 {
-                    "name": "5.1 Create User via Core — Success",
+                    "name": "6.1 Create User via Core — Success",
                     "event": [
                         {
                             "listen": "prerequest",
@@ -972,7 +1318,7 @@
                     "response": []
                 },
                 {
-                    "name": "5.2 Create User via Core — Duplicate Email (409)",
+                    "name": "6.2 Create User via Core — Duplicate Email",
                     "event": [
                         {
                             "listen": "test",
@@ -1014,7 +1360,7 @@
                     "response": []
                 },
                 {
-                    "name": "5.3 Create User via Core — Validation Error",
+                    "name": "6.3 Create User via Core — Validation Error",
                     "event": [
                         {
                             "listen": "test",
@@ -1056,7 +1402,7 @@
                     "response": []
                 },
                 {
-                    "name": "5.4 Create User via Core — Seed User Conflict",
+                    "name": "6.4 Create User via Core — Seed User Conflict",
                     "event": [
                         {
                             "listen": "test",
@@ -1099,11 +1445,11 @@
             ]
         },
         {
-            "name": "6 — Database Verification",
+            "name": "7 — Database Verification",
             "description": "Confirm data actually persisted in PostgreSQL by querying Core's health endpoint which lists users.",
             "item": [
                 {
-                    "name": "6.1 Verify Registered User in DB",
+                    "name": "7.1 Verify Registered User in DB",
                     "event": [
                         {
                             "listen": "test",
@@ -1155,11 +1501,11 @@
             ]
         },
         {
-            "name": "7 — Edge Cases & Error Handling",
+            "name": "8 — Edge Cases & Error Handling",
             "description": "Miscellaneous edge cases to ensure robust error handling.",
             "item": [
                 {
-                    "name": "7.1 Register — SQL Injection Attempt",
+                    "name": "8.1 Register — SQL Injection Attempt",
                     "event": [
                         {
                             "listen": "test",
@@ -1199,7 +1545,7 @@
                     "response": []
                 },
                 {
-                    "name": "7.2 Register — XSS in Full Name",
+                    "name": "8.2 Register — XSS in Full Name",
                     "event": [
                         {
                             "listen": "prerequest",
@@ -1249,7 +1595,7 @@
                     "response": []
                 },
                 {
-                    "name": "7.3 Register — Very Long Email (255+ chars)",
+                    "name": "8.3 Register — Very Long Email (255+ chars)",
                     "event": [
                         {
                             "listen": "test",
@@ -1289,7 +1635,7 @@
                     "response": []
                 },
                 {
-                    "name": "7.4 Wrong HTTP Method — GET on POST endpoint",
+                    "name": "8.4 Wrong HTTP Method — GET on POST endpoint",
                     "event": [
                         {
                             "listen": "test",
@@ -1316,7 +1662,7 @@
                     "response": []
                 },
                 {
-                    "name": "7.5 Wrong Content-Type",
+                    "name": "8.5 Wrong Content-Type",
                     "event": [
                         {
                             "listen": "test",
