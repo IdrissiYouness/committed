@@ -3,6 +3,7 @@ package com.committed.gateway.controller;
 import com.committed.gateway.dto.ApiResponse;
 import com.committed.gateway.dto.AuthResponse;
 import com.committed.gateway.dto.RegisterRequest;
+import com.committed.gateway.dto.LoginRequest;
 import com.committed.gateway.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -40,4 +41,19 @@ public class AuthController {
         
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
+    
+    /**
+         * Login with email + password.
+         * POST /api/auth/login
+         * Returns JWT access + refresh tokens on success.
+         * Returns 401 for invalid credentials (same message for wrong password and unknown email).
+         */
+        @PostMapping("/login")
+        public ResponseEntity<ApiResponse<AuthResponse>> login(
+            @Valid @RequestBody LoginRequest request
+        ) {
+            log.info("Login request received for email: {}", request.getEmail());
+            ApiResponse<AuthResponse> response = authService.login(request);
+            return ResponseEntity.ok(response);
+        }
 }

@@ -4,8 +4,10 @@ namespace App\Service;
 
 use App\DTO\CreateUserRequest;
 use App\DTO\CreateUserResponse;
+use App\DTO\UserDetailsResponse;
 use App\Entity\User;
 use App\Exception\DuplicateEmailException;
+use App\Exception\UserNotFoundException;
 use App\Repository\UserRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
@@ -38,7 +40,6 @@ class UserService
 
         // Check if email already exists (using repository for query)
         $existingUser = $this->userRepository->findByEmail($request->getEmail());
-        $this->logger->info('Skipping duplicate check for testing...');
 
         if ($existingUser !== null) {
             $this->logger->warning('Duplicate email attempt', ['email' => $request->getEmail()]);
@@ -90,6 +91,34 @@ class UserService
 
             throw $e;
         }
+    }
+
+    /**
+     * Get full user details including passwordHash.
+     * Used internally by Gateway for login credential verification.
+     *
+     * @throws UserNotFoundException if no user with that email exists
+     */
+    public function getUserDetails(string $email): UserDetailsResponse
+    {
+        $this->logger->info('Fetching user details for login', ['email' => $email]);
+
+        $user = $this->userRepository->findByEmail($email);
+
+        if ($user === null) {
+            $this->logger->warning('Login attempt for unknown email', ['email' => $email]);
+            throw new UserNotFoundException($email);
+        }
+
+        return new UserDetailsResponse(
+            userId:       $user->getUserId(),
+            email:        $user->getEmail(),
+            fullName:     $user->getFullName(),
+            passwordHash: $user->getPasswordHash(),
+            systemRole:   $user->getSystemRole(),
+            isActive:     $user->isActive(),
+            createdAt:    $user->getCreatedAt()->format(\DateTime::ATOM)
+        );
     }
 
     /**

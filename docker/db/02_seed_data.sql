@@ -3,47 +3,47 @@
 -- File: 02_seed_data.sql
 -- Run this AFTER 01_schema.sql to populate with test data
 -- ============================================================================
-
+-- 
 -- ============================================================================
--- USERS (Passwords are 'password123' hashed with bcrypt)
--- In real app, use proper password hashing
+-- USERS (password for all seed users: password123)
+-- Using pgcrypto crypt() to generate real BCrypt-compatible hashes at init time
 -- ============================================================================
 
 -- Admin user
 INSERT INTO users (user_id, email, full_name, password_hash, system_role) VALUES
-(1, 'admin@committed.com', 'System Administrator', '$2a$10$N9qo8uLOickgx2ZMRZoMy.MqrqQlBNe8Y5JqKQl9XqKQl9XqKQl9X', 'admin');
+(1, 'admin@committed.com', 'System Administrator', crypt('password123', gen_salt('bf', 10)), 'admin');
 
 -- Professors
 INSERT INTO users (user_id, email, full_name, password_hash, system_role) VALUES
-(2, 'prof.smith@committed.com', 'Dr. John Smith', '$2a$10$N9qo8uLOickgx2ZMRZoMy.MqrqQlBNe8Y5JqKQl9XqKQl9XqKQl9X', 'user');
+(2, 'prof.smith@committed.com', 'Dr. John Smith', crypt('password123', gen_salt('bf', 10)), 'user');
 
 INSERT INTO users (user_id, email, full_name, password_hash, system_role) VALUES
-(3, 'prof.johnson@committed.com', 'Dr. Emily Johnson', '$2a$10$N9qo8uLOickgx2ZMRZoMy.MqrqQlBNe8Y5JqKQl9XqKQl9XqKQl9X', 'user');
+(3, 'prof.johnson@committed.com', 'Dr. Emily Johnson', crypt('password123', gen_salt('bf', 10)), 'user');
 
 INSERT INTO users (user_id, email, full_name, password_hash, system_role) VALUES
-(4, 'prof.williams@committed.com', 'Dr. Michael Williams', '$2a$10$N9qo8uLOickgx2ZMRZoMy.MqrqQlBNe8Y5JqKQl9XqKQl9XqKQl9X', 'user');
+(4, 'prof.williams@committed.com', 'Dr. Michael Williams', crypt('password123', gen_salt('bf', 10)), 'user');
 
 -- Students
 INSERT INTO users (user_id, email, full_name, password_hash, system_role) VALUES
-(5, 'alice.martin@student.committed.com', 'Alice Martin', '$2a$10$N9qo8uLOickgx2ZMRZoMy.MqrqQlBNe8Y5JqKQl9XqKQl9XqKQl9X', 'user');
+(5, 'alice.martin@student.committed.com', 'Alice Martin', crypt('password123', gen_salt('bf', 10)), 'user');
 
 INSERT INTO users (user_id, email, full_name, password_hash, system_role) VALUES
-(6, 'bob.wilson@student.committed.com', 'Bob Wilson', '$2a$10$N9qo8uLOickgx2ZMRZoMy.MqrqQlBNe8Y5JqKQl9XqKQl9XqKQl9X', 'user');
+(6, 'bob.wilson@student.committed.com', 'Bob Wilson', crypt('password123', gen_salt('bf', 10)), 'user');
 
 INSERT INTO users (user_id, email, full_name, password_hash, system_role) VALUES
-(7, 'charlie.brown@student.committed.com', 'Charlie Brown', '$2a$10$N9qo8uLOickgx2ZMRZoMy.MqrqQlBNe8Y5JqKQl9XqKQl9XqKQl9X', 'user');
+(7, 'charlie.brown@student.committed.com', 'Charlie Brown', crypt('password123', gen_salt('bf', 10)), 'user');
 
 INSERT INTO users (user_id, email, full_name, password_hash, system_role) VALUES
-(8, 'diana.ross@student.committed.com', 'Diana Ross', '$2a$10$N9qo8uLOickgx2ZMRZoMy.MqrqQlBNe8Y5JqKQl9XqKQl9XqKQl9X', 'user');
+(8, 'diana.ross@student.committed.com', 'Diana Ross', crypt('password123', gen_salt('bf', 10)), 'user');
 
 INSERT INTO users (user_id, email, full_name, password_hash, system_role) VALUES
-(9, 'edward.lee@student.committed.com', 'Edward Lee', '$2a$10$N9qo8uLOickgx2ZMRZoMy.MqrqQlBNe8Y5JqKQl9XqKQl9XqKQl9X', 'user');
+(9, 'edward.lee@student.committed.com', 'Edward Lee', crypt('password123', gen_salt('bf', 10)), 'user');
 
 INSERT INTO users (user_id, email, full_name, password_hash, system_role) VALUES
-(10, 'fiona.chen@student.committed.com', 'Fiona Chen', '$2a$10$N9qo8uLOickgx2ZMRZoMy.MqrqQlBNe8Y5JqKQl9XqKQl9XqKQl9X', 'user');
+(10, 'fiona.chen@student.committed.com', 'Fiona Chen', crypt('password123', gen_salt('bf', 10)), 'user');
 
 INSERT INTO users (user_id, email, full_name, password_hash, system_role) VALUES
-(11, 'george.kim@student.committed.com', 'George Kim', '$2a$10$N9qo8uLOickgx2ZMRZoMy.MqrqQlBNe8Y5JqKQl9XqKQl9XqKQl9X', 'user');
+(11, 'george.kim@student.committed.com', 'George Kim', crypt('password123', gen_salt('bf', 10)), 'user');
 
 -- ============================================================================
 -- COURSES
