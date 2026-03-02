@@ -1,0 +1,1184 @@
+{
+  "info": {
+    "_postman_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+    "name": "AUTH-004 — User Profile Management",
+    "description": "Dedicated test collection for AUTH-004: User Profile Management.\n\n## Prerequisites\n1. Docker containers must be running: `docker compose up --build postgres-db gateway core -d`\n2. Run **Setup: Register + Login** first to populate `access_token`, `refresh_token`, and `user_id` variables.\n3. All profile endpoints require a valid JWT in the `access_token` variable.\n\n## Flow\n1. Setup — Register a fresh test user and log in to get tokens\n2. GET Profile — retrieve the authenticated user's profile\n3. PUT Profile — update fullName and/or email\n4. Change Password — verify old password then set a new one\n5. Edge Cases — validation errors, wrong password, missing fields\n\n## Services\n- **Gateway** (Java Spring Boot) — `http://localhost:8080` — auth, JWT, routing\n- **Core** (PHP Symfony) — `http://localhost:8000` — user persistence (internal only)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "gateway_url",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string",
+      "description": "JWT access token — populated automatically by Setup requests"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string",
+      "description": "JWT refresh token — populated automatically by Setup requests"
+    },
+    {
+      "key": "user_id",
+      "value": "",
+      "type": "string",
+      "description": "Authenticated user ID — populated automatically by Setup requests"
+    },
+    {
+      "key": "test_email",
+      "value": "",
+      "type": "string",
+      "description": "Email used for the test user — set by the register request"
+    },
+    {
+      "key": "test_password",
+      "value": "Password123!",
+      "type": "string",
+      "description": "Password for the test user (keep in sync with the register body)"
+    },
+    {
+      "key": "changed_password",
+      "value": "NewPassword456!",
+      "type": "string",
+      "description": "Password after change-password succeeds — used in subsequent re-login tests"
+    }
+  ],
+  "item": [
+    {
+      "name": "1 — Setup: Register + Login",
+      "description": "Create a brand-new test user and log in to populate access_token, refresh_token, and user_id. Run these two requests in order before running any other folder.",
+      "item": [
+        {
+          "name": "1.1 Register Test User",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Generate a unique email so re-runs don't cause 409 conflicts",
+                  "const ts = Date.now();",
+                  "const email = `profile_test_${ts}@example.com`;",
+                  "pm.collectionVariables.set('test_email', email);",
+                  "pm.collectionVariables.set('test_password', 'Password123!');"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201 Created', () => {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response has success flag', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.success).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('Access token present', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.data.accessToken).to.be.a('string').and.not.be.empty;",
+                  "    pm.collectionVariables.set('access_token', body.data.accessToken);",
+                  "    pm.collectionVariables.set('refresh_token', body.data.refreshToken);",
+                  "    pm.collectionVariables.set('user_id', String(body.data.user.userId));",
+                  "    console.log('Test user registered — userId:', body.data.user.userId);",
+                  "    console.log('Test email:', pm.collectionVariables.get('test_email'));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{test_email}}\",\n  \"fullName\": \"Profile Test User\",\n  \"password\": \"{{test_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/api/auth/register",
+              "host": ["{{gateway_url}}"],
+              "path": ["api", "auth", "register"]
+            },
+            "description": "Register a fresh user with a timestamped email to avoid 409 conflicts on re-runs.\nStores access_token, refresh_token, user_id, and test_email as collection variables."
+          }
+        },
+        {
+          "name": "1.2 Login Test User (verify tokens)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Login returns tokens', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.success).to.be.true;",
+                  "    pm.expect(body.data.accessToken).to.be.a('string').and.not.be.empty;",
+                  "    // Re-set tokens from login (ensures we always have a fresh pair)",
+                  "    pm.collectionVariables.set('access_token', body.data.accessToken);",
+                  "    pm.collectionVariables.set('refresh_token', body.data.refreshToken);",
+                  "    console.log('Login successful — tokens refreshed');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{test_email}}\",\n  \"password\": \"{{test_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/api/auth/login",
+              "host": ["{{gateway_url}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Log in with the test user created in 1.1 to confirm credentials work and refresh the stored tokens."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2 — GET Profile",
+      "description": "Retrieve the authenticated user's public profile. Requires a valid access_token.",
+      "item": [
+        {
+          "name": "2.1 Get My Profile — 200 OK",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has success flag', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.success).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('Profile contains expected fields', () => {",
+                  "    const profile = pm.response.json().data;",
+                  "    pm.expect(profile.userId).to.be.a('number');",
+                  "    pm.expect(profile.email).to.be.a('string').and.not.be.empty;",
+                  "    pm.expect(profile.fullName).to.be.a('string').and.not.be.empty;",
+                  "    pm.expect(profile.systemRole).to.be.a('string').and.not.be.empty;",
+                  "    pm.expect(profile.isActive).to.be.a('boolean');",
+                  "    pm.expect(profile.createdAt).to.be.a('string');",
+                  "    pm.expect(profile.updatedAt).to.be.a('string');",
+                  "});",
+                  "",
+                  "pm.test('Profile does NOT expose passwordHash', () => {",
+                  "    const profile = pm.response.json().data;",
+                  "    pm.expect(profile.passwordHash).to.be.undefined;",
+                  "});",
+                  "",
+                  "pm.test('Profile email matches test email', () => {",
+                  "    const profile = pm.response.json().data;",
+                  "    pm.expect(profile.email).to.equal(pm.collectionVariables.get('test_email'));",
+                  "});",
+                  "",
+                  "pm.test('Profile userId matches stored user_id', () => {",
+                  "    const profile = pm.response.json().data;",
+                  "    pm.expect(String(profile.userId)).to.equal(pm.collectionVariables.get('user_id'));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/api/users/profile",
+              "host": ["{{gateway_url}}"],
+              "path": ["api", "users", "profile"]
+            },
+            "description": "Happy path: fetch the authenticated user's profile.\nExpects userId, email, fullName, systemRole, isActive, createdAt, updatedAt — no passwordHash."
+          }
+        },
+        {
+          "name": "2.2 Get Profile — 401 No Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 401 Unauthorized', () => {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/api/users/profile",
+              "host": ["{{gateway_url}}"],
+              "path": ["api", "users", "profile"]
+            },
+            "description": "No Authorization header — expect 401 Unauthorized."
+          }
+        },
+        {
+          "name": "2.3 Get Profile — 401 Malformed Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 401 Unauthorized', () => {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer this.is.not.a.valid.jwt"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/api/users/profile",
+              "host": ["{{gateway_url}}"],
+              "path": ["api", "users", "profile"]
+            },
+            "description": "Malformed JWT — expect 401 Unauthorized."
+          }
+        }
+      ]
+    },
+    {
+      "name": "3 — PUT Profile",
+      "description": "Update the authenticated user's profile. At least one of fullName or email must be supplied.",
+      "item": [
+        {
+          "name": "3.1 Update fullName Only — 200 OK + New Tokens",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response is successful', () => {",
+                  "    pm.expect(pm.response.json().success).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('Profile fullName is updated', () => {",
+                  "    const profile = pm.response.json().data.profile;",
+                  "    pm.expect(profile.fullName).to.equal('Updated Full Name');",
+                  "});",
+                  "",
+                  "pm.test('Email is unchanged', () => {",
+                  "    const profile = pm.response.json().data.profile;",
+                  "    pm.expect(profile.email).to.equal(pm.collectionVariables.get('test_email'));",
+                  "});",
+                  "",
+                  "pm.test('New tokens returned (fullName is in JWT claims)', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.data.tokens).to.be.an('object');",
+                  "    pm.expect(body.data.tokens.accessToken).to.be.a('string').and.not.be.empty;",
+                  "    pm.expect(body.data.tokens.refreshToken).to.be.a('string').and.not.be.empty;",
+                  "    // Store the new tokens",
+                  "    pm.collectionVariables.set('access_token', body.data.tokens.accessToken);",
+                  "    pm.collectionVariables.set('refresh_token', body.data.tokens.refreshToken);",
+                  "    console.log('Tokens updated after fullName change');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Updated Full Name\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/api/users/profile",
+              "host": ["{{gateway_url}}"],
+              "path": ["api", "users", "profile"]
+            },
+            "description": "Update only fullName. Since fullName is embedded in JWT claims, new tokens are returned."
+          }
+        },
+        {
+          "name": "3.2 Update Email Only — 200 OK + New Tokens",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Build a new unique email for the update",
+                  "const ts = Date.now();",
+                  "const newEmail = `profile_updated_${ts}@example.com`;",
+                  "pm.collectionVariables.set('updated_email', newEmail);"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Profile email is updated', () => {",
+                  "    const profile = pm.response.json().data.profile;",
+                  "    pm.expect(profile.email).to.equal(pm.collectionVariables.get('updated_email'));",
+                  "    // Keep test_email in sync so login tests still work",
+                  "    pm.collectionVariables.set('test_email', profile.email);",
+                  "});",
+                  "",
+                  "pm.test('New tokens returned (email is in JWT claims)', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.data.tokens).to.be.an('object');",
+                  "    pm.expect(body.data.tokens.accessToken).to.be.a('string').and.not.be.empty;",
+                  "    pm.collectionVariables.set('access_token', body.data.tokens.accessToken);",
+                  "    pm.collectionVariables.set('refresh_token', body.data.tokens.refreshToken);",
+                  "    console.log('Tokens updated after email change — new email:', pm.collectionVariables.get('test_email'));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{updated_email}}\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/api/users/profile",
+              "host": ["{{gateway_url}}"],
+              "path": ["api", "users", "profile"]
+            },
+            "description": "Update only email. Since email is the JWT subject claim, new tokens are returned.\nThe pre-request script generates a unique email to avoid conflicts."
+          }
+        },
+        {
+          "name": "3.3 Update Both fullName + Email — 200 OK",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const ts = Date.now();",
+                  "const newEmail = `profile_both_${ts}@example.com`;",
+                  "pm.collectionVariables.set('updated_email', newEmail);"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Both fields updated', () => {",
+                  "    const profile = pm.response.json().data.profile;",
+                  "    pm.expect(profile.fullName).to.equal('Both Fields Updated');",
+                  "    pm.expect(profile.email).to.equal(pm.collectionVariables.get('updated_email'));",
+                  "    pm.collectionVariables.set('test_email', profile.email);",
+                  "});",
+                  "",
+                  "pm.test('New tokens returned', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.data.tokens).to.be.an('object');",
+                  "    pm.collectionVariables.set('access_token', body.data.tokens.accessToken);",
+                  "    pm.collectionVariables.set('refresh_token', body.data.tokens.refreshToken);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Both Fields Updated\",\n  \"email\": \"{{updated_email}}\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/api/users/profile",
+              "host": ["{{gateway_url}}"],
+              "path": ["api", "users", "profile"]
+            },
+            "description": "Update both fullName and email in a single request."
+          }
+        },
+        {
+          "name": "3.4 Update Profile — 400 Empty Body",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 Bad Request', () => {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/api/users/profile",
+              "host": ["{{gateway_url}}"],
+              "path": ["api", "users", "profile"]
+            },
+            "description": "Empty body — neither fullName nor email supplied. Expect 400 Bad Request."
+          }
+        },
+        {
+          "name": "3.5 Update Profile — 400 Invalid Email Format",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 Bad Request', () => {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"not-a-valid-email\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/api/users/profile",
+              "host": ["{{gateway_url}}"],
+              "path": ["api", "users", "profile"]
+            },
+            "description": "Invalid email format — expect 400 Bad Request with field validation error."
+          }
+        },
+        {
+          "name": "3.6 Update Profile — 400 fullName Too Short",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 Bad Request', () => {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"X\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/api/users/profile",
+              "host": ["{{gateway_url}}"],
+              "path": ["api", "users", "profile"]
+            },
+            "description": "fullName is only 1 character — minimum is 2. Expect 400 Bad Request."
+          }
+        },
+        {
+          "name": "3.7 Update Profile — 409 Email Already Taken",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 409 Conflict', () => {",
+                  "    pm.response.to.have.status(409);",
+                  "});",
+                  "",
+                  "pm.test('Error message mentions conflict', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.error || body.message).to.be.a('string');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@committed.com\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/api/users/profile",
+              "host": ["{{gateway_url}}"],
+              "path": ["api", "users", "profile"]
+            },
+            "description": "Attempt to claim an email that belongs to another user (the seeded admin).\nExpect 409 Conflict.\n\nNote: This test assumes `admin@committed.com` is already registered (seed data).\nIf your DB was not seeded, register a second user first and use that email here."
+          }
+        },
+        {
+          "name": "3.8 Update Profile — 401 No Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 401 Unauthorized', () => {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"No Token Update\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/api/users/profile",
+              "host": ["{{gateway_url}}"],
+              "path": ["api", "users", "profile"]
+            },
+            "description": "No Authorization header — expect 401 Unauthorized."
+          }
+        }
+      ]
+    },
+    {
+      "name": "4 — Change Password",
+      "description": "Change the authenticated user's password. Requires the current password for verification. Returns fresh tokens on success.",
+      "item": [
+        {
+          "name": "4.1 Change Password — 200 OK + New Tokens",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response is successful', () => {",
+                  "    pm.expect(pm.response.json().success).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('Fresh tokens returned', () => {",
+                  "    const tokens = pm.response.json().data;",
+                  "    pm.expect(tokens.accessToken).to.be.a('string').and.not.be.empty;",
+                  "    pm.expect(tokens.refreshToken).to.be.a('string').and.not.be.empty;",
+                  "    pm.expect(tokens.tokenType).to.equal('Bearer');",
+                  "    // Store new tokens — old ones are now stale",
+                  "    pm.collectionVariables.set('access_token', tokens.accessToken);",
+                  "    pm.collectionVariables.set('refresh_token', tokens.refreshToken);",
+                  "    // Track the new password for subsequent tests",
+                  "    pm.collectionVariables.set('test_password', pm.collectionVariables.get('changed_password'));",
+                  "    console.log('Password changed — new tokens stored');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"{{test_password}}\",\n  \"newPassword\": \"{{changed_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/api/users/profile/change-password",
+              "host": ["{{gateway_url}}"],
+              "path": ["api", "users", "profile", "change-password"]
+            },
+            "description": "Happy path: supply correct currentPassword and a valid newPassword.\nExpects 200 OK with fresh accessToken and refreshToken in the response body.\nThe test script updates the stored test_password for re-login tests."
+          }
+        },
+        {
+          "name": "4.2 Re-Login with New Password (verify change persisted)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Login with new password succeeds', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.success).to.be.true;",
+                  "    pm.expect(body.data.accessToken).to.be.a('string').and.not.be.empty;",
+                  "    pm.collectionVariables.set('access_token', body.data.accessToken);",
+                  "    pm.collectionVariables.set('refresh_token', body.data.refreshToken);",
+                  "    console.log('Re-login with new password successful');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{test_email}}\",\n  \"password\": \"{{changed_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/api/auth/login",
+              "host": ["{{gateway_url}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Confirm the password change was persisted by logging in again with the new password.\nIf this returns 401, the password was not actually updated in the database."
+          }
+        },
+        {
+          "name": "4.3 Change Password — 401 Wrong Current Password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 401 Unauthorized', () => {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error message returned', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.message || body.error).to.be.a('string');",
+                  "    console.log('Error:', body.message);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"WrongPassword000!\",\n  \"newPassword\": \"AnotherNewPass789!\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/api/users/profile/change-password",
+              "host": ["{{gateway_url}}"],
+              "path": ["api", "users", "profile", "change-password"]
+            },
+            "description": "Supply an incorrect currentPassword — Gateway should reject it with 401 Unauthorized\nbefore even calling Core."
+          }
+        },
+        {
+          "name": "4.4 Change Password — 401 Same as Current Password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 401 Unauthorized', () => {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Message explains same-password rejection', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.message).to.be.a('string');",
+                  "    console.log('Same-password error:', body.message);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"{{changed_password}}\",\n  \"newPassword\": \"{{changed_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/api/users/profile/change-password",
+              "host": ["{{gateway_url}}"],
+              "path": ["api", "users", "profile", "change-password"]
+            },
+            "description": "Supply the same value for currentPassword and newPassword.\nGateway should reject this with 401 and an informative message."
+          }
+        },
+        {
+          "name": "4.5 Change Password — 400 New Password Too Short",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 Bad Request', () => {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"{{changed_password}}\",\n  \"newPassword\": \"short\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/api/users/profile/change-password",
+              "host": ["{{gateway_url}}"],
+              "path": ["api", "users", "profile", "change-password"]
+            },
+            "description": "newPassword is fewer than 8 characters — should fail Bean Validation before\nreaching any service logic. Expect 400 Bad Request."
+          }
+        },
+        {
+          "name": "4.6 Change Password — 400 Missing currentPassword",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 Bad Request', () => {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newPassword\": \"NewPassword456!\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/api/users/profile/change-password",
+              "host": ["{{gateway_url}}"],
+              "path": ["api", "users", "profile", "change-password"]
+            },
+            "description": "currentPassword field is absent — expect 400 Bad Request from Bean Validation."
+          }
+        },
+        {
+          "name": "4.7 Change Password — 400 Missing newPassword",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 Bad Request', () => {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"{{changed_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/api/users/profile/change-password",
+              "host": ["{{gateway_url}}"],
+              "path": ["api", "users", "profile", "change-password"]
+            },
+            "description": "newPassword field is absent — expect 400 Bad Request from Bean Validation."
+          }
+        },
+        {
+          "name": "4.8 Change Password — 401 No Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 401 Unauthorized', () => {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"{{changed_password}}\",\n  \"newPassword\": \"NewPassword456!\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/api/users/profile/change-password",
+              "host": ["{{gateway_url}}"],
+              "path": ["api", "users", "profile", "change-password"]
+            },
+            "description": "No Authorization header — expect 401 Unauthorized."
+          }
+        }
+      ]
+    },
+    {
+      "name": "5 — Internal Core Endpoints (Direct)",
+      "description": "Direct calls to Core (port 8000) to verify the internal API independently of Gateway.\nUseful for debugging. These bypass JWT — Core trusts Gateway on the internal network.",
+      "item": [
+        {
+          "name": "5.1 [Core Direct] GET Profile by userId",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Profile fields present', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.userId).to.be.a('number');",
+                  "    pm.expect(body.email).to.be.a('string');",
+                  "    pm.expect(body.fullName).to.be.a('string');",
+                  "    pm.expect(body.systemRole).to.be.a('string');",
+                  "    pm.expect(body.isActive).to.be.a('boolean');",
+                  "    pm.expect(body.updatedAt).to.be.a('string');",
+                  "});",
+                  "",
+                  "pm.test('passwordHash NOT present', () => {",
+                  "    pm.expect(pm.response.json().passwordHash).to.be.undefined;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/api/users/{{user_id}}/profile",
+              "host": ["http://localhost:8000"],
+              "path": ["api", "users", "{{user_id}}", "profile"]
+            },
+            "description": "Call Core directly (port 8000) to verify GET /api/users/{userId}/profile works.\nuser_id must be set (populated by Setup folder). No JWT required — internal endpoint."
+          }
+        },
+        {
+          "name": "5.2 [Core Direct] GET Profile — 404 Unknown ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 404 Not Found', () => {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/api/users/999999999/profile",
+              "host": ["http://localhost:8000"],
+              "path": ["api", "users", "999999999", "profile"]
+            },
+            "description": "Verify Core returns 404 for an unknown userId."
+          }
+        },
+        {
+          "name": "5.3 [Core Direct] PUT Profile Update fullName",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('fullName updated', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.fullName).to.equal('Core Direct Update');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Core Direct Update\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/users/{{user_id}}/profile",
+              "host": ["http://localhost:8000"],
+              "path": ["api", "users", "{{user_id}}", "profile"]
+            },
+            "description": "Call Core directly to verify the PUT /api/users/{userId}/profile endpoint.\nPartial update — only fullName is sent."
+          }
+        },
+        {
+          "name": "5.4 [Core Direct] PUT Profile — 400 Empty Body",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 Bad Request', () => {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/users/{{user_id}}/profile",
+              "host": ["http://localhost:8000"],
+              "path": ["api", "users", "{{user_id}}", "profile"]
+            },
+            "description": "Empty body to Core — should return 400 because no updatable fields are present."
+          }
+        }
+      ]
+    }
+  ]
+}

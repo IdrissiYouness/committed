@@ -2,8 +2,11 @@
 
 namespace App\Controller;
 
+use App\DTO\ChangePasswordRequest;
 use App\DTO\CreateUserRequest;
 use App\DTO\FindUserByEmailRequest;
+use App\DTO\UpdateUserProfileRequest;
+use App\Exception\DuplicateEmailException;
 use App\Exception\UserNotFoundException;
 use App\Exception\ValidationException;
 use App\Service\UserService;
@@ -55,7 +58,7 @@ class InternalUserController extends AbstractController
             $response = $this->userService->createUser($createUserRequest);
 
             $this->logger->info('User created successfully', [
-                'userId' => $response->toArray()['userId']
+                'userId' => $response->toArray()['userId'],
             ]);
 
             return $this->json($response->toArray(), Response::HTTP_CREATED);
@@ -65,7 +68,7 @@ class InternalUserController extends AbstractController
         } catch (\Exception $e) {
             $this->logger->error('Unexpected error creating user', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
             throw $e;
         }
@@ -106,7 +109,125 @@ class InternalUserController extends AbstractController
         } catch (\Exception $e) {
             $this->logger->error('Unexpected error in find-by-email', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Get public profile for a user by ID — called by Gateway on GET /api/users/profile.
+     * Does NOT return passwordHash.
+     * GET /api/users/{userId}/profile
+     */
+    #[Route('/{userId}/profile', name: 'internal_user_get_profile', methods: ['GET'], requirements: ['userId' => '\d+'])]
+    public function getProfile(int $userId): JsonResponse
+    {
+        $this->logger->info('Received get-profile request', ['userId' => $userId]);
+
+        try {
+            $profile = $this->userService->getProfile($userId);
+
+            return $this->json($profile->toArray(), Response::HTTP_OK);
+
+        } catch (UserNotFoundException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            $this->logger->error('Unexpected error in get-profile', [
+                'userId' => $userId,
+                'error'  => $e->getMessage(),
+                'trace'  => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Update a user's profile (fullName, email) — called by Gateway on PUT /api/users/profile.
+     * All fields are optional; only non-null values are applied.
+     * PUT /api/users/{userId}/profile
+     */
+    #[Route('/{userId}/profile', name: 'internal_user_update_profile', methods: ['PUT'], requirements: ['userId' => '\d+'])]
+    public function updateProfile(int $userId, Request $request): JsonResponse
+    {
+        $this->logger->info('Received update-profile request', ['userId' => $userId]);
+
+        try {
+            $updateRequest = $this->serializer->deserialize(
+                $request->getContent(),
+                UpdateUserProfileRequest::class,
+                'json'
+            );
+
+            $errors = $this->validator->validate($updateRequest);
+            if (count($errors) > 0) {
+                $errorMessages = [];
+                foreach ($errors as $error) {
+                    $errorMessages[$error->getPropertyPath()] = $error->getMessage();
+                }
+                throw new ValidationException($errorMessages);
+            }
+
+            if (!$updateRequest->hasUpdates()) {
+                throw new ValidationException(['body' => 'At least one field (fullName or email) must be provided']);
+            }
+
+            $profile = $this->userService->updateProfile($userId, $updateRequest);
+
+            return $this->json($profile->toArray(), Response::HTTP_OK);
+
+        } catch (ValidationException | UserNotFoundException | DuplicateEmailException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            $this->logger->error('Unexpected error in update-profile', [
+                'userId' => $userId,
+                'error'  => $e->getMessage(),
+                'trace'  => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Change a user's password — called by Gateway on POST /api/users/profile/change-password.
+     * Gateway verifies the old password before calling this endpoint.
+     * Only the new BCrypt hash is accepted here.
+     * PUT /api/users/{userId}/password
+     */
+    #[Route('/{userId}/password', name: 'internal_user_change_password', methods: ['PUT'], requirements: ['userId' => '\d+'])]
+    public function changePassword(int $userId, Request $request): JsonResponse
+    {
+        $this->logger->info('Received change-password request', ['userId' => $userId]);
+
+        try {
+            $changeRequest = $this->serializer->deserialize(
+                $request->getContent(),
+                ChangePasswordRequest::class,
+                'json'
+            );
+
+            $errors = $this->validator->validate($changeRequest);
+            if (count($errors) > 0) {
+                $errorMessages = [];
+                foreach ($errors as $error) {
+                    $errorMessages[$error->getPropertyPath()] = $error->getMessage();
+                }
+                throw new ValidationException($errorMessages);
+            }
+
+            $this->userService->changePassword($userId, $changeRequest);
+
+            return $this->json([
+                'message' => 'Password changed successfully',
+            ], Response::HTTP_OK);
+
+        } catch (ValidationException | UserNotFoundException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            $this->logger->error('Unexpected error in change-password', [
+                'userId' => $userId,
+                'error'  => $e->getMessage(),
+                'trace'  => $e->getTraceAsString(),
             ]);
             throw $e;
         }

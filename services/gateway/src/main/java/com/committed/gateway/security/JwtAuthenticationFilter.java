@@ -21,74 +21,80 @@ import java.util.List;
 
 /**
  * JWT Authentication Filter
- * Intercepts every request and validates JWT token if present
+ * Intercepts every request and validates JWT token if present.
+ *
+ * Sets a {@link JwtPrincipal} (containing userId, email, systemRole) as the
+ * authentication principal so controllers can access userId without re-parsing the JWT.
  */
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
-    
+
     private final JwtTokenProvider tokenProvider;
-    
+
     private static final String AUTHORIZATION_HEADER = "Authorization";
     private static final String BEARER_PREFIX = "Bearer ";
-    
+
     @Override
     protected void doFilterInternal(
         HttpServletRequest request,
         HttpServletResponse response,
         FilterChain filterChain
     ) throws ServletException, IOException {
-        
+
         try {
             String token = extractTokenFromRequest(request);
-            
+
             if (token != null) {
                 if (tokenProvider.validateToken(token)) {
-                    String email = tokenProvider.getEmailFromToken(token);
-                    String userId = tokenProvider.getUserIdFromToken(token);
+                    String userId     = tokenProvider.getUserIdFromToken(token);
+                    String email      = tokenProvider.getEmailFromToken(token);
                     String systemRole = tokenProvider.getSystemRoleFromToken(token);
-                    
-                    List<SimpleGrantedAuthority> authorities = 
+
+                    JwtPrincipal principal = new JwtPrincipal(userId, email, systemRole);
+
+                    List<SimpleGrantedAuthority> authorities =
                         Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + systemRole));
-                    
-                    UsernamePasswordAuthenticationToken authentication = 
+
+                    UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
-                            email,      // Principal (email)
-                            null,       // Credentials (not needed)
-                            authorities // Authorities (system roles)
+                            principal,  // Principal — JwtPrincipal (userId + email + role)
+                            null,       // Credentials — not needed after token validation
+                            authorities
                         );
-                    
+
                     authentication.setDetails(
                         new WebAuthenticationDetailsSource().buildDetails(request)
                     );
-                    
+
                     SecurityContextHolder.getContext().setAuthentication(authentication);
-                    
-                    log.debug("Set authentication for user: {} with role: {}", email, systemRole);
+
+                    log.debug("Set authentication for user: {} (id={}) with role: {}",
+                        email, userId, systemRole);
                 }
             }
-            
+
         } catch (JwtTokenException ex) {
             log.error("Could not set user authentication: {}", ex.getMessage());
         }
-        
+
         filterChain.doFilter(request, response);
     }
-    
+
     /**
-     * Extract JWT token from Authorization header
-     * 
+     * Extract JWT token from the Authorization header.
+     *
      * @param request HTTP request
-     * @return JWT token or null if not present
+     * @return JWT token string, or null if the header is absent / not a Bearer token
      */
     private String extractTokenFromRequest(HttpServletRequest request) {
         String bearerToken = request.getHeader(AUTHORIZATION_HEADER);
-        
+
         if (StringUtils.hasText(bearerToken) && bearerToken.startsWith(BEARER_PREFIX)) {
             return bearerToken.substring(BEARER_PREFIX.length());
         }
-        
+
         return null;
     }
 }
