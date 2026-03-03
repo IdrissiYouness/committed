@@ -3,24 +3,22 @@ package com.committed.gateway.exception;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.FieldError;
-import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 
-
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.LinkedHashMap;
-import java.time.format.DateTimeFormatter;
 import java.time.LocalDateTime;
-
+import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Global Exception Handler
@@ -182,7 +180,7 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(body);
     }
-    
+
     /**
      * Handle InvalidCredentialsException — HTTP 401
      */
@@ -201,6 +199,26 @@ public class GlobalExceptionHandler {
         body.put("path", ((ServletWebRequest) request).getRequest().getRequestURI());
 
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
+    }
+
+    /**
+     * Handle UserNotFoundException — HTTP 404
+     */
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleUserNotFound(
+        UserNotFoundException ex,
+        WebRequest request
+    ) {
+        log.warn("User not found: {}", ex.getMessage());
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("success", false);
+        body.put("error", "Not Found");
+        body.put("message", ex.getMessage());
+        body.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME));
+        body.put("path", ((ServletWebRequest) request).getRequest().getRequestURI());
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
     }
 
 }
