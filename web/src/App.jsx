@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ShieldCheck, GraduationCap } from 'lucide-react';
 
+import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import { useAuthStore } from './store/authStore';
@@ -67,8 +68,8 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Root → redirect to login */}
-        <Route path={ROUTES.HOME} element={<Navigate to={ROUTES.LOGIN} replace />} />
+        {/* Root → Landing page for guests */}
+        <Route path={ROUTES.HOME} element={<LandingPage />} />
 
         {/* Public auth pages */}
         <Route path={ROUTES.LOGIN}    element={<LoginPage />} />
@@ -84,8 +85,8 @@ export default function App() {
           }
         />
 
-        {/* Catch-all */}
-        <Route path="*" element={<Navigate to={ROUTES.LOGIN} replace />} />
+        {/* Catch-all → back to landing */}
+        <Route path="*" element={<Navigate to={ROUTES.HOME} replace />} />
       </Routes>
     </BrowserRouter>
   );
