@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { GitCommit, Menu, X } from 'lucide-react';
 
@@ -13,22 +13,52 @@ import { ROUTES, APP_NAME } from '../../utils/constants';
  * Guest  → "Login" (ghost) + "Get Started" (primary)
  * Authed → "Go to Dashboard" (primary)
  *
+ * Scroll-aware:
+ *   - Background becomes fully opaque + adds shadow after scrolling past hero
+ *   - Active section link is highlighted as user scrolls through sections
+ *
  * Responsive: hamburger menu on mobile, inline buttons on md+.
  */
 export default function Navbar() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen]       = useState(false);
+  const [scrolled, setScrolled]       = useState(false);
+  const [activeSection, setActiveSection] = useState('');
   const navigate = useNavigate();
 
   const navLinks = [
-    { label: 'Features', href: '#features' },
-    { label: 'How it Works', href: '#how-it-works' },
+    { label: 'Features',     href: '#features'     },
+    { label: 'How it Works', href: '#how-it-works'  },
   ];
 
-  /**
-   * Smooth-scroll to a section by its id (e.g. "#features").
-   * Falls back to instant jump if the element is not found.
-   */
+  // ── Scroll listener ────────────────────────────────────────────────────────
+  useEffect(() => {
+    const SECTIONS = ['features', 'how-it-works'];
+    const SCROLL_THRESHOLD = 80; // px before navbar solidifies
+
+    const handleScroll = () => {
+      const y = window.scrollY;
+
+      // Solidify navbar background once past the threshold
+      setScrolled(y > SCROLL_THRESHOLD);
+
+      // Determine which section is currently in view (bottom-up scan)
+      let current = '';
+      for (const id of SECTIONS) {
+        const el = document.getElementById(id);
+        if (el && y >= el.offsetTop - 120) {
+          current = id;
+        }
+      }
+      setActiveSection(current);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll(); // run once on mount in case page reloads mid-scroll
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // ── Smooth scroll ──────────────────────────────────────────────────────────
   const handleSmoothScroll = useCallback((e, href) => {
     e.preventDefault();
     const id = href.replace('#', '');
@@ -39,8 +69,28 @@ export default function Navbar() {
     setMenuOpen(false);
   }, []);
 
+  // ── Nav link class helper ──────────────────────────────────────────────────
+  const linkClass = (href) => {
+    const id = href.replace('#', '');
+    const isActive = activeSection === id;
+    return [
+      'font-body text-sm font-semibold transition-colors duration-150',
+      'focus:outline-none focus-visible:underline',
+      isActive
+        ? 'text-secondary-500'
+        : 'text-neutral-600 hover:text-primary-700',
+    ].join(' ');
+  };
+
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-neutral-200/60 shadow-elegant">
+    <header
+      className={[
+        'fixed top-0 left-0 right-0 z-50 transition-all duration-300',
+        scrolled
+          ? 'bg-white border-b border-neutral-200 shadow-elevated'
+          : 'bg-white/80 backdrop-blur-md border-b border-neutral-200/60 shadow-elegant',
+      ].join(' ')}
+    >
       <nav
         className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8"
         aria-label="Main navigation"
@@ -66,9 +116,14 @@ export default function Navbar() {
               <a
                 href={href}
                 onClick={(e) => handleSmoothScroll(e, href)}
-                className="font-body text-sm font-semibold text-neutral-600 hover:text-primary-700 transition-colors duration-150 focus:outline-none focus-visible:underline"
+                className={linkClass(href)}
+                aria-current={activeSection === href.replace('#', '') ? 'true' : undefined}
               >
                 {label}
+                {/* Active underline indicator */}
+                {activeSection === href.replace('#', '') && (
+                  <span className="block h-0.5 mt-0.5 rounded-full bg-secondary-500" aria-hidden="true" />
+                )}
               </a>
             </li>
           ))}
@@ -110,7 +165,7 @@ export default function Navbar() {
           aria-label={menuOpen ? 'Close menu' : 'Open menu'}
         >
           {menuOpen
-            ? <X className="h-5 w-5" aria-hidden="true" />
+            ? <X    className="h-5 w-5" aria-hidden="true" />
             : <Menu className="h-5 w-5" aria-hidden="true" />
           }
         </button>
@@ -127,7 +182,13 @@ export default function Navbar() {
               key={label}
               href={href}
               onClick={(e) => handleSmoothScroll(e, href)}
-              className="font-body text-sm font-semibold text-neutral-700 hover:text-primary-700 py-2 transition-colors duration-150"
+              className={[
+                'font-body text-sm font-semibold py-2 transition-colors duration-150',
+                activeSection === href.replace('#', '')
+                  ? 'text-secondary-500'
+                  : 'text-neutral-700 hover:text-primary-700',
+              ].join(' ')}
+              aria-current={activeSection === href.replace('#', '') ? 'true' : undefined}
             >
               {label}
             </a>
