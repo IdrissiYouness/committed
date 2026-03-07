@@ -6,10 +6,15 @@ export const REMEMBER_ME_KEY   = 'committed_remember_me';
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
 export const ROUTES = {
-  HOME:      '/',
-  LOGIN:     '/login',
-  REGISTER:  '/register',
-  DASHBOARD: '/dashboard',
+  HOME:       '/',
+  LOGIN:      '/login',
+  REGISTER:   '/register',
+  DASHBOARD:  '/dashboard',
+  PROFILE:    '/profile',
+  COURSES:    '/courses',
+  ASSIGNMENTS:'/assignments',
+  GRADES:     '/grades',
+  ADMIN:      '/admin',
 };
 
 // ─── API ─────────────────────────────────────────────────────────────────────
@@ -17,11 +22,12 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:80
 
 export const API_ENDPOINTS = {
   AUTH: {
-    LOGIN:    '/api/auth/login',
-    REGISTER: '/api/auth/register',
+    LOGIN:           '/api/auth/login',
+    REGISTER:        '/api/auth/register',
+    REFRESH:         '/api/token/refresh',
   },
   USERS: {
-    PROFILE: '/api/users/profile',
+    PROFILE:         '/api/users/profile',
     CHANGE_PASSWORD: '/api/users/profile/change-password',
   },
 };
