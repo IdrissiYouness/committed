@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { User, Lock, Mail, Calendar, ShieldCheck, GraduationCap, Pencil, X, Check } from 'lucide-react';
+import { User, Lock, Mail, Calendar, ShieldCheck, Users, Pencil, X, Check } from 'lucide-react';
 
 import { useAuthStore } from '../../store/authStore';
 import { useAuth } from '../../hooks/useAuth';
@@ -254,7 +254,7 @@ export default function ProfilePage() {
                 ].join(' ')}>
                   {isAdmin
                     ? <><ShieldCheck className="h-3 w-3" aria-hidden="true" /> Admin</>
-                    : <><GraduationCap className="h-3 w-3" aria-hidden="true" /> Student</>
+                    : <><Users className="h-3 w-3" aria-hidden="true" /> Member</>
                   }
                 </span>
               </div>

@@ -30,6 +30,36 @@ export const API_ENDPOINTS = {
     PROFILE:         '/api/users/profile',
     CHANGE_PASSWORD: '/api/users/profile/change-password',
   },
+
+  // ── Future endpoints (not yet implemented in backend) ──────────────────────
+  // Uncomment each call site in dashboardService.js as the backend task lands.
+
+  COURSES: {
+    LIST:     '/api/courses',
+    ENROLLED: '/api/courses/enrolled',   // COURSE-002
+    TEACHING: '/api/courses/teaching',   // COURSE-001
+    DETAIL:   (id) => `/api/courses/${id}`,
+  },
+
+  ASSIGNMENTS: {
+    LIST:     '/api/assignments',
+    UPCOMING: '/api/assignments/upcoming', // ASSIGN-001
+    DETAIL:   (id) => `/api/assignments/${id}`,
+  },
+
+  ANNOUNCEMENTS: {
+    LIST:   '/api/announcements',
+    RECENT: '/api/announcements/recent',  // COURSE-004
+  },
+
+  GRADES: {
+    LIST:   '/api/grades',
+    RECENT: '/api/grades/recent',         // GRADE-001
+  },
+
+  ADMIN: {
+    USERS: '/api/admin/users',            // AUTH-005
+  },
 };
 
 // ─── App ─────────────────────────────────────────────────────────────────────

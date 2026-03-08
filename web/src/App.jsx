@@ -9,10 +9,6 @@ import AppLayout      from './components/layout/AppLayout';
 import { useAuthStore } from './store/authStore';
 import { ROUTES } from './utils/constants';
 
-// ─── Protected Route ──────────────────────────────────────────────────────────
-// Wraps any route that requires authentication.
-// Unauthenticated users are redirected to /login.
-
 function ProtectedRoute({ children }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   return isAuthenticated
@@ -20,7 +16,6 @@ function ProtectedRoute({ children }) {
     : <Navigate to={ROUTES.LOGIN} replace />;
 }
 
-// ─── Authenticated Layout Route ───────────────────────────────────────────────
 // Combines ProtectedRoute + AppLayout so every authenticated page
 // gets the header, sidebar and breadcrumbs without repeating the wrapper.
 
@@ -34,7 +29,6 @@ function AuthLayout({ children }) {
   );
 }
 
-// ─── App ─────────────────────────────────────────────────────────────────────
 
 export default function App() {
   return (
