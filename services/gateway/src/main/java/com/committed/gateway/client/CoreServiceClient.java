@@ -1,7 +1,10 @@
 package com.committed.gateway.client;
 
+import com.committed.gateway.dto.AdminUserResponse;
 import com.committed.gateway.dto.UserProfileResponse;
 import com.committed.gateway.dto.internal.ChangePasswordCoreRequest;
+import com.committed.gateway.dto.internal.CoreAdminUpdateRequest;
+import com.committed.gateway.dto.internal.CoreAdminUserListResponse;
 import com.committed.gateway.dto.internal.CreateUserRequest;
 import com.committed.gateway.dto.internal.CreateUserResponse;
 import com.committed.gateway.dto.internal.UpdateUserProfileRequest;
@@ -18,6 +21,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
+
 import java.util.Map;
 
 /**
@@ -232,6 +237,181 @@ public class CoreServiceClient {
 
         } catch (Exception ex) {
             log.error("Unexpected error calling Core update-profile: {}", ex.getMessage(), ex);
+            throw new ServiceUnavailableException("Core", ex);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Admin Operations
+    // -------------------------------------------------------------------------
+
+    /**
+     * Fetch a paginated, optionally filtered list of all users from Core.
+     * Called by Gateway on GET /api/admin/users.
+     *
+     * @param adminId   The acting admin's userId — forwarded to Core via x-admin-id header
+     * @param page      0-based page index
+     * @param size      Number of results per page (Core caps at 100)
+     * @param sortBy    Column to sort by
+     * @param sortDir   "asc" or "desc"
+     * @param role      Optional systemRole filter ("user" or "admin")
+     * @param isActive  Optional isActive filter
+     * @param search    Optional partial-match string against fullName / email
+     *
+     * @throws ServiceUnavailableException if Core is unreachable
+     */
+    public CoreAdminUserListResponse adminListUsers(
+            Long adminId,
+            int page,
+            int size,
+            String sortBy,
+            String sortDir,
+            String role,
+            Boolean isActive,
+            String search
+    ) {
+        UriComponentsBuilder uriBuilder = UriComponentsBuilder
+            .fromUriString(coreServiceUrl + "/api/internal/admin/users")
+            .queryParam("page",    page)
+            .queryParam("size",    size)
+            .queryParam("sortBy",  sortBy)
+            .queryParam("sortDir", sortDir);
+
+        if (role     != null) uriBuilder.queryParam("role",     role);
+        if (isActive != null) uriBuilder.queryParam("isActive", isActive);
+        if (search   != null) uriBuilder.queryParam("search",   search);
+
+        String url = uriBuilder.toUriString();
+
+        log.info("Calling Core admin list-users: adminId={}, url={}", adminId, url);
+
+        try {
+            HttpHeaders headers = jsonHeaders();
+            headers.set("x-admin-id", String.valueOf(adminId));
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+            ResponseEntity<CoreAdminUserListResponse> response = restTemplate.exchange(
+                url,
+                HttpMethod.GET,
+                entity,
+                CoreAdminUserListResponse.class
+            );
+
+            log.info("Core returned admin user list for adminId={}", adminId);
+            return response.getBody();
+
+        } catch (HttpClientErrorException ex) {
+            log.error("Client error calling Core admin list-users: status={}", ex.getStatusCode());
+            throw new ServiceUnavailableException("Core", ex);
+
+        } catch (ResourceAccessException ex) {
+            log.error("Cannot connect to Core service (admin list-users): {}", ex.getMessage());
+            throw new ServiceUnavailableException("Core", ex);
+
+        } catch (Exception ex) {
+            log.error("Unexpected error calling Core admin list-users: {}", ex.getMessage(), ex);
+            throw new ServiceUnavailableException("Core", ex);
+        }
+    }
+
+    /**
+     * Partially update any user's account fields in Core.
+     * Called by Gateway on PUT /api/admin/users/{userId}.
+     *
+     * @param adminId  The acting admin's userId — forwarded via x-admin-id header
+     * @param userId   The target user to update
+     * @param request  Fields to update (all optional; Core applies only non-null values)
+     *
+     * @throws UserNotFoundException       if Core returns 404
+     * @throws EmailAlreadyExistsException if Core returns 409 (new email already taken)
+     * @throws ServiceUnavailableException if Core is unreachable or returns another error
+     */
+    public AdminUserResponse adminUpdateUser(Long adminId, Long userId, CoreAdminUpdateRequest request) {
+        String url = coreServiceUrl + "/api/internal/admin/users/" + userId;
+
+        log.info("Calling Core admin update-user: adminId={}, targetId={}", adminId, userId);
+
+        try {
+            HttpHeaders headers = jsonHeaders();
+            headers.set("x-admin-id", String.valueOf(adminId));
+            HttpEntity<CoreAdminUpdateRequest> entity = new HttpEntity<>(request, headers);
+
+            ResponseEntity<AdminUserResponse> response = restTemplate.exchange(
+                url,
+                HttpMethod.PUT,
+                entity,
+                AdminUserResponse.class
+            );
+
+            log.info("Core updated user: adminId={}, targetId={}", adminId, userId);
+            return response.getBody();
+
+        } catch (HttpClientErrorException.NotFound ex) {
+            log.warn("User not found in Core during admin update: userId={}", userId);
+            throw new UserNotFoundException(userId);
+
+        } catch (HttpClientErrorException.Conflict ex) {
+            log.warn("Email conflict during admin update: adminId={}, targetId={}", adminId, userId);
+            throw new EmailAlreadyExistsException(request.getEmail());
+
+        } catch (HttpClientErrorException ex) {
+            log.error("Client error calling Core admin update-user: status={}", ex.getStatusCode());
+            throw new ServiceUnavailableException("Core", ex);
+
+        } catch (ResourceAccessException ex) {
+            log.error("Cannot connect to Core service (admin update-user): {}", ex.getMessage());
+            throw new ServiceUnavailableException("Core", ex);
+
+        } catch (Exception ex) {
+            log.error("Unexpected error calling Core admin update-user: {}", ex.getMessage(), ex);
+            throw new ServiceUnavailableException("Core", ex);
+        }
+    }
+
+    /**
+     * Soft-deactivate a user in Core (sets isActive = false).
+     * Called by Gateway on DELETE /api/admin/users/{userId}.
+     *
+     * @param adminId  The acting admin's userId — forwarded via x-admin-id header
+     * @param userId   The target user to deactivate
+     *
+     * @throws UserNotFoundException       if Core returns 404
+     * @throws ServiceUnavailableException if Core is unreachable or returns another error
+     */
+    public AdminUserResponse adminDeactivateUser(Long adminId, Long userId) {
+        String url = coreServiceUrl + "/api/internal/admin/users/" + userId;
+
+        log.info("Calling Core admin deactivate-user: adminId={}, targetId={}", adminId, userId);
+
+        try {
+            HttpHeaders headers = jsonHeaders();
+            headers.set("x-admin-id", String.valueOf(adminId));
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+            ResponseEntity<AdminUserResponse> response = restTemplate.exchange(
+                url,
+                HttpMethod.DELETE,
+                entity,
+                AdminUserResponse.class
+            );
+
+            log.info("Core deactivated user: adminId={}, targetId={}", adminId, userId);
+            return response.getBody();
+
+        } catch (HttpClientErrorException.NotFound ex) {
+            log.warn("User not found in Core during admin deactivate: userId={}", userId);
+            throw new UserNotFoundException(userId);
+
+        } catch (HttpClientErrorException ex) {
+            log.error("Client error calling Core admin deactivate-user: status={}", ex.getStatusCode());
+            throw new ServiceUnavailableException("Core", ex);
+
+        } catch (ResourceAccessException ex) {
+            log.error("Cannot connect to Core service (admin deactivate-user): {}", ex.getMessage());
+            throw new ServiceUnavailableException("Core", ex);
+
+        } catch (Exception ex) {
+            log.error("Unexpected error calling Core admin deactivate-user: {}", ex.getMessage(), ex);
             throw new ServiceUnavailableException("Core", ex);
         }
     }

@@ -1,0 +1,546 @@
+package com.committed.gateway.controller;
+
+import com.committed.gateway.dto.AdminUpdateUserRequest;
+import com.committed.gateway.dto.AdminUserResponse;
+import com.committed.gateway.dto.PagedResponse;
+import com.committed.gateway.exception.EmailAlreadyExistsException;
+import com.committed.gateway.exception.UserNotFoundException;
+import com.committed.gateway.security.JwtPrincipal;
+import com.committed.gateway.service.AdminService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
+import org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.util.List;
+
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+/**
+ * MockMvc slice tests for AdminController.
+ *
+ * Spring Security auto-configuration is excluded so the filter chain does not
+ * interfere with the controller logic tests.  The JWT principal is injected
+ * into the SecurityContextHolder via SecurityMockMvcRequestPostProcessors
+ * .authentication(), which is enough for @AuthenticationPrincipal JwtPrincipal
+ * to resolve correctly in every controller method.
+ *
+ * What is tested here:
+ *   - All three routes map correctly (GET list, PUT update, DELETE deactivate)
+ *   - Query / path parameters are forwarded to AdminService
+ *   - Response bodies contain the expected JSON shape
+ *   - Validation rejects empty bodies and invalid field values (400)
+ *   - Service exceptions are translated to the correct HTTP status codes
+ *     (400 for self-guard, 404 for not-found, 409 for email conflict)
+ *
+ * What is NOT tested here (covered by AdminControllerSecurityTest):
+ *   - Unauthenticated requests → 401
+ *   - ROLE_USER requests → 403
+ */
+@WebMvcTest(
+    value = AdminController.class,
+    excludeAutoConfiguration = {
+        SecurityAutoConfiguration.class,
+        SecurityFilterAutoConfiguration.class
+    }
+)
+class AdminControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @MockBean
+    private AdminService adminService;
+
+    // -------------------------------------------------------------------------
+    // Fixtures
+    // -------------------------------------------------------------------------
+
+    private static final Long ADMIN_USER_ID  = 1L;
+    private static final Long TARGET_USER_ID = 2L;
+
+    private AdminUserResponse sampleUser;
+    private PagedResponse<AdminUserResponse> samplePage;
+
+    @BeforeEach
+    void setUp() {
+        sampleUser = AdminUserResponse.builder()
+            .userId(TARGET_USER_ID)
+            .email("target@committed.com")
+            .fullName("Target User")
+            .systemRole("user")
+            .isActive(true)
+            .createdAt("2024-01-01T00:00:00+00:00")
+            .updatedAt("2024-06-01T00:00:00+00:00")
+            .build();
+
+        samplePage = PagedResponse.<AdminUserResponse>builder()
+            .content(List.of(sampleUser))
+            .page(0)
+            .size(20)
+            .totalElements(1)
+            .totalPages(1)
+            .hasNext(false)
+            .hasPrev(false)
+            .build();
+    }
+
+    // -------------------------------------------------------------------------
+    // Helpers
+    // -------------------------------------------------------------------------
+
+    /**
+     * Build a SecurityContextHolder-compatible authentication whose principal
+     * is a real JwtPrincipal — identical to what the production filter produces.
+     * Injected via SecurityMockMvcRequestPostProcessors.authentication() so that
+     * @AuthenticationPrincipal JwtPrincipal resolves in controller methods.
+     */
+    private static Authentication adminAuth() {
+        JwtPrincipal principal = new JwtPrincipal(
+            String.valueOf(ADMIN_USER_ID), "admin@committed.com", "ADMIN"
+        );
+        return new UsernamePasswordAuthenticationToken(
+            principal, null,
+            List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
+        );
+    }
+
+    // =========================================================================
+    // GET /api/admin/users
+    // =========================================================================
+
+    @Nested
+    class ListUsers {
+
+        @Test
+        void listUsers_DefaultParams_Returns200WithPagedBody() throws Exception {
+            when(adminService.listUsers(any(), eq(0), eq(20),
+                eq("createdAt"), eq("desc"), isNull(), isNull(), isNull()))
+                .thenReturn(samplePage);
+
+            mockMvc.perform(get("/api/admin/users")
+                    .with(authentication(adminAuth())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Users retrieved successfully"))
+                .andExpect(jsonPath("$.data.content[0].userId").value(TARGET_USER_ID))
+                .andExpect(jsonPath("$.data.content[0].email").value("target@committed.com"))
+                .andExpect(jsonPath("$.data.content[0].fullName").value("Target User"))
+                .andExpect(jsonPath("$.data.content[0].systemRole").value("user"))
+                .andExpect(jsonPath("$.data.content[0].isActive").value(true))
+                .andExpect(jsonPath("$.data.page").value(0))
+                .andExpect(jsonPath("$.data.size").value(20))
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.totalPages").value(1))
+                .andExpect(jsonPath("$.data.hasNext").value(false))
+                .andExpect(jsonPath("$.data.hasPrev").value(false));
+        }
+
+        @Test
+        void listUsers_WithPageAndSize_ForwardsToService() throws Exception {
+            when(adminService.listUsers(any(), eq(2), eq(10), any(), any(), any(), any(), any()))
+                .thenReturn(samplePage);
+
+            mockMvc.perform(get("/api/admin/users")
+                    .param("page", "2")
+                    .param("size", "10")
+                    .with(authentication(adminAuth())))
+                .andExpect(status().isOk());
+
+            verify(adminService).listUsers(any(), eq(2), eq(10), any(), any(), any(), any(), any());
+        }
+
+        @Test
+        void listUsers_WithRoleFilter_ForwardsToService() throws Exception {
+            when(adminService.listUsers(any(), anyInt(), anyInt(), any(), any(),
+                eq("admin"), any(), any()))
+                .thenReturn(samplePage);
+
+            mockMvc.perform(get("/api/admin/users")
+                    .param("role", "admin")
+                    .with(authentication(adminAuth())))
+                .andExpect(status().isOk());
+
+            verify(adminService).listUsers(any(), anyInt(), anyInt(), any(), any(),
+                eq("admin"), any(), any());
+        }
+
+        @Test
+        void listUsers_WithIsActiveFilter_ForwardsToService() throws Exception {
+            when(adminService.listUsers(any(), anyInt(), anyInt(), any(), any(),
+                any(), eq(false), any()))
+                .thenReturn(samplePage);
+
+            mockMvc.perform(get("/api/admin/users")
+                    .param("isActive", "false")
+                    .with(authentication(adminAuth())))
+                .andExpect(status().isOk());
+
+            verify(adminService).listUsers(any(), anyInt(), anyInt(), any(), any(),
+                any(), eq(false), any());
+        }
+
+        @Test
+        void listUsers_WithSearch_ForwardsToService() throws Exception {
+            when(adminService.listUsers(any(), anyInt(), anyInt(), any(), any(),
+                any(), any(), eq("alice")))
+                .thenReturn(samplePage);
+
+            mockMvc.perform(get("/api/admin/users")
+                    .param("search", "alice")
+                    .with(authentication(adminAuth())))
+                .andExpect(status().isOk());
+
+            verify(adminService).listUsers(any(), anyInt(), anyInt(), any(), any(),
+                any(), any(), eq("alice"));
+        }
+
+        @Test
+        void listUsers_WithSortParams_ForwardsToService() throws Exception {
+            when(adminService.listUsers(any(), anyInt(), anyInt(),
+                eq("fullName"), eq("asc"), any(), any(), any()))
+                .thenReturn(samplePage);
+
+            mockMvc.perform(get("/api/admin/users")
+                    .param("sortBy",  "fullName")
+                    .param("sortDir", "asc")
+                    .with(authentication(adminAuth())))
+                .andExpect(status().isOk());
+
+            verify(adminService).listUsers(any(), anyInt(), anyInt(),
+                eq("fullName"), eq("asc"), any(), any(), any());
+        }
+
+        @Test
+        void listUsers_AllFiltersAtOnce_ForwardsAll() throws Exception {
+            when(adminService.listUsers(any(), eq(1), eq(5),
+                eq("email"), eq("asc"), eq("user"), eq(true), eq("bob")))
+                .thenReturn(samplePage);
+
+            mockMvc.perform(get("/api/admin/users")
+                    .param("page",     "1")
+                    .param("size",     "5")
+                    .param("sortBy",   "email")
+                    .param("sortDir",  "asc")
+                    .param("role",     "user")
+                    .param("isActive", "true")
+                    .param("search",   "bob")
+                    .with(authentication(adminAuth())))
+                .andExpect(status().isOk());
+
+            verify(adminService).listUsers(any(), eq(1), eq(5),
+                eq("email"), eq("asc"), eq("user"), eq(true), eq("bob"));
+        }
+    }
+
+    // =========================================================================
+    // PUT /api/admin/users/{userId} — happy paths
+    // =========================================================================
+
+    @Nested
+    class UpdateUser {
+
+        @Test
+        void updateUser_ValidFullName_Returns200WithUpdatedUser() throws Exception {
+            AdminUpdateUserRequest request = AdminUpdateUserRequest.builder()
+                .fullName("Updated Name")
+                .build();
+
+            AdminUserResponse updated = AdminUserResponse.builder()
+                .userId(TARGET_USER_ID)
+                .email("target@committed.com")
+                .fullName("Updated Name")
+                .systemRole("user")
+                .isActive(true)
+                .createdAt("2024-01-01T00:00:00+00:00")
+                .updatedAt("2024-07-01T00:00:00+00:00")
+                .build();
+
+            when(adminService.updateUser(any(), eq(TARGET_USER_ID), any()))
+                .thenReturn(updated);
+
+            mockMvc.perform(put("/api/admin/users/" + TARGET_USER_ID)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request))
+                    .with(authentication(adminAuth())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("User updated successfully"))
+                .andExpect(jsonPath("$.data.userId").value(TARGET_USER_ID))
+                .andExpect(jsonPath("$.data.fullName").value("Updated Name"));
+        }
+
+        @Test
+        void updateUser_RolePromotion_Returns200() throws Exception {
+            AdminUpdateUserRequest request = AdminUpdateUserRequest.builder()
+                .systemRole("admin")
+                .build();
+
+            when(adminService.updateUser(any(), eq(TARGET_USER_ID), any()))
+                .thenReturn(sampleUser);
+
+            mockMvc.perform(put("/api/admin/users/" + TARGET_USER_ID)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request))
+                    .with(authentication(adminAuth())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+        }
+
+        @Test
+        void updateUser_Reactivation_Returns200() throws Exception {
+            AdminUpdateUserRequest request = AdminUpdateUserRequest.builder()
+                .isActive(true)
+                .build();
+
+            when(adminService.updateUser(any(), eq(TARGET_USER_ID), any()))
+                .thenReturn(sampleUser);
+
+            mockMvc.perform(put("/api/admin/users/" + TARGET_USER_ID)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request))
+                    .with(authentication(adminAuth())))
+                .andExpect(status().isOk());
+        }
+
+        // ---- Validation ----
+
+        @Test
+        void updateUser_EmptyBody_Returns400WithMessage() throws Exception {
+            // No fields set → hasUpdates() = false → controller rejects before calling service
+            AdminUpdateUserRequest emptyRequest = new AdminUpdateUserRequest();
+
+            mockMvc.perform(put("/api/admin/users/" + TARGET_USER_ID)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(emptyRequest))
+                    .with(authentication(adminAuth())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+
+            verifyNoInteractions(adminService);
+        }
+
+        @Test
+        void updateUser_InvalidEmail_Returns400() throws Exception {
+            AdminUpdateUserRequest request = AdminUpdateUserRequest.builder()
+                .email("not-a-valid-email")
+                .build();
+
+            mockMvc.perform(put("/api/admin/users/" + TARGET_USER_ID)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request))
+                    .with(authentication(adminAuth())))
+                .andExpect(status().isBadRequest());
+
+            verifyNoInteractions(adminService);
+        }
+
+        @Test
+        void updateUser_InvalidSystemRole_Returns400() throws Exception {
+            AdminUpdateUserRequest request = AdminUpdateUserRequest.builder()
+                .systemRole("superuser")
+                .build();
+
+            mockMvc.perform(put("/api/admin/users/" + TARGET_USER_ID)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request))
+                    .with(authentication(adminAuth())))
+                .andExpect(status().isBadRequest());
+
+            verifyNoInteractions(adminService);
+        }
+
+        @Test
+        void updateUser_FullNameTooShort_Returns400() throws Exception {
+            AdminUpdateUserRequest request = AdminUpdateUserRequest.builder()
+                .fullName("X")  // min 2 chars
+                .build();
+
+            mockMvc.perform(put("/api/admin/users/" + TARGET_USER_ID)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request))
+                    .with(authentication(adminAuth())))
+                .andExpect(status().isBadRequest());
+
+            verifyNoInteractions(adminService);
+        }
+
+        // ---- Service errors ----
+
+        @Test
+        void updateUser_SelfDemotion_Returns400WithGuardMessage() throws Exception {
+            AdminUpdateUserRequest request = AdminUpdateUserRequest.builder()
+                .systemRole("user")
+                .build();
+
+            when(adminService.updateUser(any(), eq(ADMIN_USER_ID), any()))
+                .thenThrow(new IllegalArgumentException("Admins cannot demote their own system role"));
+
+            mockMvc.perform(put("/api/admin/users/" + ADMIN_USER_ID)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request))
+                    .with(authentication(adminAuth())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Admins cannot demote their own system role"));
+        }
+
+        @Test
+        void updateUser_SelfDeactivationViaIsActive_Returns400() throws Exception {
+            AdminUpdateUserRequest request = AdminUpdateUserRequest.builder()
+                .isActive(false)
+                .build();
+
+            when(adminService.updateUser(any(), eq(ADMIN_USER_ID), any()))
+                .thenThrow(new IllegalArgumentException("Admins cannot deactivate their own account"));
+
+            mockMvc.perform(put("/api/admin/users/" + ADMIN_USER_ID)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request))
+                    .with(authentication(adminAuth())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Admins cannot deactivate their own account"));
+        }
+
+        @Test
+        void updateUser_TargetNotFound_Returns404() throws Exception {
+            AdminUpdateUserRequest request = AdminUpdateUserRequest.builder()
+                .fullName("Ghost")
+                .build();
+
+            when(adminService.updateUser(any(), eq(TARGET_USER_ID), any()))
+                .thenThrow(new UserNotFoundException(TARGET_USER_ID));
+
+            mockMvc.perform(put("/api/admin/users/" + TARGET_USER_ID)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request))
+                    .with(authentication(adminAuth())))
+                .andExpect(status().isNotFound());
+        }
+
+        @Test
+        void updateUser_EmailConflict_Returns409() throws Exception {
+            AdminUpdateUserRequest request = AdminUpdateUserRequest.builder()
+                .email("taken@committed.com")
+                .build();
+
+            when(adminService.updateUser(any(), eq(TARGET_USER_ID), any()))
+                .thenThrow(new EmailAlreadyExistsException("taken@committed.com"));
+
+            mockMvc.perform(put("/api/admin/users/" + TARGET_USER_ID)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request))
+                    .with(authentication(adminAuth())))
+                .andExpect(status().isConflict());
+        }
+    }
+
+    // =========================================================================
+    // DELETE /api/admin/users/{userId} — happy paths and guards
+    // =========================================================================
+
+    @Nested
+    class DeactivateUser {
+
+        @Test
+        void deactivateUser_ValidTarget_Returns200WithIsActiveFalse() throws Exception {
+            AdminUserResponse deactivated = AdminUserResponse.builder()
+                .userId(TARGET_USER_ID)
+                .email("target@committed.com")
+                .fullName("Target User")
+                .systemRole("user")
+                .isActive(false)
+                .createdAt("2024-01-01T00:00:00+00:00")
+                .updatedAt("2024-07-01T00:00:00+00:00")
+                .build();
+
+            when(adminService.deactivateUser(any(), eq(TARGET_USER_ID)))
+                .thenReturn(deactivated);
+
+            mockMvc.perform(delete("/api/admin/users/" + TARGET_USER_ID)
+                    .with(authentication(adminAuth())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("User deactivated successfully"))
+                .andExpect(jsonPath("$.data.userId").value(TARGET_USER_ID))
+                .andExpect(jsonPath("$.data.isActive").value(false));
+        }
+
+        @Test
+        void deactivateUser_SelfDeactivation_Returns400WithGuardMessage() throws Exception {
+            when(adminService.deactivateUser(any(), eq(ADMIN_USER_ID)))
+                .thenThrow(new IllegalArgumentException("Admins cannot deactivate their own account"));
+
+            mockMvc.perform(delete("/api/admin/users/" + ADMIN_USER_ID)
+                    .with(authentication(adminAuth())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Admins cannot deactivate their own account"));
+        }
+
+        @Test
+        void deactivateUser_TargetNotFound_Returns404() throws Exception {
+            when(adminService.deactivateUser(any(), eq(TARGET_USER_ID)))
+                .thenThrow(new UserNotFoundException(TARGET_USER_ID));
+
+            mockMvc.perform(delete("/api/admin/users/" + TARGET_USER_ID)
+                    .with(authentication(adminAuth())))
+                .andExpect(status().isNotFound());
+        }
+
+        @Test
+        void deactivateUser_AlreadyInactive_StillReturns200() throws Exception {
+            // Deactivating an already-inactive user is idempotent — Core handles it
+            AdminUserResponse alreadyInactive = AdminUserResponse.builder()
+                .userId(TARGET_USER_ID)
+                .email("target@committed.com")
+                .fullName("Target User")
+                .systemRole("user")
+                .isActive(false)
+                .createdAt("2024-01-01T00:00:00+00:00")
+                .updatedAt("2024-07-01T00:00:00+00:00")
+                .build();
+
+            when(adminService.deactivateUser(any(), eq(TARGET_USER_ID)))
+                .thenReturn(alreadyInactive);
+
+            mockMvc.perform(delete("/api/admin/users/" + TARGET_USER_ID)
+                    .with(authentication(adminAuth())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.isActive").value(false));
+        }
+
+        @Test
+        void deactivateUser_CorrectAdminIdForwardedToService() throws Exception {
+            when(adminService.deactivateUser(any(), eq(TARGET_USER_ID)))
+                .thenReturn(sampleUser);
+
+            mockMvc.perform(delete("/api/admin/users/" + TARGET_USER_ID)
+                    .with(authentication(adminAuth())))
+                .andExpect(status().isOk());
+
+            // Verify AdminService receives the correct targetId (not adminId)
+            verify(adminService).deactivateUser(
+                argThat(p -> ADMIN_USER_ID.toString().equals(p.userId())),
+                eq(TARGET_USER_ID)
+            );
+        }
+    }
+}
