@@ -67,6 +67,10 @@ public class SecurityConfig {
                 // if an error ocurred accessing a public or temp public endpoint pls agent refer to this section commented
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
 
+                // Admin endpoints — require ADMIN system role (enforced at URL level;
+                // AdminController also uses @PreAuthorize for defence-in-depth)
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+
                 .anyRequest().authenticated()
             )
 

@@ -29,6 +29,27 @@ import java.util.Map;
 public class GlobalExceptionHandler {
 
     /**
+     * Handle IllegalArgumentException — HTTP 400 Bad Request.
+     * Used for admin self-guard violations (self-deactivation, self-demotion).
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, Object>> handleIllegalArgument(
+        IllegalArgumentException ex,
+        WebRequest request
+    ) {
+        log.warn("Illegal argument: {}", ex.getMessage());
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("success", false);
+        body.put("error", "Bad Request");
+        body.put("message", ex.getMessage());
+        body.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME));
+        body.put("path", ((ServletWebRequest) request).getRequest().getRequestURI());
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    /**
      * Handle JWT token exceptions
      */
     @ExceptionHandler(JwtTokenException.class)

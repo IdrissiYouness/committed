@@ -3,6 +3,7 @@
 namespace App\EventListener;
 
 use App\Exception\DuplicateEmailException;
+use App\Exception\InvalidOperationException;
 use App\Exception\UserNotFoundException;
 use App\Exception\ValidationException;
 use Psr\Log\LoggerInterface;
@@ -39,6 +40,10 @@ class ExceptionListener
         if ($exception instanceof DuplicateEmailException) {
             $statusCode = 409;
             $error      = 'Conflict';
+            $message    = $exception->getMessage();
+        } elseif ($exception instanceof InvalidOperationException) {
+            $statusCode = 400;
+            $error      = 'Bad Request';
             $message    = $exception->getMessage();
         } elseif ($exception instanceof UserNotFoundException) {
             $statusCode = 404;
