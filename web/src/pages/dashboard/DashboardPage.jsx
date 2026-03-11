@@ -2,6 +2,8 @@ import { Link } from 'react-router-dom';
 import {
   ShieldCheck,
   Users,
+  UserCheck,
+  UserX,
   GraduationCap,
   BookOpen,
   ClipboardList,
@@ -16,6 +18,7 @@ import {
 
 import { useAuthStore }      from '../../store/authStore';
 import { useDashboard }      from '../../hooks/useDashboard';
+import { useAdminUsers }     from '../../hooks/useAdminUsers';
 import StatCard              from '../../components/features/dashboard/StatCard';
 import CourseCard            from '../../components/features/dashboard/CourseCard';
 import AssignmentItem        from '../../components/features/dashboard/AssignmentItem';
@@ -435,10 +438,11 @@ function UserDashboard({ user, dashboardData }) {
 
 // ─── Admin dashboard ──────────────────────────────────────────────────────────
 
-const ADMIN_STATS = [
-  { label: 'Total Users',        icon: Users,        colorClasses: 'bg-primary-50   text-primary-600   border-primary-100'   },
-  { label: 'Active Courses',     icon: BookOpen,     colorClasses: 'bg-secondary-50 text-secondary-600 border-secondary-100' },
-  { label: 'Total Assignments',  icon: ClipboardList, colorClasses: 'bg-primary-50   text-primary-600   border-primary-100'  },
+const ADMIN_STATS_CONFIG = [
+  { label: 'Total Users',    icon: Users,      colorClasses: 'bg-primary-50   text-primary-600   border-primary-100',   statKey: 'total'      },
+  { label: 'Active Users',   icon: UserCheck,  colorClasses: 'bg-secondary-50 text-secondary-600 border-secondary-100', statKey: 'active'     },
+  { label: 'Admins',         icon: ShieldCheck,colorClasses: 'bg-primary-50   text-primary-700   border-primary-100',   statKey: 'adminCount' },
+  { label: 'Inactive Users', icon: UserX,      colorClasses: 'bg-neutral-50   text-neutral-500   border-neutral-200',   statKey: 'inactive'   },
 ];
 
 const ADMIN_TOOLS = [
@@ -446,7 +450,7 @@ const ADMIN_TOOLS = [
     title:       'User Management',
     description: 'View, activate, deactivate and assign roles to platform users.',
     icon:        UserCog,
-    badge:       'AUTH-005',
+    to:          ROUTES.ADMIN,
     accent:      'hover:border-primary-300 hover:shadow-elevated',
     iconColor:   'bg-primary-50 text-primary-600 border-primary-100',
   },
@@ -477,6 +481,8 @@ const ADMIN_TOOLS = [
 ];
 
 function AdminDashboard({ user }) {
+  const { stats, isLoadingStats } = useAdminUsers();
+
   return (
     <div className="flex flex-col gap-8 max-w-5xl">
 
@@ -497,21 +503,18 @@ function AdminDashboard({ user }) {
           </h2>
         </div>
 
-        <ul className="grid grid-cols-1 gap-4 sm:grid-cols-3" role="list">
-          {ADMIN_STATS.map(({ label, icon, colorClasses }) => (
+        <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4" role="list">
+          {ADMIN_STATS_CONFIG.map(({ label, icon, colorClasses, statKey }) => (
             <StatCard
               key={label}
               label={label}
-              value={null}   /* will be real data once AUTH-005 / COURSE-003 lands */
+              value={stats[statKey] ?? null}
               icon={icon}
               colorClasses={colorClasses}
+              isLoading={isLoadingStats}
             />
           ))}
         </ul>
-
-        <p className="mt-3 font-body text-xs text-neutral-400 text-center">
-          Live platform statistics will be available when admin APIs are implemented (AUTH-005).
-        </p>
       </section>
 
       {/* ── Admin tools ──────────────────────────────────────────────────── */}
@@ -534,33 +537,66 @@ function AdminDashboard({ user }) {
         </div>
 
         <ul className="grid gap-4 sm:grid-cols-2" role="list">
-          {ADMIN_TOOLS.map(({ title, description, icon: Icon, badge, accent, iconColor }) => (
+          {ADMIN_TOOLS.map(({ title, description, icon: Icon, badge, accent, iconColor, to }) => (
             <li key={title}>
-              <div
-                className={[
-                  'flex flex-col gap-4 rounded-2xl border border-neutral-200 bg-white p-5',
-                  'shadow-elegant opacity-50 cursor-not-allowed',
-                ].join(' ')}
-                aria-label={`${title} — coming soon`}
-                title={`Coming soon — ${badge}`}
-              >
-                <div className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border ${iconColor}`}>
-                  <Icon className="h-5 w-5" aria-hidden="true" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-display text-sm font-bold text-neutral-900">
-                      {title}
-                    </h3>
-                    <span className="font-mono text-[10px] text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded-md">
-                      soon
-                    </span>
+              {to ? (
+                /* ── Live tool card: renders as a navigable Link ── */
+                <Link
+                  to={to}
+                  className={[
+                    'group flex flex-col gap-4 rounded-2xl border border-neutral-200 bg-white p-5',
+                    'shadow-elegant transition-all duration-200',
+                    accent,
+                    'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500',
+                  ].join(' ')}
+                  aria-label={title}
+                >
+                  <div className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border ${iconColor}`}>
+                    <Icon className="h-5 w-5" aria-hidden="true" />
                   </div>
-                  <p className="mt-1 font-body text-xs text-neutral-500 leading-relaxed">
-                    {description}
-                  </p>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-display text-sm font-bold text-neutral-900 group-hover:text-primary-700 transition-colors duration-150">
+                        {title}
+                      </h3>
+                    </div>
+                    <p className="mt-1 font-body text-xs text-neutral-500 leading-relaxed">
+                      {description}
+                    </p>
+                  </div>
+                  <ArrowRight
+                    className="h-4 w-4 text-primary-400 self-end transition-transform duration-200 group-hover:translate-x-1"
+                    aria-hidden="true"
+                  />
+                </Link>
+              ) : (
+                /* ── Coming-soon tool card: non-interactive ── */
+                <div
+                  className={[
+                    'flex flex-col gap-4 rounded-2xl border border-neutral-200 bg-white p-5',
+                    'shadow-elegant opacity-50 cursor-not-allowed',
+                  ].join(' ')}
+                  aria-label={`${title} — coming soon`}
+                  title={`Coming soon — ${badge}`}
+                >
+                  <div className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border ${iconColor}`}>
+                    <Icon className="h-5 w-5" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-display text-sm font-bold text-neutral-900">
+                        {title}
+                      </h3>
+                      <span className="font-mono text-[10px] text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded-md">
+                        soon
+                      </span>
+                    </div>
+                    <p className="mt-1 font-body text-xs text-neutral-500 leading-relaxed">
+                      {description}
+                    </p>
+                  </div>
                 </div>
-              </div>
+              )}
             </li>
           ))}
         </ul>

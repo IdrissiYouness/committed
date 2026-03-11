@@ -1,10 +1,12 @@
 import axios from 'axios';
-import { API_BASE_URL, TOKEN_KEY, REFRESH_TOKEN_KEY, USER_KEY, ROUTES } from '../utils/constants';
+import { API_BASE_URL, TOKEN_KEY, REFRESH_TOKEN_KEY, USER_KEY, REMEMBER_ME_KEY, ROUTES } from '../utils/constants';
 
 /**
  * Axios instance pre-configured for the Committed Gateway API.
  *
- * Request interceptor  — attaches `Authorization: Bearer <token>` from localStorage
+ * Request interceptor  — attaches `Authorization: Bearer <token>` from the correct
+ *                        storage (localStorage when rememberMe=true, sessionStorage
+ *                        when rememberMe=false).
  * Response interceptor — unwraps the `{ success, data, message }` envelope so
  *                        callers receive `data` directly (not the full wrapper).
  *                        On 401, clears stored credentials and redirects to /login.
@@ -21,7 +23,12 @@ const api = axios.create({
 
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem(TOKEN_KEY);
+    // Tokens live in localStorage when rememberMe=true, sessionStorage otherwise.
+    // Always read from the same storage that was used during login so that
+    // requests made inside a non-remembered session carry the correct token.
+    const rememberMe = JSON.parse(localStorage.getItem(REMEMBER_ME_KEY) ?? 'false');
+    const storage    = rememberMe ? localStorage : sessionStorage;
+    const token      = storage.getItem(TOKEN_KEY);
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -46,10 +53,19 @@ api.interceptors.response.use(
     const status = error.response?.status;
 
     if (status === 401) {
-      // Clear all persisted auth state
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(REFRESH_TOKEN_KEY);
-      localStorage.removeItem(USER_KEY);
+      // Clear tokens from BOTH storages — the token may be in either one
+      // depending on the rememberMe preference, and we must not leave a
+      // stale token behind.  If we only clear localStorage (the old behaviour)
+      // but the token is in sessionStorage, the page reloads after the
+      // redirect, rehydrates the store from sessionStorage, finds a token,
+      // sets isAuthenticated=true, and LoginPage immediately bounces the user
+      // back to /dashboard — creating an infinite redirect loop.
+      [localStorage, sessionStorage].forEach((s) => {
+        s.removeItem(TOKEN_KEY);
+        s.removeItem(REFRESH_TOKEN_KEY);
+        s.removeItem(USER_KEY);
+      });
+      localStorage.removeItem(REMEMBER_ME_KEY);
 
       // Only redirect if not already on the login/register pages to avoid loops
       const currentPath = window.location.pathname;

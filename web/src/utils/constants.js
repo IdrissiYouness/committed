@@ -59,6 +59,7 @@ export const API_ENDPOINTS = {
 
   ADMIN: {
     USERS: '/api/admin/users',            // AUTH-005
+    USER:  (id) => `/api/admin/users/${id}`, // AUTH-005 (single user)
   },
 };
 
