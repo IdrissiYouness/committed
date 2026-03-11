@@ -67,9 +67,8 @@ const ADMIN_LINK = {
   label:     'Admin',
   icon:      ShieldCheck,
   to:        ROUTES.ADMIN,
-  ready:     false,
+  ready:     true,
   adminOnly: true,
-  badge:     'WEB-007',
 };
 
 // ─── Single nav item ──────────────────────────────────────────────────────────
