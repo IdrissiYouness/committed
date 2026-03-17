@@ -8,6 +8,7 @@ use App\Entity\User;
 use App\Repository\CourseRepository;
 use App\Repository\EnrollmentRepository;
 use App\Repository\UserRepository;
+use App\Service\CourseStatisticsService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -22,17 +23,20 @@ class EnrollmentController extends AbstractController
     private CourseRepository $courseRepository;
     private UserRepository $userRepository;
     private EnrollmentRepository $enrollmentRepository;
+    private CourseStatisticsService $courseStatisticsService;
 
     public function __construct(
         EntityManagerInterface $entityManager,
         CourseRepository $courseRepository,
         UserRepository $userRepository,
-        EnrollmentRepository $enrollmentRepository
+        EnrollmentRepository $enrollmentRepository,
+        CourseStatisticsService $courseStatisticsService
     ) {
         $this->entityManager = $entityManager;
         $this->courseRepository = $courseRepository;
         $this->userRepository = $userRepository;
         $this->enrollmentRepository = $enrollmentRepository;
+        $this->courseStatisticsService = $courseStatisticsService;
     }
 
     #[Route('/enroll', name: 'internal_course_enroll', methods: ['POST'])]
@@ -75,6 +79,8 @@ class EnrollmentController extends AbstractController
         $this->entityManager->persist($enrollment);
         $this->entityManager->flush();
 
+        $this->courseStatisticsService->invalidateCourseStatsCache($course->getCourseId());
+
         return $this->json(['message' => 'Successfully enrolled in course'], Response::HTTP_CREATED);
     }
 
@@ -93,6 +99,8 @@ class EnrollmentController extends AbstractController
 
         $this->entityManager->remove($enrollment);
         $this->entityManager->flush();
+
+        $this->courseStatisticsService->invalidateCourseStatsCache($courseId);
 
         return $this->json(null, Response::HTTP_NO_CONTENT);
     }

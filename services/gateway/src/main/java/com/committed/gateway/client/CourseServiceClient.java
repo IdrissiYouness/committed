@@ -1,6 +1,7 @@
 package com.committed.gateway.client;
 
 import com.committed.gateway.dto.CourseResponse;
+import com.committed.gateway.dto.CourseStatsResponse;
 import com.committed.gateway.dto.CreateCourseRequest;
 import com.committed.gateway.dto.UpdateCourseRequest;
 import com.committed.gateway.dto.UserSummary;
@@ -10,6 +11,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
@@ -135,6 +138,7 @@ public class CourseServiceClient {
         }
     }
 
+    @CacheEvict(value = "courseStats", allEntries = true)
     public void enrollInCourse(String courseCode, Long userId) {
         String url = coreServiceUrl + "/internal/courses/enroll";
         Map<String, Object> coreRequest = new HashMap<>();
@@ -160,6 +164,7 @@ public class CourseServiceClient {
         }
     }
 
+    @CacheEvict(value = "courseStats", key = "#courseId")
     public void unenrollFromCourse(Integer courseId, Long userId) {
         String url = coreServiceUrl + "/internal/courses/" + courseId + "/enroll/" + userId;
         try {
@@ -194,6 +199,25 @@ public class CourseServiceClient {
         } catch (HttpClientErrorException e) {
             log.error("Failed to fetch students for course {}: {}", courseId, e.getResponseBodyAsString());
             throw new RuntimeException("Failed to fetch course students");
+        }
+    }
+
+    @Cacheable(value = "courseStats", key = "#courseId")
+    public CourseStatsResponse getCourseStats(Integer courseId) {
+        String url = coreServiceUrl + "/internal/courses/" + courseId + "/stats";
+        try {
+            ResponseEntity<CourseStatsResponse> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    new HttpEntity<>(jsonHeaders()),
+                    CourseStatsResponse.class
+            );
+            return response.getBody();
+        } catch (HttpClientErrorException.NotFound e) {
+            throw new ResourceNotFoundException("Course not found");
+        } catch (HttpClientErrorException e) {
+            log.error("Failed to fetch stats for course {}: {}", courseId, e.getResponseBodyAsString());
+            throw new RuntimeException("Failed to fetch course stats");
         }
     }
 }
