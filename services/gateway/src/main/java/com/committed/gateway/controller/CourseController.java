@@ -2,9 +2,7 @@ package com.committed.gateway.controller;
 
 import com.committed.gateway.client.CourseServiceClient;
 import com.committed.gateway.dto.ApiResponse;
-import com.committed.gateway.dto.CourseResponse;
-import com.committed.gateway.dto.CreateCourseRequest;
-import com.committed.gateway.dto.UpdateCourseRequest;
+import com.committed.gateway.dto.*;
 import com.committed.gateway.security.JwtPrincipal;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -119,5 +117,64 @@ public class CourseController {
         
         courseServiceClient.deleteCourse(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Course deleted successfully"));
+    }
+
+    @PostMapping("/enroll")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> enrollInCourse(
+            @Valid @RequestBody EnrollCourseRequest request,
+            Authentication authentication
+    ) {
+        log.info("User enrolling in course code: {}", request.getCourseCode());
+        JwtPrincipal userDetails = (JwtPrincipal) authentication.getPrincipal();
+        Long userId = Long.parseLong(userDetails.userId());
+
+        courseServiceClient.enrollInCourse(request.getCourseCode(), userId);
+
+        return ResponseEntity.ok(ApiResponse.success(null, "Successfully enrolled in course"));
+    }
+
+    @DeleteMapping("/{id}/enroll")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> unenrollFromCourse(
+            @PathVariable Integer id,
+            Authentication authentication
+    ) {
+        log.info("User unenrolling from course id: {}", id);
+        JwtPrincipal userDetails = (JwtPrincipal) authentication.getPrincipal();
+        Long userId = Long.parseLong(userDetails.userId());
+
+        courseServiceClient.unenrollFromCourse(id, userId);
+
+        return ResponseEntity.ok(ApiResponse.success(null, "Successfully unenrolled from course"));
+    }
+
+    @GetMapping("/{id}/students")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<List<UserSummary>>> getCourseStudents(
+            @PathVariable Integer id,
+            Authentication authentication
+    ) {
+        log.info("Fetching students for course id: {}", id);
+        
+        // Fetch the course first to verify ownership
+        CourseResponse existingCourse = courseServiceClient.getCourse(id);
+        
+        JwtPrincipal userDetails = (JwtPrincipal) authentication.getPrincipal();
+        
+        // Authorization check: Only the teacher of the course or an admin can view students
+        boolean isAdmin = "ADMIN".equalsIgnoreCase(userDetails.systemRole()) || "ROLE_ADMIN".equalsIgnoreCase(userDetails.systemRole());
+                
+        boolean isTeacher = existingCourse.getTeacher() != null && 
+                            existingCourse.getTeacher().getUserId().equals(Long.parseLong(userDetails.userId()));
+                            
+        if (!isAdmin && !isTeacher) {
+            log.warn("User {} attempted to view students for course {} without permission", userDetails.userId(), id);
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.<List<UserSummary>>builder().success(false).message("You do not have permission to view students for this course").build());
+        }
+        
+        List<UserSummary> students = courseServiceClient.getCourseStudents(id);
+        return ResponseEntity.ok(ApiResponse.success(students, "Students retrieved successfully"));
     }
 }
