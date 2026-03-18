@@ -72,6 +72,8 @@ services:
         depends_on:
             postgres-db:
                 condition: service_healthy
+        volumes:
+            - ./uploads:/var/www/core/public/uploads
         networks:
             - committed-network
         restart: unless-stopped
