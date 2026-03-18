@@ -177,4 +177,33 @@ public class CourseController {
         List<UserSummary> students = courseServiceClient.getCourseStudents(id);
         return ResponseEntity.ok(ApiResponse.success(students, "Students retrieved successfully"));
     }
+
+    @GetMapping("/{id}/stats")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<CourseStatsResponse>> getCourseStats(
+            @PathVariable Integer id,
+            Authentication authentication
+    ) {
+        log.info("Fetching stats for course id: {}", id);
+        
+        // Fetch the course first to verify ownership
+        CourseResponse existingCourse = courseServiceClient.getCourse(id);
+        
+        JwtPrincipal userDetails = (JwtPrincipal) authentication.getPrincipal();
+        
+        // Authorization check: Only the teacher of the course or an admin can view stats
+        boolean isAdmin = "ADMIN".equalsIgnoreCase(userDetails.systemRole()) || "ROLE_ADMIN".equalsIgnoreCase(userDetails.systemRole());
+                
+        boolean isTeacher = existingCourse.getTeacher() != null && 
+                            existingCourse.getTeacher().getUserId().equals(Long.parseLong(userDetails.userId()));
+                            
+        if (!isAdmin && !isTeacher) {
+            log.warn("User {} attempted to view stats for course {} without permission", userDetails.userId(), id);
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.<CourseStatsResponse>builder().success(false).message("You do not have permission to view stats for this course").build());
+        }
+        
+        CourseStatsResponse stats = courseServiceClient.getCourseStats(id);
+        return ResponseEntity.ok(ApiResponse.success(stats, "Course stats retrieved successfully"));
+    }
 }
