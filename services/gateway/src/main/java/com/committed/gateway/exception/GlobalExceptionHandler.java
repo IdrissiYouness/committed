@@ -10,6 +10,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 
@@ -138,6 +139,27 @@ public class GlobalExceptionHandler {
         body.put("success", false);
         body.put("error", "Bad Request");
         body.put("message", "Required request body is missing or malformed");
+        body.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME));
+        body.put("path", ((ServletWebRequest) request).getRequest().getRequestURI());
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    /**
+     * Handle MaxUploadSizeExceededException
+     * Returns HTTP 400 Bad Request
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleMaxSizeException(
+        MaxUploadSizeExceededException ex,
+        WebRequest request
+    ) {
+        log.warn("File too large: {}", ex.getMessage());
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("success", false);
+        body.put("error", "Bad Request");
+        body.put("message", "File size exceeds the maximum limit (10MB)");
         body.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME));
         body.put("path", ((ServletWebRequest) request).getRequest().getRequestURI());
 

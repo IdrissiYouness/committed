@@ -20,6 +20,7 @@ logs/
 
 # Docker
 oracle-data/
+docker/uploads/
 
 # Temporary files
 tmp/
