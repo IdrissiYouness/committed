@@ -91,8 +91,8 @@ public class AnnouncementServiceClient {
         }
     }
 
-    public PaginatedResponse<AnnouncementResponse> getAnnouncements(Integer courseId, int page, int limit) {
-        String url = coreServiceUrl + "/internal/courses/" + courseId + "/announcements?page=" + page + "&limit=" + limit;
+    public PaginatedResponse<AnnouncementResponse> getAnnouncements(Integer courseId, int page, int size) {
+        String url = coreServiceUrl + "/internal/courses/" + courseId + "/announcements?page=" + page + "&size=" + size;
         try {
             ResponseEntity<PaginatedResponse<AnnouncementResponse>> response = restTemplate.exchange(
                     url,

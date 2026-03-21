@@ -63,8 +63,8 @@ public class AnnouncementController {
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<PaginatedResponse<AnnouncementResponse>>> getAnnouncements(
             @PathVariable Integer courseId,
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int limit,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
             Authentication authentication
     ) {
         log.info("Fetching announcements for course: {}", courseId);
@@ -72,7 +72,7 @@ public class AnnouncementController {
         
         verifyEnrolledOrTeacherOrAdmin(courseId, userDetails);
 
-        PaginatedResponse<AnnouncementResponse> response = announcementServiceClient.getAnnouncements(courseId, page, limit);
+        PaginatedResponse<AnnouncementResponse> response = announcementServiceClient.getAnnouncements(courseId, page, size);
 
         return ResponseEntity.ok(ApiResponse.success(response, "Announcements retrieved successfully"));
     }
