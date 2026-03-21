@@ -119,11 +119,11 @@ class AnnouncementController extends AbstractController
             return $this->json(['error' => 'Course not found'], Response::HTTP_NOT_FOUND);
         }
 
-        $page = max(1, $request->query->getInt('page', 1));
-        $limit = max(1, $request->query->getInt('limit', 10));
-        $offset = ($page - 1) * $limit;
+        $page = max(0, $request->query->getInt('page', 0));
+        $size = max(1, $request->query->getInt('size', 20));
+        $offset = $page * $size;
 
-        $announcements = $this->announcementRepository->findByCourseId($courseId, $limit, $offset);
+        $announcements = $this->announcementRepository->findByCourseId($courseId, $size, $offset);
         $total = $this->announcementRepository->countByCourseId($courseId);
 
         $data = [];
@@ -139,8 +139,8 @@ class AnnouncementController extends AbstractController
             'meta' => [
                 'total' => $total,
                 'page' => $page,
-                'limit' => $limit,
-                'totalPages' => ceil($total / $limit)
+                'limit' => $size,
+                'totalPages' => ceil($total / $size)
             ]
         ], Response::HTTP_OK);
     }
