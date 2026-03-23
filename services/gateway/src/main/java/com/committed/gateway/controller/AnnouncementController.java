@@ -77,19 +77,22 @@ public class AnnouncementController {
         return ResponseEntity.ok(ApiResponse.success(response, "Announcements retrieved successfully"));
     }
 
-    @PutMapping("/api/courses/{courseId}/announcements/{id}")
+    @PutMapping(value = "/api/courses/{courseId}/announcements/{id}", consumes = {MediaType.MULTIPART_FORM_DATA_VALUE, MediaType.APPLICATION_JSON_VALUE, MediaType.APPLICATION_FORM_URLENCODED_VALUE})
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<AnnouncementResponse>> updateAnnouncement(
             @PathVariable Integer courseId,
             @PathVariable Integer id,
-            @Valid @RequestBody UpdateAnnouncementRequest request,
+            @RequestParam(value = "title", required = false) String title,
+            @RequestParam(value = "content", required = false) String content,
+            @RequestParam(value = "removeAttachmentIds", required = false) List<Integer> removeAttachmentIds,
+            @RequestParam(value = "attachments", required = false) List<MultipartFile> attachments,
             Authentication authentication
     ) {
         log.info("Updating announcement: {} for course: {}", id, courseId);
         JwtPrincipal userDetails = (JwtPrincipal) authentication.getPrincipal();
         verifyTeacherOrAdmin(courseId, userDetails);
-        
-        AnnouncementResponse response = announcementServiceClient.updateAnnouncement(id, request);
+
+        AnnouncementResponse response = announcementServiceClient.updateAnnouncement(id, title, content, removeAttachmentIds, attachments);
         return ResponseEntity.ok(ApiResponse.success(response, "Announcement updated successfully"));
     }
 
