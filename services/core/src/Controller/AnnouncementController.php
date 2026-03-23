@@ -145,7 +145,7 @@ class AnnouncementController extends AbstractController
         ], Response::HTTP_OK);
     }
 
-    #[Route('/internal/announcements/{id}', name: 'internal_update_announcement', methods: ['PUT'])]
+    #[Route('/internal/announcements/{id}', name: 'internal_update_announcement', methods: ['PUT', 'POST'])]
     public function updateAnnouncement(int $id, Request $request): JsonResponse
     {
         $announcement = $this->announcementRepository->find($id);
@@ -153,12 +153,63 @@ class AnnouncementController extends AbstractController
             return $this->json(['error' => 'Announcement not found'], Response::HTTP_NOT_FOUND);
         }
 
-        $data = json_decode($request->getContent(), true);
-        if (isset($data['title'])) {
-            $announcement->setTitle($data['title']);
+        $contentType = $request->headers->get('Content-Type', '');
+        if (str_starts_with($contentType, 'application/json')) {
+            $data = json_decode($request->getContent(), true) ?? [];
+            $title = $data['title'] ?? null;
+            $content = $data['content'] ?? null;
+            $removeAttachmentIds = $data['removeAttachmentIds'] ?? [];
+        } else {
+            $title = $request->request->get('title');
+            $content = $request->request->get('content');
+            $removeAttachmentIds = $request->request->all('removeAttachmentIds');
+            if (!is_array($removeAttachmentIds)) {
+                $removeAttachmentIds = [];
+            }
         }
-        if (isset($data['content'])) {
-            $announcement->setContent($data['content']);
+
+        if ($title !== null) {
+            $announcement->setTitle($title);
+        }
+        if ($content !== null) {
+            $announcement->setContent($content);
+        }
+
+        $filesParam = $request->files->get('attachments');
+        $files = is_array($filesParam) ? $filesParam : ($filesParam ? [$filesParam] : []);
+
+        foreach ($files as $file) {
+            if ($file) {
+                try {
+                    $fileData = $this->fileStorageService->uploadFile($file, 'announcements');
+
+                    $attachment = new AnnouncementAttachment();
+                    $attachment->setAnnouncement($announcement);
+                    $attachment->setFileName($fileData['fileName']);
+                    $attachment->setFilePath($fileData['filePath']);
+                    $attachment->setFileType($fileData['fileType']);
+                    $attachment->setFileSize($fileData['fileSize']);
+                    $attachment->setUploadedBy($announcement->getAuthor());
+
+                    $this->entityManager->persist($attachment);
+                } catch (\Exception $e) {
+                    return $this->json(['error' => 'Failed to upload attachment: ' . $e->getMessage()], 400);
+                }
+            }
+        }
+
+        if (!empty($removeAttachmentIds)) {
+            $existingAttachments = $this->attachmentRepository->findByAnnouncementId($id);
+            foreach ($existingAttachments as $attachment) {
+                if (in_array($attachment->getId(), $removeAttachmentIds)) {
+                    try {
+                        $this->fileStorageService->deleteFile($attachment->getFilePath());
+                        $this->entityManager->remove($attachment);
+                    } catch (\Exception $e) {
+                        return $this->json(['error' => 'Failed to delete attachment: ' . $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
+                    }
+                }
+            }
         }
 
         $announcement->setUpdatedAt(new \DateTime());

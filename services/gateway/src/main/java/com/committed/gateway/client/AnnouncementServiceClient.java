@@ -109,17 +109,52 @@ public class AnnouncementServiceClient {
         }
     }
 
-    public AnnouncementResponse updateAnnouncement(Integer id, UpdateAnnouncementRequest request) {
+    public AnnouncementResponse updateAnnouncement(Integer id, String title, String content, List<Integer> removeAttachmentIds, List<MultipartFile> attachments) {
         String url = coreServiceUrl + "/internal/announcements/" + id;
-        
+
         HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        if (title != null) {
+            body.add("title", title);
+        }
+        if (content != null) {
+            body.add("content", content);
+        }
+
+        if (removeAttachmentIds != null && !removeAttachmentIds.isEmpty()) {
+            for (Integer attachmentId : removeAttachmentIds) {
+                body.add("removeAttachmentIds[]", attachmentId);
+            }
+        }
+
+        if (attachments != null && !attachments.isEmpty()) {
+            for (MultipartFile file : attachments) {
+                if (!file.isEmpty()) {
+                    try {
+                        ByteArrayResource resource = new ByteArrayResource(file.getBytes()) {
+                            @Override
+                            public String getFilename() {
+                                return file.getOriginalFilename();
+                            }
+                        };
+                        body.add("attachments[]", resource);
+                    } catch (IOException e) {
+                        throw new RuntimeException("Failed to read file attachment", e);
+                    }
+                }
+            }
+        }
+
+        HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+
         try {
+            // Use POST since PHP handles multipart/form-data natively only on POST
             ResponseEntity<AnnouncementResponse> response = restTemplate.exchange(
                     url,
-                    HttpMethod.PUT,
-                    new HttpEntity<>(request, headers),
+                    HttpMethod.POST,
+                    requestEntity,
                     AnnouncementResponse.class
             );
             return response.getBody();
