@@ -93,7 +93,7 @@ public class GlobalExceptionHandler {
         errorResponse.put("timestamp", Instant.now().toString());
         errorResponse.put("status", 403);
         errorResponse.put("error", "Forbidden");
-        errorResponse.put("message", "You don't have permission to access this resource");
+        errorResponse.put("message", ex.getMessage());
 
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
     }
