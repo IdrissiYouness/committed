@@ -6,6 +6,8 @@ import RegisterPage   from './pages/auth/RegisterPage';
 import DashboardPage  from './pages/dashboard/DashboardPage';
 import ProfilePage    from './pages/profile/ProfilePage';
 import AdminPage      from './pages/admin/AdminPage';
+import CourseListPage from './pages/courses/CourseListPage';
+import CourseDetailPage from './pages/courses/CourseDetailPage';
 import AppLayout      from './components/layout/AppLayout';
 import { useAuthStore } from './store/authStore';
 import { ROUTES } from './utils/constants';
@@ -64,6 +66,24 @@ export default function App() {
           element={
             <AuthLayout>
               <ProfilePage />
+            </AuthLayout>
+          }
+        />
+
+        <Route
+          path={ROUTES.COURSES}
+          element={
+            <AuthLayout>
+              <CourseListPage />
+            </AuthLayout>
+          }
+        />
+
+        <Route
+          path={`${ROUTES.COURSES}/:id`}
+          element={
+            <AuthLayout>
+              <CourseDetailPage />
             </AuthLayout>
           }
         />
