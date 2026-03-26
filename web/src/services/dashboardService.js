@@ -1,25 +1,11 @@
 import api from './api';
-import { API_ENDPOINTS } from '../utils/constants';
+import { API_ENDPOINTS, REMEMBER_ME_KEY, USER_KEY } from '../utils/constants';
 
 /**
  * Dashboard Service
  *
  * Provides all data needed by the home dashboard.
  *
- * ─── Current state ────────────────────────────────────────────────────────────
- * All functions return empty arrays / zero objects while the corresponding
- * backend tasks are not yet implemented.  When a backend task lands, replace
- * the stub body with the real `api.get(...)` call — the hook and components
- * need no changes at all.
- *
- * ─── Wiring guide ─────────────────────────────────────────────────────────────
- * | Function               | Unblock when   | Endpoint                        |
- * |------------------------|----------------|---------------------------------|
- * | getEnrolledCourses     | COURSE-002     | GET /api/courses/enrolled       |
- * | getTeachingCourses     | COURSE-001     | GET /api/courses/teaching       |
- * | getUpcomingAssignments | ASSIGN-001     | GET /api/assignments/upcoming   |
- * | getRecentAnnouncements | COURSE-004     | GET /api/announcements/recent   |
- * | getRecentGrades        | GRADE-001      | GET /api/grades/recent          |
  */
 
 const dashboardService = {
@@ -42,10 +28,11 @@ const dashboardService = {
    * @returns {Promise<Array>}
    */
   getEnrolledCourses: async () => {
-    // TODO: COURSE-002 — replace stub when enrollment API is ready
-    // return api.get(API_ENDPOINTS.COURSES.ENROLLED);
-    void api; void API_ENDPOINTS; // suppress unused-import warnings until wired
-    return [];
+    const courses = await api.get(API_ENDPOINTS.COURSES.LIST);
+    const rememberMe = JSON.parse(localStorage.getItem(REMEMBER_ME_KEY) ?? 'false');
+    const storage = rememberMe ? localStorage : sessionStorage;
+    const user = JSON.parse(storage.getItem(USER_KEY) ?? '{}');
+    return courses.filter((c) => c.teacher?.userId != user.userId);
   },
 
   /**
@@ -65,9 +52,11 @@ const dashboardService = {
    * @returns {Promise<Array>}
    */
   getTeachingCourses: async () => {
-    // TODO: COURSE-001 — replace stub when course API is ready
-    // return api.get(API_ENDPOINTS.COURSES.TEACHING);
-    return [];
+    const courses = await api.get(API_ENDPOINTS.COURSES.LIST);
+    const rememberMe = JSON.parse(localStorage.getItem(REMEMBER_ME_KEY) ?? 'false');
+    const storage = rememberMe ? localStorage : sessionStorage;
+    const user = JSON.parse(storage.getItem(USER_KEY) ?? '{}');
+    return courses.filter((c) => c.teacher?.userId == user.userId);
   },
 
   // ─── Assignments ───────────────────────────────────────────────────────────
@@ -89,8 +78,6 @@ const dashboardService = {
    * @returns {Promise<Array>}
    */
   getUpcomingAssignments: async () => {
-    // TODO: ASSIGN-001 — replace stub when assignment API is ready
-    // return api.get(API_ENDPOINTS.ASSIGNMENTS.UPCOMING);
     return [];
   },
 
@@ -112,8 +99,6 @@ const dashboardService = {
    * @returns {Promise<Array>}
    */
   getRecentAnnouncements: async () => {
-    // TODO: COURSE-004 — replace stub when announcements API is ready
-    // return api.get(API_ENDPOINTS.ANNOUNCEMENTS.RECENT);
     return [];
   },
 
@@ -137,8 +122,6 @@ const dashboardService = {
    * @returns {Promise<Array>}
    */
   getRecentGrades: async () => {
-    // TODO: GRADE-001 — replace stub when grades API is ready
-    // return api.get(API_ENDPOINTS.GRADES.RECENT);
     return [];
   },
 };
