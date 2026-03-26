@@ -13,4 +13,10 @@ public class MockNotificationService implements NotificationService {
     public void notifyNewAnnouncement(Long courseId, String title) {
         log.info("[NOTIFICATION MOCK] Sending email to all students enrolled in course {} about new announcement: {}", courseId, title);
     }
+
+    @Async("taskExecutor")
+    @Override
+    public void notifyGradeUpdate(Integer submissionId, java.math.BigDecimal pointsEarned) {
+        log.info("[NOTIFICATION MOCK] Sending email to student for submission {}: Your grade has been updated. Points: {}", submissionId, pointsEarned);
+    }
 }

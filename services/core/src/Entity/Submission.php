@@ -50,6 +50,9 @@ class Submission
     #[ORM\OneToOne(mappedBy: 'submission', targetEntity: CodeAnalysis::class, cascade: ['persist', 'remove'])]
     private ?CodeAnalysis $codeAnalysis = null;
 
+    #[ORM\OneToOne(mappedBy: 'submission', targetEntity: Grade::class, cascade: ['persist', 'remove'])]
+    private ?Grade $grade = null;
+
     public function __construct()
     {
         $this->submittedAt = new \DateTime();
@@ -173,6 +176,20 @@ class Submission
         $this->codeAnalysis = $codeAnalysis;
         if ($codeAnalysis !== null && $codeAnalysis->getSubmission() !== $this) {
             $codeAnalysis->setSubmission($this);
+        }
+        return $this;
+    }
+
+    public function getGrade(): ?Grade
+    {
+        return $this->grade;
+    }
+
+    public function setGrade(?Grade $grade): self
+    {
+        $this->grade = $grade;
+        if ($grade !== null && $grade->getSubmission() !== $this) {
+            $grade->setSubmission($this);
         }
         return $this;
     }
