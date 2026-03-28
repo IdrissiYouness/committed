@@ -8,6 +8,14 @@ import ProfilePage    from './pages/profile/ProfilePage';
 import AdminPage      from './pages/admin/AdminPage';
 import CourseListPage from './pages/courses/CourseListPage';
 import CourseDetailPage from './pages/courses/CourseDetailPage';
+import CourseFormPage from './pages/courses/CourseFormPage';
+import AnnouncementFormPage from './pages/courses/AnnouncementFormPage';
+import AnnouncementDetailPage from './pages/courses/AnnouncementDetailPage';
+import AssignmentListPage from './pages/assignments/AssignmentListPage';
+import AssignmentDetailPage from './pages/assignments/AssignmentDetailPage';
+import AssignmentFormPage from './pages/assignments/AssignmentFormPage';
+import AssignmentSubmissionsPage from './pages/assignments/AssignmentSubmissionsPage';
+import GradesPage from './pages/grades/GradesPage';
 import AppLayout      from './components/layout/AppLayout';
 import { useAuthStore } from './store/authStore';
 import { ROUTES } from './utils/constants';
@@ -39,7 +47,6 @@ function AuthLayout({ children }) {
     </ProtectedRoute>
   );
 }
-
 
 export default function App() {
   return (
@@ -78,12 +85,107 @@ export default function App() {
             </AuthLayout>
           }
         />
-
+        <Route
+          path={`${ROUTES.COURSES}/new`}
+          element={
+            <AuthLayout>
+              <CourseFormPage />
+            </AuthLayout>
+          }
+        />
         <Route
           path={`${ROUTES.COURSES}/:id`}
           element={
             <AuthLayout>
               <CourseDetailPage />
+            </AuthLayout>
+          }
+        />
+        <Route
+          path={`${ROUTES.COURSES}/:id/edit`}
+          element={
+            <AuthLayout>
+              <CourseFormPage />
+            </AuthLayout>
+          }
+        />
+
+        {/* Assignments Routes inside Course (Creation) */}
+        <Route
+          path={`${ROUTES.COURSES}/:courseId/assignments/new`}
+          element={
+            <AuthLayout>
+              <AssignmentFormPage />
+            </AuthLayout>
+          }
+        />
+        <Route
+          path={`${ROUTES.COURSES}/:courseId/assignments/:id/edit`}
+          element={
+            <AuthLayout>
+              <AssignmentFormPage />
+            </AuthLayout>
+          }
+        />
+        
+        {/* Announcements Routes inside Course (Creation) */}
+        <Route
+          path={`${ROUTES.COURSES}/:courseId/announcements/new`}
+          element={
+            <AuthLayout>
+              <AnnouncementFormPage />
+            </AuthLayout>
+          }
+        />
+        <Route
+          path={`${ROUTES.COURSES}/:courseId/announcements/:id/edit`}
+          element={
+            <AuthLayout>
+              <AnnouncementFormPage />
+            </AuthLayout>
+          }
+        />
+        <Route
+          path={`${ROUTES.COURSES}/:courseId/announcements/:announcementId`}
+          element={
+            <AuthLayout>
+              <AnnouncementDetailPage />
+            </AuthLayout>
+          }
+        />
+
+        <Route
+          path={ROUTES.ASSIGNMENTS}
+          element={
+            <AuthLayout>
+              <AssignmentListPage />
+            </AuthLayout>
+          }
+        />
+
+        <Route
+          path={`${ROUTES.ASSIGNMENTS}/:id`}
+          element={
+            <AuthLayout>
+              <AssignmentDetailPage />
+            </AuthLayout>
+          }
+        />
+
+        <Route
+          path={`${ROUTES.ASSIGNMENTS}/:id/submissions`}
+          element={
+            <AuthLayout>
+              <AssignmentSubmissionsPage />
+            </AuthLayout>
+          }
+        />
+
+        <Route
+          path={ROUTES.GRADES}
+          element={
+            <AuthLayout>
+              <GradesPage />
             </AuthLayout>
           }
         />

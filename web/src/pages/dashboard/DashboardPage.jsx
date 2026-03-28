@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ShieldCheck,
@@ -178,32 +179,48 @@ function ErrorBanner({ message, onRetry }) {
 
 // ─── User dashboard ───────────────────────────────────────────────────────────
 
-const USER_STATS = (stats) => [
-  {
-    label:       'Enrolled Courses',
-    value:       stats.enrolledCourses,
-    icon:        BookOpen,
-    colorClasses:'bg-primary-50 text-primary-600 border-primary-100',
-  },
-  {
-    label:       'Teaching Courses',
-    value:       stats.teachingCourses,
-    icon:        GraduationCap,
-    colorClasses:'bg-secondary-50 text-secondary-600 border-secondary-100',
-  },
-  {
-    label:       'Pending Assignments',
-    value:       stats.pendingAssignments,
-    icon:        ClipboardList,
-    colorClasses:'bg-secondary-50 text-secondary-600 border-secondary-100',
-  },
-  {
-    label:       'Average Grade',
-    value:       stats.avgGrade != null ? `${stats.avgGrade}%` : null,
-    icon:        BarChart2,
-    colorClasses:'bg-primary-50 text-primary-600 border-primary-100',
-  },
-];
+const CONTEXT_STATS = {
+  teacher: (metrics = {}) => [
+    {
+      label:       'Courses Teaching',
+      value:       metrics.coursesTeaching ?? 0,
+      icon:        GraduationCap,
+      colorClasses:'bg-secondary-50 text-secondary-600 border-secondary-100',
+    },
+    {
+      label:       'Ungraded Submissions',
+      value:       metrics.ungradedSubmissions ?? 0,
+      icon:        ClipboardList,
+      colorClasses:'bg-warning-50 text-warning-700 border-warning-100',
+    },
+    {
+      label:       'Announcements Posted',
+      value:       metrics.announcementsPosted ?? 0,
+      icon:        Megaphone,
+      colorClasses:'bg-primary-50 text-primary-600 border-primary-100',
+    },
+  ],
+  student: (metrics = {}) => [
+    {
+      label:       'Courses Enrolled',
+      value:       metrics.coursesEnrolled ?? 0,
+      icon:        BookOpen,
+      colorClasses:'bg-primary-50 text-primary-600 border-primary-100',
+    },
+    {
+      label:       'Pending Assignments',
+      value:       metrics.pendingAssignments ?? 0,
+      icon:        ClipboardList,
+      colorClasses:'bg-warning-50 text-warning-700 border-warning-100',
+    },
+    {
+      label:       'Recent Grades',
+      value:       metrics.recentGrades ?? 0,
+      icon:        BarChart2,
+      colorClasses:'bg-secondary-50 text-secondary-600 border-secondary-100',
+    },
+  ],
+};
 
 function UserDashboard({ user, dashboardData }) {
   const {
@@ -214,14 +231,52 @@ function UserDashboard({ user, dashboardData }) {
     upcomingAssignments,
     recentAnnouncements,
     recentGrades,
-    stats,
+    roleContext,
+    roleMetrics,
+    view,
     refresh,
   } = dashboardData;
 
-  const allCourses       = [...enrolledCourses, ...teachingCourses];
-  const previewCourses   = allCourses.slice(0, PREVIEW_LIMIT);
-  const previewAssign    = upcomingAssignments.slice(0, PREVIEW_LIMIT);
-  const previewAnnounce  = recentAnnouncements.slice(0, PREVIEW_LIMIT);
+  const allCourses      = [...enrolledCourses, ...teachingCourses];
+  const previewCourses  = allCourses.slice(0, PREVIEW_LIMIT);
+  const previewAnnounce = recentAnnouncements.slice(0, PREVIEW_LIMIT);
+
+  const isMixedContext = !!roleContext?.isMixed;
+  const [mixedContextView, setMixedContextView] = useState('teacher');
+
+  const effectiveContext = isMixedContext
+    ? mixedContextView
+    : roleContext?.primaryRole === 'teacher'
+      ? 'teacher'
+      : 'student';
+
+  const scopedAssignments = upcomingAssignments.filter((assignment) => {
+    const assignmentContext = (assignment?.roleContext || '').toLowerCase();
+    if (effectiveContext === 'teacher') return assignmentContext === 'teacher';
+    return assignmentContext !== 'teacher';
+  });
+
+  const previewAssign = scopedAssignments.slice(0, PREVIEW_LIMIT);
+
+  const statItems = CONTEXT_STATS[effectiveContext](
+    roleMetrics?.[effectiveContext] ?? {}
+  );
+
+  const assignmentsSectionTitle =
+    effectiveContext === 'teacher'
+      ? 'Active Assignments'
+      : view?.assignmentsSectionTitle || 'Upcoming Assignments';
+
+  const assignmentsEmptyTitle =
+    effectiveContext === 'teacher'
+      ? 'No active assignments'
+      : view?.assignmentsEmptyTitle || 'All caught up!';
+
+  const assignmentsEmptyDescription =
+    effectiveContext === 'teacher'
+      ? 'Assignments waiting for submissions or grading will appear here.'
+      : view?.assignmentsEmptyDescription ||
+        'You have no pending assignments. New assignments will appear here once your professors post them.';
 
   return (
     <div className="flex flex-col gap-8 max-w-5xl">
@@ -232,11 +287,45 @@ function UserDashboard({ user, dashboardData }) {
       {/* ── Error banner ─────────────────────────────────────────────────── */}
       {error && <ErrorBanner message={error} onRetry={refresh} />}
 
+      {/* ── Context toggle (when mixed role across courses) ─────────────── */}
+      {isMixedContext && (
+        <section aria-label="Dashboard context selector">
+          <div className="inline-flex items-center gap-1 rounded-xl border border-neutral-200 bg-white p-1 shadow-elegant">
+            <button
+              type="button"
+              onClick={() => setMixedContextView('teacher')}
+              className={[
+                'rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors',
+                'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500',
+                mixedContextView === 'teacher'
+                  ? 'bg-secondary-50 text-secondary-700'
+                  : 'text-neutral-600 hover:bg-neutral-100',
+              ].join(' ')}
+            >
+              Teacher view
+            </button>
+            <button
+              type="button"
+              onClick={() => setMixedContextView('student')}
+              className={[
+                'rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors',
+                'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500',
+                mixedContextView === 'student'
+                  ? 'bg-primary-50 text-primary-700'
+                  : 'text-neutral-600 hover:bg-neutral-100',
+              ].join(' ')}
+            >
+              Student view
+            </button>
+          </div>
+        </section>
+      )}
+
       {/* ── Stats row ────────────────────────────────────────────────────── */}
       <section aria-labelledby="stats-heading">
         <h2 id="stats-heading" className="sr-only">Your statistics</h2>
-        <ul className="grid grid-cols-2 gap-4 lg:grid-cols-4" role="list">
-          {USER_STATS(stats).map(({ label, value, icon, colorClasses }) => (
+        <ul className="grid grid-cols-1 gap-4 sm:grid-cols-3" role="list">
+          {statItems.map(({ label, value, icon, colorClasses }) => (
             <StatCard
               key={label}
               label={label}
@@ -262,7 +351,9 @@ function UserDashboard({ user, dashboardData }) {
             <EmptyState
               icon={BookOpen}
               title="No courses yet"
-              description="Enrolled and teaching courses will appear here. Course enrollment is launching soon — check back shortly!"
+              description="You don’t have any teaching or enrolled courses yet."
+              actionLabel="Browse courses"
+              actionTo={ROUTES.COURSES}
             />
           </div>
         }
@@ -300,17 +391,19 @@ function UserDashboard({ user, dashboardData }) {
         {/* ── Upcoming Assignments ───────────────────────────────────────── */}
         <DashboardSection
           id="assignments-heading"
-          title="Upcoming Assignments"
+          title={assignmentsSectionTitle}
           icon={ClipboardList}
           viewAllTo={ROUTES.ASSIGNMENTS}
           isLoading={isLoading}
-          isEmpty={!isLoading && upcomingAssignments.length === 0}
+          isEmpty={!isLoading && scopedAssignments.length === 0}
           emptyNode={
             <div className="rounded-2xl border border-neutral-200 bg-white shadow-elegant">
               <EmptyState
                 icon={ClipboardList}
-                title="All caught up!"
-                description="You have no pending assignments. New assignments will appear here once your professors post them."
+                title={assignmentsEmptyTitle}
+                description={assignmentsEmptyDescription}
+                actionLabel="Open assignments"
+                actionTo={ROUTES.ASSIGNMENTS}
               />
             </div>
           }
@@ -349,7 +442,9 @@ function UserDashboard({ user, dashboardData }) {
               <EmptyState
                 icon={Megaphone}
                 title="No announcements yet"
-                description="Announcements from your courses will appear here as soon as professors post them."
+                description="Course updates will show up here when instructors post in the class thread."
+                actionLabel="Open courses"
+                actionTo={ROUTES.COURSES}
               />
             </div>
           }

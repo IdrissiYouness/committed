@@ -6,6 +6,39 @@ import { API_ENDPOINTS } from '../utils/constants';
  * 
  * Handles all API interactions related to student submissions.
  */
+const isFormDataPayload = (data) =>
+  typeof FormData !== 'undefined' && data instanceof FormData;
+
+const toFormData = (data) => {
+  if (isFormDataPayload(data)) return data;
+
+  const formData = new FormData();
+  const source = data && typeof data === 'object' ? data : {};
+
+  Object.entries(source).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return;
+
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        if (item !== undefined && item !== null && item !== '') {
+          formData.append(key, item);
+        }
+      });
+      return;
+    }
+
+    formData.append(key, value);
+  });
+
+  return formData;
+};
+
+const multipartConfig = {
+  headers: {
+    'Content-Type': 'multipart/form-data',
+  },
+};
+
 const submissionService = {
   /**
    * Fetch all submissions for a specific assignment.
@@ -36,13 +69,9 @@ const submissionService = {
    * @param {FormData|Object} data - Submission data (files, githubUrl, etc.)
    * @returns {Promise<Object>} The created submission
    */
-  create: async (assignmentId, data) => {
-    const isFormData = data instanceof FormData;
-    return api.post(API_ENDPOINTS.ASSIGNMENTS.SUBMISSIONS(assignmentId), data, {
-      headers: {
-        'Content-Type': isFormData ? 'multipart/form-data' : 'application/json',
-      },
-    });
+  create: async (assignmentId, data = {}) => {
+    const requestData = toFormData(data ?? {});
+    return api.post(API_ENDPOINTS.ASSIGNMENTS.SUBMISSIONS(assignmentId), requestData, multipartConfig);
   },
 
   /**
@@ -53,13 +82,9 @@ const submissionService = {
    * @param {FormData|Object} data - Updated submission data
    * @returns {Promise<Object>} The updated submission
    */
-  update: async (id, data) => {
-    const isFormData = data instanceof FormData;
-    return api.put(API_ENDPOINTS.SUBMISSIONS.DETAIL(id), data, {
-      headers: {
-        'Content-Type': isFormData ? 'multipart/form-data' : 'application/json',
-      },
-    });
+  update: async (id, data = {}) => {
+    const requestData = toFormData(data ?? {});
+    return api.put(API_ENDPOINTS.SUBMISSIONS.DETAIL(id), requestData, multipartConfig);
   },
 };
 
