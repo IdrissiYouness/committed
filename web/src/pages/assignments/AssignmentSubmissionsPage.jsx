@@ -395,10 +395,9 @@ export default function AssignmentSubmissionsPage() {
         studentsById[submission.studentId]?.fullName ||
         `Student #${submission.studentId}`;
 
-      const localState = workflowState[submission.submissionId] || {};
       const backendStatus = normalizeStatus(submission.status);
-      const visualStatus = localState.returned ? 'returned' : backendStatus;
       const score = getSubmissionScore(submission);
+      const visualStatus = score !== null ? 'graded' : backendStatus;
 
       return {
         ...submission,
@@ -684,13 +683,26 @@ export default function AssignmentSubmissionsPage() {
         feedback: manualFeedback?.trim() || null,
       };
 
-      try {
-        await gradeService.create(selectedSubmission.submissionId, payload);
-      } catch (gradeError) {
-        if (gradeError?.status === 409) {
-          await gradeService.update(selectedSubmission.submissionId, payload);
-        } else {
-          throw gradeError;
+      const existingGradeId = selectedSubmission?.grade?.gradeId;
+
+      if (existingGradeId) {
+        await gradeService.update(existingGradeId, payload);
+      } else {
+        try {
+          await gradeService.create(selectedSubmission.submissionId, payload);
+        } catch (gradeError) {
+          if (gradeError?.status === 409) {
+            const existingGrade = await gradeService.getBySubmission(selectedSubmission.submissionId);
+            const recoveredGradeId = existingGrade?.gradeId;
+
+            if (!recoveredGradeId) {
+              throw new Error('Existing grade ID not found for update.');
+            }
+
+            await gradeService.update(recoveredGradeId, payload);
+          } else {
+            throw gradeError;
+          }
         }
       }
 
@@ -772,10 +784,10 @@ export default function AssignmentSubmissionsPage() {
   const summary = useMemo(() => {
     const total = enrichedSubmissions.length;
     const graded = enrichedSubmissions.filter((submission) => submission.score !== null).length;
-    const returned = enrichedSubmissions.filter((submission) => submission.visualStatus === 'returned').length;
+    const late = enrichedSubmissions.filter((submission) => submission.visualStatus === 'late').length;
     const ungraded = Math.max(total - graded, 0);
 
-    return { total, graded, ungraded, returned };
+    return { total, graded, ungraded, late };
   }, [enrichedSubmissions]);
 
   if (isLoading) {
@@ -870,7 +882,7 @@ export default function AssignmentSubmissionsPage() {
         <SummaryTile label="Total Submissions" value={summary.total} />
         <SummaryTile label="Ungraded" value={summary.ungraded} />
         <SummaryTile label="Graded" value={summary.graded} />
-        <SummaryTile label="Returned" value={summary.returned} />
+        <SummaryTile label="Late" value={summary.late} />
       </section>
 
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
@@ -1060,7 +1072,11 @@ export default function AssignmentSubmissionsPage() {
 
                 <div>
                   <AssignmentStatusBadge
-                    status={(selectedWorkflowState?.returned ? 'returned' : selectedSubmission.status) || 'submitted'}
+                    status={
+                      getSubmissionScore(selectedSubmission) !== null
+                        ? 'graded'
+                        : (selectedSubmission.status || 'submitted')
+                    }
                     roleContext="student"
                   />
                 </div>
@@ -1093,61 +1109,11 @@ export default function AssignmentSubmissionsPage() {
                 ) : null}
               </div>
 
-              {/* Rubric */}
-              <div className="rounded-xl border border-neutral-200 p-3">
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <h3 className="text-sm font-semibold text-neutral-800">Rubric (weighted)</h3>
-                  <Badge variant="info">Auto total: {rubricTotal}/{assignmentMaxPoints}</Badge>
-                </div>
-
-                <div className="space-y-3">
-                  {selectedRubric.map((criterion) => (
-                    <div key={criterion.id} className="rounded-lg border border-neutral-200 p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-medium text-neutral-900">{criterion.title}</p>
-                          <p className="text-xs text-neutral-500">{criterion.description}</p>
-                        </div>
-                        <Badge variant="neutral">{criterion.weight}% ({criterion.maxPoints} pts)</Badge>
-                      </div>
-
-                      <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          max={criterion.maxPoints}
-                          value={criterion.score}
-                          onChange={(event) => updateRubricScore(criterion.id, event.target.value)}
-                          placeholder={`0 - ${criterion.maxPoints}`}
-                        />
-                        <div className="sm:col-span-2">
-                          <input
-                            type="text"
-                            value={criterion.comment}
-                            onChange={(event) => updateRubricComment(criterion.id, event.target.value)}
-                            className="block w-full rounded-lg border-neutral-300 text-sm text-neutral-700 focus:border-primary-500 focus:ring-primary-500"
-                            placeholder="Criterion note (optional)"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-3">
-                  <Button variant="ghost" size="sm" onClick={applyRubricToManualScore}>
-                    <Wand2 className="h-4 w-4 mr-1.5" />
-                    Apply rubric total to score
-                  </Button>
-                </div>
-              </div>
-
               {/* Grading form */}
               <div className="rounded-xl border border-neutral-200 p-3 space-y-3">
                 <h3 className="text-sm font-semibold text-neutral-800 inline-flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-neutral-500" />
-                  Manual grading
+                  Grading
                 </h3>
 
                 <Input
@@ -1199,114 +1165,6 @@ export default function AssignmentSubmissionsPage() {
                     Reset Form
                   </Button>
                 </div>
-              </div>
-
-              {/* Workflow return + timeline */}
-              <div className="rounded-xl border border-neutral-200 p-3 space-y-3">
-                <h3 className="text-sm font-semibold text-neutral-800 inline-flex items-center gap-2">
-                  <Send className="h-4 w-4 text-neutral-500" />
-                  Return-to-student workflow
-                </h3>
-
-                <div>
-                  <label htmlFor="return-comment" className="block text-sm font-medium text-neutral-700 mb-1">
-                    Return comment
-                  </label>
-                  <textarea
-                    id="return-comment"
-                    rows={2}
-                    value={returnComment}
-                    onChange={(event) => setReturnComment(event.target.value)}
-                    placeholder="Request changes or clarification..."
-                    className="block w-full rounded-lg border-neutral-300 text-sm text-neutral-700 focus:border-primary-500 focus:ring-primary-500"
-                  />
-                </div>
-
-                <Button variant="ghost" onClick={handleReturnToStudent}>
-                  <Send className="h-4 w-4 mr-1.5" />
-                  Mark as Returned
-                </Button>
-
-                <div className="pt-2 border-t border-neutral-100">
-                  <h4 className="text-xs font-semibold text-neutral-600 uppercase tracking-wide inline-flex items-center gap-1">
-                    <History className="h-3.5 w-3.5" />
-                    Timeline
-                  </h4>
-
-                  <ol className="mt-2 space-y-2">
-                    {timelineEvents.length === 0 ? (
-                      <li className="text-xs text-neutral-500 italic">No timeline events yet.</li>
-                    ) : (
-                      timelineEvents.map((event) => (
-                        <li key={event.id} className="rounded-lg border border-neutral-200 bg-neutral-50 p-2.5">
-                          <p className="text-sm text-neutral-800">{event.message}</p>
-                          <p className="text-xs text-neutral-500 mt-1">
-                            {formatDateTime(event.timestamp)} • {event.actor}
-                          </p>
-                        </li>
-                      ))
-                    )}
-                  </ol>
-                </div>
-              </div>
-
-              {/* AI hook actions */}
-              <div className="rounded-xl border border-primary-200 bg-primary-50/50 p-3 space-y-3">
-                <h3 className="text-sm font-semibold text-primary-800 inline-flex items-center gap-2">
-                  <Sparkles className="h-4 w-4" />
-                  AI Assist (hook points)
-                </h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <Button variant="ghost" size="sm" onClick={runAiSuggestScore}>
-                    Suggest Score
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={runAiDraftFeedback}>
-                    Draft Feedback
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={runAiFlagIssues}>
-                    Flag Issues
-                  </Button>
-                </div>
-
-                {selectedAiDraft ? (
-                  <div className="rounded-lg border border-primary-200 bg-white p-3 space-y-2">
-                    <p className="text-sm text-neutral-800">
-                      Suggested score:{' '}
-                      <span className="font-semibold">
-                        {selectedAiDraft.suggestedScore ?? '—'} / {assignmentMaxPoints}
-                      </span>
-                    </p>
-
-                    {selectedAiDraft.flags?.length ? (
-                      <ul className="space-y-1">
-                        {selectedAiDraft.flags.map((flag) => (
-                          <li key={flag} className="text-xs text-warning-700 inline-flex items-center gap-1.5">
-                            <AlertTriangle className="h-3.5 w-3.5" />
-                            {flag}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-xs text-success-700 inline-flex items-center gap-1.5">
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        No major flags detected.
-                      </p>
-                    )}
-
-                    {selectedAiDraft.draftFeedback ? (
-                      <p className="text-xs text-neutral-600">{selectedAiDraft.draftFeedback}</p>
-                    ) : null}
-
-                    <Button variant="secondary" size="sm" onClick={applyAiSuggestionToForm}>
-                      Apply suggestion to form
-                    </Button>
-                  </div>
-                ) : (
-                  <p className="text-xs text-primary-700/90">
-                    Run any action above to generate AI-ready suggestions. You can later replace these handlers with backend AI endpoints without changing this panel layout.
-                  </p>
-                )}
               </div>
             </>
           )}

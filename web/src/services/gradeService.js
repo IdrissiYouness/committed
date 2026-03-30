@@ -31,12 +31,12 @@ const gradeService = {
   /**
    * Update an existing grade.
    * 
-   * @param {number|string} submissionId - The submission ID
+   * @param {number|string} gradeId - The grade ID
    * @param {Object} data - Updated grading data
    * @returns {Promise<Object>} The updated grade
    */
-  update: async (submissionId, data) => {
-    return api.put(API_ENDPOINTS.SUBMISSIONS.GRADE(submissionId), data);
+  update: async (gradeId, data) => {
+    return api.put(API_ENDPOINTS.GRADES.DETAIL(gradeId), data);
   },
 
   /**

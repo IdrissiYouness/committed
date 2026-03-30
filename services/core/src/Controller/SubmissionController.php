@@ -112,8 +112,16 @@ class SubmissionController extends AbstractController
         $total = count($paginator);
 
         $items = [];
+        $statusChanged = false;
         foreach ($paginator as $sub) {
+            if ($this->syncSubmissionStatusFromGrade($sub)) {
+                $statusChanged = true;
+            }
             $items[] = $this->formatSubmission($sub);
+        }
+
+        if ($statusChanged) {
+            $this->entityManager->flush();
         }
 
         return $this->json([
@@ -138,6 +146,10 @@ class SubmissionController extends AbstractController
             return $this->json(['error' => 'Forbidden'], 403);
         }
 
+        if ($this->syncSubmissionStatusFromGrade($submission)) {
+            $this->entityManager->flush();
+        }
+
         return $this->json($this->formatSubmission($submission));
     }
 
@@ -154,7 +166,7 @@ class SubmissionController extends AbstractController
             return $this->json(['error' => 'Forbidden'], 403);
         }
 
-        if (in_array($submission->getStatus(), ['graded', 'returned'])) {
+        if ($submission->getGrade() || in_array($submission->getStatus(), ['graded', 'returned'])) {
             return $this->json(['error' => 'Cannot update a submission that has already been graded or returned'], 403);
         }
 
@@ -267,6 +279,17 @@ class SubmissionController extends AbstractController
         return $this->json($this->formatSubmission($submission));
     }
 
+    private function syncSubmissionStatusFromGrade(Submission $submission): bool
+    {
+        if ($submission->getGrade() && $submission->getStatus() !== 'graded') {
+            $submission->setStatus('graded');
+            $submission->setUpdatedAt(new \DateTime());
+            return true;
+        }
+
+        return false;
+    }
+
     private function formatSubmission(Submission $submission): array
     {
         $attachments = [];
@@ -297,7 +320,7 @@ class SubmissionController extends AbstractController
             'studentId' => $submission->getStudent()->getUserId(),
             'submissionText' => $submission->getSubmissionText(),
             'githubRepoUrl' => $submission->getGithubRepoUrl(),
-            'status' => $submission->getStatus(),
+            'status' => $submission->getGrade() ? 'graded' : $submission->getStatus(),
             'submittedAt' => $submission->getSubmittedAt()->format(\DateTime::RFC3339),
             'updatedAt' => $submission->getUpdatedAt()->format(\DateTime::RFC3339),
             'attachments' => $attachments,
