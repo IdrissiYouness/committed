@@ -71,7 +71,19 @@ const formatDate = (value, withTime = false) => {
   if (!value) return 'N/A';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return 'N/A';
-  return withTime ? d.toLocaleString() : d.toLocaleDateString();
+
+  if (withTime) {
+    return d.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  }
+
+  return d.toLocaleDateString();
 };
 
 const timeAgo = (dateString) => {
@@ -165,6 +177,7 @@ export default function CourseDetailPage() {
   const [stats, setStats] = useState(null);
 
   const [submissionsByAssignment, setSubmissionsByAssignment] = useState({});
+  const [commentCountsByAnnouncement, setCommentCountsByAnnouncement] = useState({});
 
   const [isLoading, setIsLoading] = useState(true);
   const [isUnenrolling, setIsUnenrolling] = useState(false);
@@ -201,6 +214,36 @@ export default function CourseDetailPage() {
       setAnnouncements(announcementList);
       setStudents(toList(studentsPayload));
       setStats(statsPayload || null);
+
+      if (announcementList.length > 0) {
+        const commentCountPairs = await Promise.all(
+          announcementList.map(async (announcement) => {
+            const announcementId = getId(announcement, 'announcementId');
+            if (!announcementId) return [announcementId, 0];
+
+            const commentPayload = await announcementService
+              .getComments(id, announcementId, { page: 0, size: 1 })
+              .catch(() => null);
+
+            const totalFromMeta = Number(
+              commentPayload?.meta?.total ??
+              commentPayload?.totalElements ??
+              commentPayload?.total ??
+              0
+            );
+
+            return [announcementId, Number.isFinite(totalFromMeta) ? totalFromMeta : 0];
+          })
+        );
+
+        const commentCountMap = commentCountPairs.reduce((acc, [announcementId, count]) => {
+          if (announcementId) acc[announcementId] = count;
+          return acc;
+        }, {});
+        setCommentCountsByAnnouncement(commentCountMap);
+      } else {
+        setCommentCountsByAnnouncement({});
+      }
 
       const assignmentIds = assignmentList.map((a) => getId(a, 'assignmentId')).filter(Boolean);
       if (assignmentIds.length > 0) {
@@ -491,7 +534,9 @@ export default function CourseDetailPage() {
                   announcement?.author?.fullName ||
                   announcement?.postedBy?.fullName ||
                   (announcement?.postedBy ? `User #${announcement.postedBy}` : 'Instructor');
-                const commentCount = Number(announcement?.commentCount || 0);
+                const commentCount = Number(
+                  commentCountsByAnnouncement[announcementId] ?? announcement?.commentCount ?? 0
+                );
 
                 return (
                   <li
@@ -613,7 +658,7 @@ export default function CourseDetailPage() {
                         <div className="mt-1 flex flex-wrap items-center gap-4 text-xs text-neutral-500">
                           <span className="inline-flex items-center gap-1">
                             <Calendar className="h-3.5 w-3.5" />
-                            Due: {formatDate(assignment.dueDate)}
+                            Due: {formatDate(assignment.dueDate, true)}
                           </span>
                           <span className="inline-flex items-center gap-1">
                             <Clock className="h-3.5 w-3.5" />
@@ -859,7 +904,7 @@ export default function CourseDetailPage() {
                         <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0">
                             <p className="truncate text-sm font-semibold text-neutral-900">{assignment.title}</p>
-                            <p className="mt-1 text-xs text-neutral-500">Due: {formatDate(assignment.dueDate)}</p>
+                            <p className="mt-1 text-xs text-neutral-500">Due: {formatDate(assignment.dueDate, true)}</p>
                           </div>
                           <AssignmentStatusBadge
                             status={meta.studentStatus || 'pending'}

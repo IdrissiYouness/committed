@@ -71,7 +71,14 @@ function formatDate(dateValue) {
   if (!dateValue) return 'No due date';
   const d = new Date(dateValue);
   if (Number.isNaN(d.getTime())) return 'No due date';
-  return d.toLocaleDateString();
+  return d.toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
 }
 
 function formatDateTime(dateValue) {
@@ -324,6 +331,11 @@ export default function AssignmentDetailPage() {
   };
 
   const onSubmit = async (data) => {
+    if (isLateSubmissionBlocked) {
+      toast.error(lateSubmissionBlockedMessage);
+      return;
+    }
+
     if (assignment?.requireGithubRepo && !data.githubRepoUrl?.trim()) {
       toast.error('This assignment requires a GitHub repository URL.');
       return;
@@ -475,7 +487,12 @@ export default function AssignmentDetailPage() {
   }
 
   const isStudentGraded = !!grade || String(studentSubmission?.status || '').toLowerCase() === 'graded';
-  const canResubmit = !isStudentGraded && !!studentSubmission;
+  const dueTimestamp = assignment?.dueDate ? new Date(assignment.dueDate).getTime() : null;
+  const isPastDue = Number.isFinite(dueTimestamp) && Date.now() > dueTimestamp;
+  const isLateSubmissionBlocked = isPastDue && !assignment?.allowLateSubmission;
+  const lateSubmissionBlockedMessage =
+    'The due date has passed and late submissions are disabled for this assignment.';
+  const canResubmit = !isStudentGraded && !!studentSubmission && !isLateSubmissionBlocked;
   const latePolicyText = assignment?.allowLateSubmission
     ? 'Late submission is allowed.'
     : 'Late submission is not allowed.';
@@ -883,6 +900,12 @@ export default function AssignmentDetailPage() {
                   </p>
                 </div>
 
+                {isLateSubmissionBlocked && (
+                  <div className="mb-4 rounded-lg border border-warning-200 bg-warning-50 p-3 text-sm text-warning-700">
+                    {lateSubmissionBlockedMessage}
+                  </div>
+                )}
+
                 {studentSubmission && !isEditingSubmission ? (
                   <div className="space-y-4">
                     <div className="flex items-center gap-2 text-sm text-success-700 bg-success-50 p-3 rounded-lg ring-1 ring-success-600/20">
@@ -996,7 +1019,7 @@ export default function AssignmentDetailPage() {
                         type="submit"
                         className="flex-1 justify-center"
                         isLoading={isSavingSubmission}
-                        disabled={isSavingSubmission}
+                        disabled={isSavingSubmission || isLateSubmissionBlocked}
                       >
                         {studentSubmission ? 'Update Submission' : 'Submit Assignment'}
                       </Button>

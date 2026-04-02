@@ -58,10 +58,15 @@ class SubmissionController extends AbstractController
             return $this->json(['error' => 'Submission already exists. Use PUT to update.'], 409);
         }
 
+        $submittedAt = new \DateTimeImmutable();
+        if (!$this->submissionService->canAcceptSubmission($assignment, $submittedAt)) {
+            return $this->json(['error' => 'Late submissions are not allowed for this assignment.'], 403);
+        }
+
         $submission = new Submission();
         $submission->setAssignment($assignment);
         $submission->setStudent($student);
-        $submission->setStatus($this->submissionService->determineStatus($assignment));
+        $submission->setStatus($this->submissionService->determineStatus($assignment, $submittedAt));
 
         $submissionText = $request->request->get('submissionText');
         if ($submissionText) $submission->setSubmissionText($submissionText);
@@ -170,6 +175,12 @@ class SubmissionController extends AbstractController
             return $this->json(['error' => 'Cannot update a submission that has already been graded or returned'], 403);
         }
 
+        $assignment = $submission->getAssignment();
+        $submittedAt = new \DateTimeImmutable();
+        if (!$this->submissionService->canAcceptSubmission($assignment, $submittedAt)) {
+            return $this->json(['error' => 'Late submissions are not allowed for this assignment.'], 403);
+        }
+
         // Handle JSON or multipart
         $contentType = $request->headers->get('Content-Type', '');
         if (str_starts_with($contentType, 'application/json')) {
@@ -236,6 +247,8 @@ class SubmissionController extends AbstractController
             }
         }
 
+        $submission->setStatus($this->submissionService->determineStatus($assignment, $submittedAt));
+
         $this->entityManager->flush();
 
         return $this->json($this->formatSubmission($submission));
@@ -274,6 +287,7 @@ class SubmissionController extends AbstractController
         }
 
         $this->entityManager->persist($analysis);
+
         $this->entityManager->flush();
 
         return $this->json($this->formatSubmission($submission));

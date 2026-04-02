@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
+import toast from 'react-hot-toast';
 import assignmentService from '../../services/assignmentService';
 import Button from '../../components/common/Button';
 import { ROUTES } from '../../utils/constants';
@@ -9,7 +10,11 @@ export default function AssignmentFormPage() {
   const { courseId, id } = useParams();
   const navigate = useNavigate();
   const isEditing = Boolean(id);
-  const { register, handleSubmit, reset, formState: { errors } } = useForm();
+  const { register, handleSubmit, reset, formState: { errors } } = useForm({
+    defaultValues: {
+      allowLateSubmission: false,
+    },
+  });
   
   const [isLoading, setIsLoading] = useState(false);
 
@@ -35,18 +40,34 @@ export default function AssignmentFormPage() {
       formData.append('description', data.description);
       formData.append('dueDate', new Date(data.dueDate).toISOString());
       formData.append('maxPoints', data.maxPoints);
+      formData.append('allowLateSubmission', data.allowLateSubmission ? 'true' : 'false');
       
       if (data.file && data.file[0]) {
         formData.append('files', data.file[0]);
       }
 
+      let savedAssignment = null;
+
       if (isEditing) {
-        await assignmentService.update(id, formData);
+        savedAssignment = await assignmentService.update(id, formData);
+        toast.success('Assignment updated successfully.');
       } else {
-        await assignmentService.create(courseId, formData);
+        savedAssignment = await assignmentService.create(courseId, formData);
+        toast.success('Assignment created successfully.');
       }
-      navigate(`${ROUTES.COURSES}/${courseId}`);
+
+      const assignmentId =
+        savedAssignment?.id ||
+        savedAssignment?.assignmentId ||
+        id;
+
+      if (assignmentId) {
+        navigate(`${ROUTES.ASSIGNMENTS}/${assignmentId}`);
+      } else {
+        navigate(`${ROUTES.COURSES}/${courseId}`);
+      }
     } catch (error) {
+      toast.error(error?.message || 'Failed to save assignment.');
       console.error(error);
     } finally {
       setIsLoading(false);
@@ -95,6 +116,20 @@ export default function AssignmentFormPage() {
             />
             {errors.maxPoints && <p className="text-red-500 text-sm mt-1">{errors.maxPoints.message}</p>}
           </div>
+        </div>
+
+        <div className="rounded-lg border border-neutral-200 p-3">
+          <label className="inline-flex items-center gap-2 text-sm font-medium text-neutral-700">
+            <input
+              type="checkbox"
+              {...register('allowLateSubmission')}
+              className="h-4 w-4 rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
+            />
+            Allow late submissions
+          </label>
+          <p className="mt-1 text-xs text-neutral-500">
+            If enabled, students can submit after the due date and their submission will be marked late.
+          </p>
         </div>
 
         <div>

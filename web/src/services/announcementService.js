@@ -99,6 +99,22 @@ const announcementService = {
 
   delete: (courseId, id) =>
     api.delete(`/api/courses/${courseId}/announcements/${id}`),
+
+  /**
+   * Fetch comments for a specific announcement.
+   * Mirrors commentService pagination shape for lightweight count retrieval.
+   */
+  getComments: async (courseId, announcementId, { page = 0, size = 20, raw = false } = {}) => {
+    const payload = await api.get(
+      `/api/courses/${courseId}/announcements/${announcementId}/comments`,
+      { params: { page, size } }
+    );
+
+    if (raw) return payload;
+
+    const { items, meta } = normalizePaginated(payload);
+    return { data: items, content: items, meta };
+  },
 };
 
 export default announcementService;

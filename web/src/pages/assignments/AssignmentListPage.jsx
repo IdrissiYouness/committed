@@ -489,7 +489,14 @@ export default function AssignmentListPage() {
                       <span className="flex items-center gap-1.5">
                         <Calendar className="h-4 w-4 text-neutral-400" />
                         {assignment.dueDate
-                          ? new Date(assignment.dueDate).toLocaleDateString()
+                          ? new Date(assignment.dueDate).toLocaleString([], {
+                              year: 'numeric',
+                              month: 'numeric',
+                              day: 'numeric',
+                              hour: 'numeric',
+                              minute: '2-digit',
+                              hour12: true,
+                            })
                           : 'No due date'}
                       </span>
                       <span className="flex items-center gap-1.5">

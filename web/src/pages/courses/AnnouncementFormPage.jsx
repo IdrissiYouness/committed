@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
+import toast from 'react-hot-toast';
 import announcementService from '../../services/announcementService';
 import Button from '../../components/common/Button';
 import { ROUTES } from '../../utils/constants';
@@ -29,13 +30,28 @@ export default function AnnouncementFormPage() {
       formData.append('content', data.content);
       if (data.file && data.file[0]) formData.append('attachments', data.file[0]);
 
+      let savedAnnouncement = null;
+
       if (isEditing) {
-        await announcementService.update(courseId, id, formData);
+        savedAnnouncement = await announcementService.update(courseId, id, formData);
+        toast.success('Announcement updated successfully.');
       } else {
-        await announcementService.create(courseId, formData);
+        savedAnnouncement = await announcementService.create(courseId, formData);
+        toast.success('Announcement created successfully.');
       }
-      navigate(`${ROUTES.COURSES}/${courseId}`);
+
+      const announcementId =
+        savedAnnouncement?.announcementId ||
+        savedAnnouncement?.id ||
+        id;
+
+      if (announcementId) {
+        navigate(`${ROUTES.COURSES}/${courseId}/announcements/${announcementId}`);
+      } else {
+        navigate(`${ROUTES.COURSES}/${courseId}`);
+      }
     } catch (error) {
+      toast.error(error?.message || 'Failed to save announcement.');
       console.error(error);
     } finally {
       setIsLoading(false);

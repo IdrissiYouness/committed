@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import toast from 'react-hot-toast';
 import courseService from '../../services/courseService';
 import Button from '../../components/common/Button';
 import { ROUTES } from '../../utils/constants';
@@ -41,14 +42,29 @@ export default function CourseFormPage() {
     setIsLoading(true);
     setError(null);
     try {
+      let savedCourse = null;
+
       if (isEditing) {
-        await courseService.update(id, data);
+        savedCourse = await courseService.update(id, data);
+        toast.success('Course updated successfully.');
       } else {
-        await courseService.create(data);
+        savedCourse = await courseService.create(data);
+        toast.success('Course created successfully.');
       }
-      navigate(ROUTES.COURSES);
+
+      const nextCourseId =
+        savedCourse?.id ||
+        savedCourse?.courseId ||
+        id;
+
+      if (nextCourseId) {
+        navigate(`${ROUTES.COURSES}/${nextCourseId}`);
+      } else {
+        navigate(ROUTES.COURSES);
+      }
     } catch (err) {
       setError(err.message || 'Failed to save course.');
+      toast.error(err.message || 'Failed to save course.');
     } finally {
       setIsLoading(false);
     }
