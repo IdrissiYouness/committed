@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { ClipboardList, Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 /**
@@ -35,22 +36,40 @@ import { ClipboardList, Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
  *   'normal'   — due in 8+ days
  *   null       — no due date
  */
-function parseDue(dateString) {
+function parseDue(dateString, nowInput = new Date()) {
   if (!dateString) return null;
 
-  const due  = new Date(dateString);
-  const now  = new Date();
+  const due = new Date(dateString);
+  if (Number.isNaN(due.getTime())) return null;
 
-  // Zero out time components for day-level comparison
+  const now = nowInput instanceof Date ? nowInput : new Date(nowInput);
+  const diffMs = due.getTime() - now.getTime();
+
+  if (diffMs < 0) {
+    return { label: 'Overdue', tier: 'overdue' };
+  }
+
   const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate());
-  const today  = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const diffMs = dueDay - today;
-  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffDays = Math.round((dueDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
-  if (diffDays < 0)   return { label: 'Overdue',          tier: 'overdue' };
-  if (diffDays === 0) return { label: 'Due today',         tier: 'urgent'  };
-  if (diffDays === 1) return { label: 'Due tomorrow',      tier: 'urgent'  };
-  if (diffDays <= 7)  return { label: `Due in ${diffDays} days`, tier: 'soon' };
+  if (diffDays === 0) {
+    const totalMinutes = Math.max(1, Math.floor(diffMs / (1000 * 60)));
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+
+    if (hours >= 1) {
+      return {
+        label: `Due in ${hours}h${minutes > 0 ? ` ${minutes}m` : ''}`,
+        tier: 'urgent',
+      };
+    }
+
+    return { label: `Due in ${minutes}m`, tier: 'urgent' };
+  }
+
+  if (diffDays === 1) return { label: 'Due tomorrow', tier: 'urgent' };
+  if (diffDays <= 7) return { label: `Due in ${diffDays} days`, tier: 'soon' };
 
   return {
     label: due.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
@@ -89,7 +108,17 @@ const STATUS_LABELS = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function AssignmentItem({ assignment, className = '' }) {
-  const due    = parseDue(assignment.dueDate);
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setNow(new Date());
+    }, 60_000);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
+  const due = parseDue(assignment.dueDate, now);
   const status = assignment.status;
 
   // If already submitted/graded, show status badge instead of due-date badge

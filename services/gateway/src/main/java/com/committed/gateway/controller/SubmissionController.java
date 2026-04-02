@@ -106,13 +106,45 @@ public class SubmissionController {
 
         log.debug("REST request to get submissions for assignmentId: {}", assignmentId);
         JwtPrincipal userDetails = (JwtPrincipal) authentication.getPrincipal();
+        Long userId = Long.parseLong(userDetails.userId());
 
-        // Verify the user is the teacher of the course
         AssignmentResponse assignment = assignmentServiceClient.getAssignment(assignmentId.longValue());
-        verifyTeacherOrAdmin(assignment.getCourseId().intValue(), userDetails);
+        Integer courseId = assignment.getCourseId().intValue();
 
-        PagedResponse<SubmissionResponse> submissions = submissionClient.getSubmissions(assignmentId, page, size);
-        return ResponseEntity.ok(ApiResponse.success(submissions, "Submissions retrieved successfully"));
+        boolean canViewAllSubmissions;
+        try {
+            verifyTeacherOrAdmin(courseId, userDetails);
+            canViewAllSubmissions = true;
+        } catch (org.springframework.security.access.AccessDeniedException ex) {
+            verifyEnrolled(courseId, userId);
+            canViewAllSubmissions = false;
+        }
+
+        if (canViewAllSubmissions) {
+            PagedResponse<SubmissionResponse> submissions = submissionClient.getSubmissions(assignmentId, page, size);
+            return ResponseEntity.ok(ApiResponse.success(submissions, "Submissions retrieved successfully"));
+        }
+
+        // Student context: return only current student's submissions to avoid false-empty state.
+        PagedResponse<SubmissionResponse> allSubmissions = submissionClient.getSubmissions(assignmentId, 1, 1000);
+        List<SubmissionResponse> ownSubmissions = allSubmissions.getContent() == null
+                ? List.of()
+                : allSubmissions.getContent().stream()
+                    .filter(submission -> submission.getStudentId() != null
+                            && submission.getStudentId().longValue() == userId)
+                    .toList();
+
+        PagedResponse<SubmissionResponse> ownPage = PagedResponse.<SubmissionResponse>builder()
+                .content(ownSubmissions)
+                .page(1)
+                .size(Math.max(ownSubmissions.size(), 1))
+                .totalElements(ownSubmissions.size())
+                .totalPages(ownSubmissions.isEmpty() ? 0 : 1)
+                .hasNext(false)
+                .hasPrev(false)
+                .build();
+
+        return ResponseEntity.ok(ApiResponse.success(ownPage, "Submissions retrieved successfully"));
     }
 
     @GetMapping("/submissions/{id}")

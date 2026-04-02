@@ -39,12 +39,19 @@ export const API_ENDPOINTS = {
     ENROLLED: '/api/courses/enrolled',   // COURSE-002
     TEACHING: '/api/courses/teaching',   // COURSE-001
     DETAIL:   (id) => `/api/courses/${id}`,
+    ENROLL:   '/api/courses/enroll',
   },
 
   ASSIGNMENTS: {
     LIST:     '/api/assignments',
     UPCOMING: '/api/assignments/upcoming', // ASSIGN-001
     DETAIL:   (id) => `/api/assignments/${id}`,
+    SUBMISSIONS: (id) => `/api/assignments/${id}/submissions`,
+  },
+
+  SUBMISSIONS: {
+    DETAIL:   (id) => `/api/submissions/${id}`,
+    GRADE:    (id) => `/api/submissions/${id}/grade`,
   },
 
   ANNOUNCEMENTS: {
@@ -55,6 +62,7 @@ export const API_ENDPOINTS = {
   GRADES: {
     LIST:   '/api/grades',
     RECENT: '/api/grades/recent',         // GRADE-001
+    DETAIL:   (id) => `/api/grades/${id}`,
   },
 
   ADMIN: {

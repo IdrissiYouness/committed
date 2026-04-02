@@ -58,10 +58,15 @@ class SubmissionController extends AbstractController
             return $this->json(['error' => 'Submission already exists. Use PUT to update.'], 409);
         }
 
+        $submittedAt = new \DateTimeImmutable();
+        if (!$this->submissionService->canAcceptSubmission($assignment, $submittedAt)) {
+            return $this->json(['error' => 'Late submissions are not allowed for this assignment.'], 403);
+        }
+
         $submission = new Submission();
         $submission->setAssignment($assignment);
         $submission->setStudent($student);
-        $submission->setStatus($this->submissionService->determineStatus($assignment));
+        $submission->setStatus($this->submissionService->determineStatus($assignment, $submittedAt));
 
         $submissionText = $request->request->get('submissionText');
         if ($submissionText) $submission->setSubmissionText($submissionText);
@@ -112,8 +117,16 @@ class SubmissionController extends AbstractController
         $total = count($paginator);
 
         $items = [];
+        $statusChanged = false;
         foreach ($paginator as $sub) {
+            if ($this->syncSubmissionStatusFromGrade($sub)) {
+                $statusChanged = true;
+            }
             $items[] = $this->formatSubmission($sub);
+        }
+
+        if ($statusChanged) {
+            $this->entityManager->flush();
         }
 
         return $this->json([
@@ -138,6 +151,10 @@ class SubmissionController extends AbstractController
             return $this->json(['error' => 'Forbidden'], 403);
         }
 
+        if ($this->syncSubmissionStatusFromGrade($submission)) {
+            $this->entityManager->flush();
+        }
+
         return $this->json($this->formatSubmission($submission));
     }
 
@@ -154,8 +171,14 @@ class SubmissionController extends AbstractController
             return $this->json(['error' => 'Forbidden'], 403);
         }
 
-        if (in_array($submission->getStatus(), ['graded', 'returned'])) {
+        if ($submission->getGrade() || in_array($submission->getStatus(), ['graded', 'returned'])) {
             return $this->json(['error' => 'Cannot update a submission that has already been graded or returned'], 403);
+        }
+
+        $assignment = $submission->getAssignment();
+        $submittedAt = new \DateTimeImmutable();
+        if (!$this->submissionService->canAcceptSubmission($assignment, $submittedAt)) {
+            return $this->json(['error' => 'Late submissions are not allowed for this assignment.'], 403);
         }
 
         // Handle JSON or multipart
@@ -224,6 +247,8 @@ class SubmissionController extends AbstractController
             }
         }
 
+        $submission->setStatus($this->submissionService->determineStatus($assignment, $submittedAt));
+
         $this->entityManager->flush();
 
         return $this->json($this->formatSubmission($submission));
@@ -262,9 +287,21 @@ class SubmissionController extends AbstractController
         }
 
         $this->entityManager->persist($analysis);
+
         $this->entityManager->flush();
 
         return $this->json($this->formatSubmission($submission));
+    }
+
+    private function syncSubmissionStatusFromGrade(Submission $submission): bool
+    {
+        if ($submission->getGrade() && $submission->getStatus() !== 'graded') {
+            $submission->setStatus('graded');
+            $submission->setUpdatedAt(new \DateTime());
+            return true;
+        }
+
+        return false;
     }
 
     private function formatSubmission(Submission $submission): array
@@ -297,7 +334,7 @@ class SubmissionController extends AbstractController
             'studentId' => $submission->getStudent()->getUserId(),
             'submissionText' => $submission->getSubmissionText(),
             'githubRepoUrl' => $submission->getGithubRepoUrl(),
-            'status' => $submission->getStatus(),
+            'status' => $submission->getGrade() ? 'graded' : $submission->getStatus(),
             'submittedAt' => $submission->getSubmittedAt()->format(\DateTime::RFC3339),
             'updatedAt' => $submission->getUpdatedAt()->format(\DateTime::RFC3339),
             'attachments' => $attachments,
