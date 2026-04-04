@@ -1,0 +1,26 @@
+"""Metrics schema definition using Pydantic"""
+
+from pydantic import BaseModel, Field
+from typing import List
+
+
+class MetricDetail(BaseModel):
+    """Individual metric with score and notes"""
+
+    score: float = Field(..., ge=0.0, le=5.0)
+    max: float = 5.0
+    notes: str = ""
+
+
+class MetricsSchema(BaseModel):
+    """Complete metrics schema for code analysis"""
+
+    solid: MetricDetail
+    clean_code: MetricDetail
+    oop: MetricDetail
+    error_handling: MetricDetail
+    testing: MetricDetail
+    documentation: MetricDetail
+    complexity: MetricDetail
+    feedback: str = ""
+    recommendations: List[str] = []

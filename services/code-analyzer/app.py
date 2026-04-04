@@ -1,103 +1,95 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from datetime import datetime
 import os
+from config import Config
 
 app = Flask(__name__)
 
-# Configuration - No database needed, Gateway sends all required data
-app.config['OPENAI_API_KEY'] = os.getenv('OPENAI_API_KEY', '')
-app.config['TEMP_CLONE_DIR'] = os.getenv('TEMP_CLONE_DIR', '/tmp/code-analysis')
-app.config['NOTIFICATION_SERVICE_URL'] = os.getenv('NOTIFICATION_SERVICE_URL', 'http://notifications:5001')
+# Validate configuration on startup
+try:
+    Config.validate()
+except Exception as e:
+    print(f"Configuration error: {e}")
+    # Continue with warnings, but log the issue
 
 
-@app.route('/health', methods=['GET'])
+@app.route("/health", methods=["GET"])
 def health():
     """Health check endpoint"""
-    return jsonify({
-        'status': 'UP',
-        'service': 'code-analyzer',
-        'timestamp': datetime.utcnow().isoformat() + 'Z'
-    })
+    return jsonify(
+        {
+            "status": "UP",
+            "service": "code-analyzer",
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+        }
+    )
 
 
-@app.route('/analyze', methods=['POST'])
+@app.route("/analyze", methods=["POST"])
 def analyze():
     """
     Code analysis endpoint.
-    
-    Receives submission data from Gateway (no database access needed).
-    Gateway sends all necessary information in the request body.
-    
+
+    Receives submission data from Gateway.
+
     Expected request body:
     {
-        "submissionId": "123",
-        "studentId": "456",
+        "submissionId": 123,
         "repoUrl": "https://github.com/user/repo",
-        "assignmentId": "789",
-        "criteria": ["code_quality", "tests", "documentation"]
+        "studentId": 456
+    }
+
+    Returns:
+    {
+        "submissionId": 123,
+        "status": "completed" | "failed",
+        "grade": "A-F",
+        "percentage": 73.4,
+        "breakdown": {...},
+        "metrics": {...},
+        "reportUrl": "/reports/123.pdf",
+        "analyzedAt": "2026-04-01T12:00:00+00:00"
     }
     """
     try:
         data = request.get_json()
-        
+
         if not data:
-            return jsonify({
-                'status': 'error',
-                'message': 'No JSON data provided',
-                'timestamp': datetime.utcnow().isoformat() + 'Z'
-            }), 400
-        
-        # Extract submission info from request (sent by Gateway)
-        submission_id = data.get('submissionId')
-        student_id = data.get('studentId')
-        repo_url = data.get('repoUrl')
-        
-        if not all([submission_id, repo_url]):
-            return jsonify({
-                'status': 'error',
-                'message': 'Missing required fields: submissionId, repoUrl',
-                'timestamp': datetime.utcnow().isoformat() + 'Z'
-            }), 400
-        
-        # TODO: Implement actual code analysis logic here
-        # 1. Clone the repository
-        # 2. Run analysis (linting, tests, AI feedback)
-        # 3. Return results to Gateway
-        
-        # Placeholder response
-        return jsonify({
-            'status': 'received',
-            'message': 'Analysis request received - implementation pending',
-            'submissionId': submission_id,
-            'studentId': student_id,
-            'repoUrl': repo_url,
-            'timestamp': datetime.utcnow().isoformat() + 'Z'
-        })
-        
+            return jsonify({"error": "Missing JSON body"}), 400
+
+        submission_id = data.get("submissionId")
+        repo_url = data.get("repoUrl")
+
+        if not submission_id or not repo_url:
+            return jsonify({"error": "submissionId and repoUrl are required"}), 400
+
+        # TODO: Import and use pipeline.run_analysis()
+        # from core.pipeline import run_analysis
+        # result = run_analysis(int(submission_id), repo_url)
+        # status_code = 200 if result["status"] == "completed" else 500
+        # return jsonify(result), status_code
+
+        # Placeholder response for now
+        return jsonify(
+            {
+                "status": "received",
+                "message": "Analysis request received - pipeline not yet implemented",
+                "submissionId": submission_id,
+                "repoUrl": repo_url,
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+            }
+        )
+
     except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'message': str(e),
-            'timestamp': datetime.utcnow().isoformat() + 'Z'
-        }), 500
+        return jsonify({"status": "failed", "error": str(e)}), 500
 
 
-@app.route('/status/<submission_id>', methods=['GET'])
-def get_status(submission_id):
-    """
-    Get analysis status for a submission.
-    
-    In a real implementation, this would check the analysis progress.
-    For now, returns a placeholder response.
-    """
-    return jsonify({
-        'submissionId': submission_id,
-        'status': 'pending',
-        'message': 'Status endpoint - implementation pending',
-        'timestamp': datetime.utcnow().isoformat() + 'Z'
-    })
+@app.route("/reports/<path:filename>", methods=["GET"])
+def serve_report(filename):
+    """Serve generated PDF reports"""
+    return send_from_directory(Config.REPORTS_DIR, filename)
 
 
-if __name__ == '__main__':
-    port = int(os.getenv('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=os.getenv('FLASK_DEBUG', 'false').lower() == 'true')
+if __name__ == "__main__":
+    port = Config.PORT
+    app.run(host="0.0.0.0", port=port, debug=Config.FLASK_DEBUG)
