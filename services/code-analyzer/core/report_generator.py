@@ -5,6 +5,7 @@ import subprocess
 import textwrap
 import json
 import logging
+from datetime import datetime
 from typing import Optional
 from config import Config
 from models.metrics_schema import MetricsSchema, EnhancedContent
@@ -128,38 +129,69 @@ def generate(
 
     metric_rows = []
     for key, detail in classification["breakdown"].items():
-        notes = getattr(metrics, key).notes.replace('"', '\\"')
+        notes = (
+            getattr(metrics, key).notes
+            .replace("\\", "\\\\")
+            .replace("[", "\\[")
+            .replace("]", "\\]")
+        )
         metric_rows.append(
             f"[{key.replace('_', ' ').title()}], [{detail['score']:.1f}], "
             f"[{detail['max']:.0f}], [{notes}],"
         )
 
     recommendations_typst = "\n".join(
-        f"  (rec{i},)," for i, _ in enumerate(recommendations)
+        f"  rec{i}," for i, _ in enumerate(recommendations)
     )
-    escaped_recs = [r.replace('"', r"\"") for r in recommendations]
+    escaped_recs = [r.replace("\\", "\\\\").replace('"', r"\"") for r in recommendations]
     rec_defs = "\n".join(f'#let rec{i} = "{rec}"' for i, rec in enumerate(escaped_recs))
 
-    escaped_feedback = feedback.replace('"', r"\"")
+    escaped_feedback = feedback.replace("\\", "\\\\").replace('"', r"\"")
     escaped_encouragement = encouragement.replace('"', r"\"")
+
+    floor_rules = classification.get("floor_rules_triggered", [])
+    floor_rule_defs = []
+    for i, rule in enumerate(floor_rules):
+        metric_label = rule["metric"].replace("_", " ").title()
+        explanation = (
+            f"{metric_label} score is {rule['score']:.1f} out of {rule['min_score']:.1f} required. "
+            f"Your weighted score earned a grade of {rule['earned_grade']} ({classification['percentage']}%), "
+            f"but this floor rule caps the grade at {rule['cap_grade']}."
+        ).replace('"', r"\"")
+        floor_rule_defs.append(f'#let floor_rule_{i} = "{explanation}"')
+    floor_rules_typst = "\n".join(
+        f"  floor_rule_{i}," for i in range(len(floor_rules))
+    )
+    floor_rule_block = "\n".join(floor_rule_defs)
+
+    template_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "templates",
+        "report.typ",
+    )
+    with open(template_path) as f:
+        template_body = f.read()
+
+    formatted_date = datetime.fromisoformat(analyzed_at).strftime("%-d %b %Y")
 
     typst_source = textwrap.dedent(
         f"""
         #let repo_url = "{repo_url}"
         #let submission_id = "{submission_id}"
-        #let analyzed_at = "{analyzed_at}"
+        #let analyzed_at = "{formatted_date}"
         #let grade = "{classification["grade"]}"
         #let percentage = "{classification["percentage"]}"
         #let feedback = "{escaped_feedback}"
         #let encouragement = "{escaped_encouragement}"
         {rec_defs}
         #let recommendations = ({recommendations_typst})
+        {floor_rule_block}
+        #let floor_rules = ({floor_rules_typst})
         #let metrics_rows = (
             {chr(10).join(metric_rows)}
         )
-        #include "report.typ"
     """
-    )
+    ) + template_body
 
     src_path = os.path.join(Config.REPORTS_DIR, f"{submission_id}_data.typ")
     pdf_path = os.path.join(Config.REPORTS_DIR, f"{submission_id}.pdf")

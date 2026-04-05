@@ -49,17 +49,26 @@ def classify(metrics: MetricsSchema) -> Dict[str, Any]:
     percentage = (weighted_sum / total_weight) * 100
 
     # 2. Determine base grade from thresholds
-    grade = "F"
+    base_grade = "F"
     for threshold, letter in GRADE_THRESHOLDS:
         if percentage >= threshold:
-            grade = letter
+            base_grade = letter
             break
 
-    # 3. Apply floor rules
+    # 3. Apply floor rules and collect explanations for triggered ones
+    grade = base_grade
+    floor_rules_triggered = []
     for metric_key, min_score, cap_grade in FLOOR_RULES:
-        if getattr(metrics, metric_key).score < min_score:
-            # Downgrade if current grade is better than the cap
-            if ord(grade) < ord(cap_grade):  # 'A' < 'D' alphabetically
+        score = getattr(metrics, metric_key).score
+        if score < min_score:
+            if ord(grade) < ord(cap_grade):  # 'A' < 'D' alphabetically means better grade
+                floor_rules_triggered.append({
+                    "metric": metric_key,
+                    "score": score,
+                    "min_score": min_score,
+                    "cap_grade": cap_grade,
+                    "earned_grade": base_grade,
+                })
                 grade = cap_grade
 
     # 4. Build breakdown
@@ -79,6 +88,7 @@ def classify(metrics: MetricsSchema) -> Dict[str, Any]:
         "grade": grade,
         "percentage": round(percentage, 2),
         "breakdown": breakdown,
+        "floor_rules_triggered": floor_rules_triggered,
     }
 
     # Add inferred student level

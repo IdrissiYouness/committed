@@ -1,6 +1,6 @@
 """Metrics schema definition using Pydantic"""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import List
 
 
@@ -24,6 +24,13 @@ class MetricsSchema(BaseModel):
     complexity: MetricDetail
     feedback: str = ""
     recommendations: List[str] = []
+
+    @field_validator("recommendations", mode="before")
+    @classmethod
+    def normalize_recommendations(cls, v):
+        if isinstance(v, str):
+            return [rec.strip() for rec in v.split(",") if rec.strip()]
+        return list(v)
 
 
 class EnhancedContent(BaseModel):

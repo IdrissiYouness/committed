@@ -9,7 +9,7 @@ class Config:
     REPORTS_DIR = os.getenv("REPORTS_DIR", "/tmp/reports")
 
     # External tools
-    TYPST_BIN = os.getenv("TYPST_BIN", "/usr/local/bin/typst")
+    TYPST_BIN = os.getenv("TYPST_BIN", os.path.expanduser("~/.cargo/bin/typst"))
     AGENT_CLI = os.getenv("AGENT_CLI", "kilo")
 
     # Timeout settings (in seconds)
