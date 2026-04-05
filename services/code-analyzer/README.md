@@ -1,289 +1,380 @@
 # Code Analyzer Service
 
-AI-powered code analysis service for the Committed platform. Analyzes student code submissions, generates metrics, assigns grades (A-F), and produces professional PDF reports.
+AI-powered code quality analysis service for the Committed platform. Analyzes student code submissions and generates detailed PDF reports with quality metrics and grades.
 
-## 🎯 Status
+## 🎯 What Does This Service Do?
 
-**Phase 1 Complete** - Project scaffolding finished, 14 tests passing, ready for Phase 2 implementation.
+Takes a GitHub/GitLab URL → Analyzes code with AI → Assigns A-F grade → Generates PDF report
 
-See [Implementation Plan](../../docs/ai-analysis-service-plan.md) for full roadmap.
+**Key Features**:
+- 7 quality metrics: SOLID, clean code, OOP, error handling, testing, documentation, complexity
+- AI-powered analysis (OpenAI or Kilo CLI)
+- Automated grading with configurable weights
+- Student level inference (beginner/intermediate/advanced)
+- Hybrid AI-enhanced report content with static Typst layout
+- Professional PDF reports via Typst
+- Stateless microservice (no database)
 
-## 📋 Overview
-
-This service:
-1. Clones student repositories from GitHub/GitLab
-2. Runs AI analysis (OpenAI or Kilo Code CLI)
-3. Extracts code quality metrics (SOLID, clean code, testing, etc.)
-4. Classifies work with A-F grade using weighted scoring
-5. Generates professional PDF reports using Typst
-6. Returns metrics + PDF to Gateway service
-
-**Architecture**: No database access - receives all data from Gateway via HTTP requests.
-
-## 🏗️ Project Structure
+## 📁 Project Structure
 
 ```
 services/code-analyzer/
-├── app.py                    # Flask API (health, analyze, reports endpoints)
-├── config.py                 # Environment-based configuration
-├── requirements.txt          # Production dependencies
-├── requirements-dev.txt      # Development dependencies
-├── Dockerfile                # Docker image with Typst PDF compiler
-├── .env.example              # Environment variables template
+├── app.py                      # Flask HTTP server
+├── config.py                   # Environment configuration
+├── requirements.txt            # Production dependencies
+├── requirements-dev.txt        # Development dependencies
+├── Dockerfile                  # Production container
+├── .env                        # Environment variables (local)
+├── .env.example               # Environment template
 │
-├── core/                     # Core analysis pipeline
-│   ├── git_handler.py        # Repository cloning & validation
-│   ├── agent_runner.py       # AI agent execution (OpenAI/Kilo)
-│   ├── metrics_parser.py     # Metrics normalization
-│   ├── classifier.py         # Grade calculation (A-F)
-│   ├── report_generator.py   # PDF generation via Typst
-│   └── pipeline.py           # Orchestration of all steps
+├── .kilo/                      # Kilo CLI configuration
+│   └── agent/
+│       ├── analyzer.md         # Custom code analyzer agent
+│       └── report-content.md   # Personalized report content agent
 │
-├── models/                   # Pydantic data schemas
-│   └── metrics_schema.py     # Metrics validation models
+├── core/                       # Business logic
+│   ├── git_handler.py         # Git clone/cleanup
+│   ├── agent_runner.py        # AI analysis (OpenAI/Kilo)
+│   ├── metrics_parser.py      # Normalize AI output
+│   ├── classifier.py          # Calculate grades
+│   ├── report_generator.py   # Generate PDFs
+│   └── pipeline.py            # Orchestrate everything
 │
-├── templates/                # Report templates
-│   └── report.typ            # Typst PDF template
+├── models/                     # Data schemas
+│   └── metrics_schema.py      # Pydantic models
 │
-└── tests/                    # Unit tests (14 tests, all passing ✅)
-    ├── test_git_handler.py
-    ├── test_metrics_parser.py
-    ├── test_classifier.py
-    └── test_report_generator.py
+├── templates/                  # Report templates
+│   └── report.typ             # Typst PDF template
+│
+├── scripts/                    # Utility scripts
+│   ├── kilo-analyze-wrapper.py  # Kilo CLI wrapper
+│   ├── kilo-report-content.py   # Report content agent wrapper
+│   ├── kilo-analyze.sh         # Bash wrapper (alternative)
+│   └── manual_test_kilo.sh     # Quick manual test
+│
+├── tests/                      # Tests & examples
+│   ├── test_classifier.py     # Grading logic tests
+│   ├── test_git_handler.py    # Git operations tests
+│   ├── test_metrics_parser.py # Parser tests
+│   ├── test_report_generator.py # PDF generation tests
+│   ├── test_report_content.py # AI enhancement tests
+│   ├── test_student_level_inference.py # Level inference tests
+│   ├── test_enhanced_pipeline.py # Pipeline integration checks
+│   ├── test_manual_flow.py    # Manual flow simulation
+│   ├── test_analysis.py       # Full pipeline test
+│   ├── test_kilo_analyzer.py  # Kilo integration test
+│   └── quick_test.py          # Quick verification
+│
+└── docs/                       # Documentation
+    ├── ONBOARDING.md          # Developer onboarding guide
+    ├── KILO_INTEGRATION.md    # Kilo CLI integration docs
+    ├── KILO_SETUP.md          # Implementation summary
+    └── REPORT_CUSTOMIZATION.md # AI report customization guide
 ```
 
 ## 🚀 Quick Start
 
-### 1. Setup Environment
+### Prerequisites
+
+- Python 3.11+
+- Git
+- Typst (for PDF generation)
+- Kilo CLI (optional, for kilo backend)
+
+### Installation
 
 ```bash
 cd services/code-analyzer
 
 # Create virtual environment
 python3 -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
+source .venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
+```
 
-# Configure environment
+### Configuration
+
+Copy the example environment file:
+
+```bash
 cp .env.example .env
-# Edit .env and add your OPENAI_API_KEY
 ```
 
-### 2. Run Tests
+Edit `.env` and configure:
 
 ```bash
-pytest -v                    # Run all tests
-pytest --cov=core            # With coverage
-pytest tests/test_classifier.py -v  # Specific test
+# Choose backend: "openai" or "kilocode" (default: openai)
+AGENT_BACKEND=kilocode
+
+# OpenAI (if using OpenAI backend)
+OPENAI_API_KEY=your_key_here
+
+# Kilo CLI command (single source of truth for wrappers)
+AGENT_CLI=kilo
+
+# AI-enhanced report content
+ENABLE_AI_REPORTS=true
 ```
 
-### 3. Start Development Server
+### Run the Service
 
 ```bash
+# Development mode
 python app.py
-# Service available at http://localhost:5000
+
+# Production mode
+gunicorn app:app --bind 0.0.0.0:5000
 ```
 
-### 4. Test API
+### Run Tests
 
 ```bash
-# Health check
-curl http://localhost:5000/health
+# All tests
+.venv/bin/pytest tests/ -v
 
-# Analyze repository (returns placeholder until pipeline is connected)
-curl -X POST http://localhost:5000/analyze \
-  -H "Content-Type: application/json" \
-  -d '{"submissionId": 123, "repoUrl": "https://github.com/user/repo"}'
+# Specific test
+.venv/bin/pytest tests/test_classifier.py -v
+
+# With coverage
+.venv/bin/pytest --cov=core --cov=models
+```
+
+## 🧪 Testing & Examples
+
+### Quick Tests
+
+```bash
+# Quick verification test
+.venv/bin/python tests/quick_test.py
+
+# Manual flow simulation (no AI required)
+.venv/bin/python tests/test_manual_flow.py
+
+# Kilo integration test
+.venv/bin/python tests/test_kilo_analyzer.py
+```
+
+### Test with Real Repository
+
+```bash
+# Edit tests/test_analysis.py and set your repo URL
+.venv/bin/python tests/test_analysis.py
 ```
 
 ## 🔧 Configuration
 
-### Environment Variables
+### AI Backend Options
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `OPENAI_API_KEY` | - | **Required** for OpenAI backend |
-| `AGENT_BACKEND` | `openai` | AI backend: "openai" or "kilocode" |
-| `TEMP_DIR` | `/tmp/code-analysis` | Directory for cloned repositories |
-| `REPORTS_DIR` | `/tmp/reports` | Directory for generated PDF reports |
-| `CLONE_TIMEOUT` | `120` | Git clone timeout (seconds) |
-| `AGENT_TIMEOUT` | `300` | AI analysis timeout (seconds) |
-| `PORT` | `5000` | Flask server port |
-| `FLASK_DEBUG` | `false` | Enable debug mode |
-| `NOTIFICATION_SERVICE_URL` | `http://notifications:5001` | Notification service URL |
-
-## 📡 API Endpoints
-
-### `GET /health`
-Health check endpoint
-
-**Response:**
-```json
-{
-  "status": "UP",
-  "service": "code-analyzer",
-  "timestamp": "2026-04-04T18:23:55Z"
-}
+**Option 1: OpenAI (GPT-4)**
+```bash
+AGENT_BACKEND=openai
+OPENAI_API_KEY=sk-...
 ```
 
-### `POST /analyze`
-Analyze a code repository
-
-**Request:**
-```json
-{
-  "submissionId": 123,
-  "repoUrl": "https://github.com/user/repo"
-}
+**Option 2: Kilo CLI (500+ models)**
+```bash
+AGENT_BACKEND=kilocode
+AGENT_CLI=kilo
 ```
 
-**Response (when pipeline is connected):**
+### Grading Configuration
+
+Edit `core/classifier.py` to customize:
+
+```python
+# Adjust weights (must sum to 1.0)
+WEIGHTS = {
+    "solid": 0.20,
+    "clean_code": 0.20,
+    "oop": 0.15,
+    "error_handling": 0.15,
+    "testing": 0.15,
+    "documentation": 0.10,
+    "complexity": 0.05,
+}
+
+# Adjust grade thresholds
+GRADE_THRESHOLDS = [
+    (85, "A"),
+    (70, "B"),
+    (55, "C"),
+    (40, "D"),
+    (0, "F"),
+]
+
+# Floor rules (minimum requirements)
+FLOOR_RULES = [
+    ("testing", 1.0, "D"),  # Testing < 1.0 caps at D
+]
+```
+
+### Student Level Inference
+
+Student level is inferred from classification and metric profile:
+
+- `advanced`: grade A/B and average metric score >= 3.5
+- `beginner`: grade D/F, or average < 2.0, or testing < 1.0
+- `intermediate`: all other cases
+
+This is implemented in `core/classifier.py`.
+
+### AI-Enhanced Reports
+
+When `ENABLE_AI_REPORTS=true`, report generation attempts a personalization step:
+
+1. Build payload from metrics, grade, and inferred student level
+2. Invoke `scripts/kilo-report-content.py`
+3. Validate output against `EnhancedContent` schema
+4. Inject enhanced feedback/recommendations into Typst data
+5. Fall back to original static content if enhancement fails
+
+Caching is enabled via `lru_cache(maxsize=100)` for repeated similar payloads.
+
+## 📊 API Endpoints
+
+### POST /analyze
+
+Analyze a code repository:
+
+```bash
+curl -X POST http://localhost:5000/analyze \
+  -H "Content-Type: application/json" \
+  -d '{
+    "submissionId": 123,
+    "repoUrl": "https://github.com/user/repo"
+  }'
+```
+
+Response:
 ```json
 {
   "submissionId": 123,
   "status": "completed",
   "grade": "B",
   "percentage": 73.4,
-  "breakdown": {
-    "solid": {"score": 3.5, "max": 5, "weighted_contribution": 14.0},
-    "clean_code": {"score": 4.0, "max": 5, "weighted_contribution": 16.0},
-    ...
-  },
-  "metrics": {
-    "solid": {"score": 3.5, "notes": "Good separation..."},
-    "feedback": "Overall solid code...",
-    "recommendations": ["Add more tests", "Improve documentation"]
-  },
+  "student_level": "intermediate",
+  "breakdown": {...},
+  "metrics": {...},
   "reportUrl": "/reports/123.pdf",
-  "analyzedAt": "2026-04-04T18:00:00+00:00"
+  "analyzedAt": "2026-04-01T12:00:00+00:00"
 }
 ```
 
-### `GET /reports/<filename>`
-Serve generated PDF reports
+### GET /health
+
+Health check:
+
+```bash
+curl http://localhost:5000/health
+```
+
+### GET /reports/:filename
+
+Download PDF report:
+
+```bash
+curl http://localhost:5000/reports/123.pdf -o report.pdf
+```
+
+## 📚 Documentation
+
+- **[ONBOARDING.md](docs/ONBOARDING.md)** - Comprehensive developer guide (15 min read)
+- **[KILO_INTEGRATION.md](docs/KILO_INTEGRATION.md)** - Kilo CLI integration details
+- **[KILO_SETUP.md](docs/KILO_SETUP.md)** - Implementation summary
+- **[REPORT_CUSTOMIZATION.md](docs/REPORT_CUSTOMIZATION.md)** - Report personalization customization
+
+## 🏗️ Architecture
+
+```
+┌─────────────┐
+│   Gateway   │ (Has database)
+└──────┬──────┘
+       │ HTTP POST /analyze
+       ▼
+┌─────────────────────────────────┐
+│   Code Analyzer (this service)  │
+│                                 │
+│  1. Clone repo from URL         │
+│  2. Run AI analysis             │
+│  3. Parse metrics               │
+│  4. Calculate grade             │
+│  5. Generate PDF                │
+│  6. Return results              │
+│  7. Cleanup                     │
+└─────────────────────────────────┘
+       │ HTTP Response
+       ▼
+┌─────────────┐
+│   Gateway   │ Saves to DB
+└─────────────┘
+```
+
+## 🎓 Key Concepts
+
+### The 7 Quality Metrics
+
+1. **SOLID Principles** - Design pattern adherence
+2. **Clean Code** - Readability, naming, simplicity
+3. **OOP** - Object-oriented design quality
+4. **Error Handling** - Exception handling, validation
+5. **Testing** - Unit tests, coverage, quality
+6. **Documentation** - README, comments, docs
+7. **Complexity** - Cyclomatic complexity, nesting
+
+### Grading Flow
+
+```
+Metrics (0-5 each) → Weighted Average → Percentage → Letter Grade (A-F)
+                                ↓
+                         Floor Rules Applied
+```
+
+### AI Backends
+
+**OpenAI**:
+- Uses GPT-4 API
+- Samples up to 50 files, 200 lines each
+- Fast and reliable
+- Costs money
+
+**Kilo CLI**:
+- Uses custom analyzer agent (`.kilo/agent/analyzer.md`)
+- Access to 500+ models via kilo Gateway
+- Can use local/free models
+- More flexible and customizable
+
+## 🔐 Security
+
+- **Input validation**: Only GitHub/GitLab URLs allowed
+- **Resource limits**: Timeouts, file size limits, shallow clones
+- **Cleanup**: Always removes cloned repos
+- **Read-only**: Kilo agent has no write/execute permissions
+- **Stateless**: No sensitive data stored
 
 ## 🐳 Docker
 
-### Build Image
+Build and run:
 
 ```bash
-docker build -t code-analyzer:latest .
-```
-
-### Run Container
-
-```bash
+docker build -t code-analyzer .
 docker run -p 5000:5000 \
-  -e OPENAI_API_KEY=sk-your-key \
-  code-analyzer:latest
+  -e AGENT_BACKEND=openai \
+  -e OPENAI_API_KEY=sk-... \
+  code-analyzer
 ```
 
-## 💻 IDE Setup (VSCode)
+## 🤝 Contributing
 
-### Settings (`.vscode/settings.json`)
-
-```json
-{
-  "python.defaultInterpreterPath": "./.venv/bin/python",
-  "python.linting.enabled": true,
-  "python.formatting.provider": "black",
-  "editor.formatOnSave": true
-}
-```
-
-### Launch Configuration (`.vscode/launch.json`)
-
-```json
-{
-  "version": "0.2.0",
-  "configurations": [
-    {
-      "name": "Flask",
-      "type": "python",
-      "request": "launch",
-      "module": "flask",
-      "env": {
-        "FLASK_APP": "app.py",
-        "FLASK_DEBUG": "1"
-      },
-      "args": ["run", "--host=0.0.0.0", "--port=5000"],
-      "jinja": true
-    }
-  ]
-}
-```
-
-## 🧪 Testing
-
-**Current Status**: ✅ 14 tests passing (100%)
-
-```bash
-# Run all tests
-pytest
-
-# Run with verbose output
-pytest -v
-
-# Run with coverage report
-pytest --cov=core --cov=models --cov-report=html
-
-# Run specific test class
-pytest tests/test_classifier.py::TestClassify -v
-
-# Watch mode (requires pytest-watch)
-ptw
-```
-
-**Test Coverage:**
-- Git handler: URL validation, cloning, error handling
-- Metrics parser: Full input, missing keys, type coercion
-- Classifier: Grade calculation, floor rules, breakdown
-- Report generator: PDF generation, compilation errors
-
-## 🏛️ Architecture
-
-### Pipeline Flow
-
-```
-POST /analyze
-    ↓
-1. Clone repo (git_handler)
-    ↓
-2. Run AI agent (agent_runner)
-    ↓
-3. Parse metrics (metrics_parser)
-    ↓
-4. Calculate grade (classifier)
-    ↓
-5. Generate PDF (report_generator)
-    ↓
-6. Return results
-    ↓
-7. Cleanup (git_handler)
-```
-
-### Metrics Evaluated
-
-- **SOLID Principles** (20% weight)
-- **Clean Code** (20% weight)
-- **OOP Design** (15% weight)
-- **Error Handling** (15% weight)
-- **Testing** (15% weight)
-- **Documentation** (10% weight)
-- **Complexity** (5% weight)
-
-### Grading Thresholds
-
-- **A**: ≥85%
-- **B**: ≥70%
-- **C**: ≥55%
-- **D**: ≥40%
-- **F**: <40%
-
-**Floor Rules**: Testing score <1.0 caps grade at D
+1. Read [docs/ONBOARDING.md](docs/ONBOARDING.md)
+2. Run tests: `.venv/bin/pytest tests/ -v`
+3. Format code: `black .`
+4. Lint: `ruff check .`
+5. Make changes
+6. Add tests
+7. Submit PR
 
 ## 🛠️ Development
 
@@ -295,89 +386,29 @@ black .
 
 # Lint code
 ruff check .
-
-# Type checking (optional)
-mypy core/ models/
 ```
 
-### Adding New Metrics
+### Running Tests
 
-1. Update `models/metrics_schema.py` to add new metric field
-2. Update `core/agent_runner.py` prompt to request new metric
-3. Update `core/classifier.py` to include in weight calculation
-4. Add tests in `tests/test_classifier.py`
+```bash
+# All tests
+.venv/bin/pytest tests/ -v
 
-### Customizing Grade Weights
+# With coverage
+.venv/bin/pytest --cov=core --cov-report=html
 
-Edit `core/classifier.py`:
-
-```python
-WEIGHTS = {
-    "solid": 0.20,
-    "clean_code": 0.20,
-    # ... adjust weights as needed
-}
+# Specific test
+.venv/bin/pytest tests/test_classifier.py::TestClassify::test_a_grade -v
 ```
 
-## 🗺️ Roadmap
+## 🆘 Support
 
-### ✅ Phase 1 - Project Scaffolding (COMPLETE)
-- [x] Directory structure
-- [x] Core module skeletons
-- [x] Pydantic models
-- [x] Test suite (14 tests passing)
-- [x] Dockerfile with Typst
+- **Issues**: Create a Gitlab issue
+- **Docs**: See [docs/ONBOARDING.md](docs/ONBOARDING.md) for detailed guide
+- **Tests**: Run `.venv/bin/pytest tests/ -v` to verify setup
 
-### ⏳ Phase 2-8 (TODO)
-- **Phase 2**: Git handler testing with real repos
-- **Phase 3**: OpenAI runner implementation
-- **Phase 4**: Metrics schema completion
-- **Phase 5**: Classifier tuning
-- **Phase 6**: Typst PDF generation testing
-- **Phase 7**: Pipeline integration with Flask
-- **Phase 8**: Docker Compose + Gateway integration
+---
 
-See [Full Implementation Plan](../../docs/ai-analysis-service-plan.md)
+**Status**: ✅ Pipeline endpoint wired | ✅ AI report enhancement with fallback | ✅ Tests passing
 
-## 📦 Dependencies
-
-### Production
-- Flask 3.0.0 - Web framework
-- OpenAI 1.6.1 - AI analysis
-- Pydantic 2.6.0 - Data validation
-- Requests 2.31.0 - HTTP client
-
-### Development
-- pytest 8.0.0 - Testing framework
-- pytest-cov 5.0.0 - Coverage reporting
-- black 24.4.2 - Code formatting
-- ruff 0.3.7 - Linting
-
-## 🐛 Troubleshooting
-
-**Import errors**
-- Ensure virtual environment is activated: `source .venv/bin/activate`
-- Reinstall dependencies: `pip install -r requirements.txt`
-
-**Tests failing**
-- Check Python version: `python --version` (requires 3.11+)
-- Install dev dependencies: `pip install -r requirements-dev.txt`
-
-**OpenAI API errors**
-- Verify API key is set: `echo $OPENAI_API_KEY`
-- Check API key has credits at platform.openai.com
-
-**Module not found**
-- Run commands from `services/code-analyzer` directory
-- Add to PYTHONPATH: `export PYTHONPATH="${PYTHONPATH}:$(pwd)"`
-
-## 📄 License
-
-Part of the Committed platform. See root LICENSE file.
-
-## 🤝 Contributing
-
-1. Follow existing code style (black + ruff)
-2. Write tests for new features
-3. Update documentation
-4. Ensure all tests pass: `pytest`
+**Made for the Committed platform**

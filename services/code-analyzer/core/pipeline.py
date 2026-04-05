@@ -52,6 +52,7 @@ def run_analysis(submission_id: int, repo_url: str) -> Dict[str, Any]:
             "status": "completed",
             "grade": classification["grade"],
             "percentage": classification["percentage"],
+            "student_level": classification.get("student_level", "intermediate"),
             "breakdown": classification["breakdown"],
             "metrics": metrics.model_dump(),
             "reportUrl": f"/reports/{submission_id}.pdf",

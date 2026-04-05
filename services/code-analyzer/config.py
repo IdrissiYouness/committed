@@ -10,11 +10,7 @@ class Config:
 
     # External tools
     TYPST_BIN = os.getenv("TYPST_BIN", "/usr/local/bin/typst")
-    AGENT_CLI = os.getenv("AGENT_CLI", "kilo-code")
-
-    # Agent backend configuration
-    AGENT_BACKEND = os.getenv("AGENT_BACKEND", "openai")  # "kilocode" | "openai"
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+    AGENT_CLI = os.getenv("AGENT_CLI", "kilo")
 
     # Timeout settings (in seconds)
     CLONE_TIMEOUT = int(os.getenv("CLONE_TIMEOUT", "120"))
@@ -29,14 +25,11 @@ class Config:
         "NOTIFICATION_SERVICE_URL", "http://notifications:5001"
     )
 
+    # Report generation settings
+    ENABLE_AI_REPORTS = os.getenv("ENABLE_AI_REPORTS", "true").lower() == "true"
+
     @classmethod
     def validate(cls):
-        """Validate critical configuration"""
-        if cls.AGENT_BACKEND == "openai" and not cls.OPENAI_API_KEY:
-            raise ValueError(
-                "OPENAI_API_KEY is required when AGENT_BACKEND is 'openai'"
-            )
-
-        # Ensure directories exist
+        """Validate critical configuration and ensure required directories exist"""
         os.makedirs(cls.TEMP_DIR, exist_ok=True)
         os.makedirs(cls.REPORTS_DIR, exist_ok=True)

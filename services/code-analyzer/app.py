@@ -2,6 +2,7 @@ from flask import Flask, jsonify, request, send_from_directory
 from datetime import datetime
 import os
 from config import Config
+from core.pipeline import run_analysis
 
 app = Flask(__name__)
 
@@ -45,6 +46,7 @@ def analyze():
         "status": "completed" | "failed",
         "grade": "A-F",
         "percentage": 73.4,
+        "student_level": "advanced|intermediate|beginner",
         "breakdown": {...},
         "metrics": {...},
         "reportUrl": "/reports/123.pdf",
@@ -59,26 +61,18 @@ def analyze():
 
         submission_id = data.get("submissionId")
         repo_url = data.get("repoUrl")
+        student_id = data.get("studentId")
 
         if not submission_id or not repo_url:
             return jsonify({"error": "submissionId and repoUrl are required"}), 400
 
-        # TODO: Import and use pipeline.run_analysis()
-        # from core.pipeline import run_analysis
-        # result = run_analysis(int(submission_id), repo_url)
-        # status_code = 200 if result["status"] == "completed" else 500
-        # return jsonify(result), status_code
+        # Keep studentId available for future context wiring.
+        # Current pipeline infers student level from analysis metrics.
+        _ = student_id
 
-        # Placeholder response for now
-        return jsonify(
-            {
-                "status": "received",
-                "message": "Analysis request received - pipeline not yet implemented",
-                "submissionId": submission_id,
-                "repoUrl": repo_url,
-                "timestamp": datetime.utcnow().isoformat() + "Z",
-            }
-        )
+        result = run_analysis(int(submission_id), repo_url)
+        status_code = 200 if result.get("status") == "completed" else 500
+        return jsonify(result), status_code
 
     except Exception as e:
         return jsonify({"status": "failed", "error": str(e)}), 500

@@ -74,4 +74,58 @@ def classify(metrics: MetricsSchema) -> Dict[str, Any]:
             ),
         }
 
-    return {"grade": grade, "percentage": round(percentage, 2), "breakdown": breakdown}
+    # 5. Build result with student level inference
+    result = {
+        "grade": grade,
+        "percentage": round(percentage, 2),
+        "breakdown": breakdown,
+    }
+
+    # Add inferred student level
+    result["student_level"] = infer_student_level(result, metrics)
+
+    return result
+
+
+def infer_student_level(classification: dict, metrics: MetricsSchema) -> str:
+    """
+    Infer student skill level from analysis results.
+
+    Args:
+        classification: Classification result containing grade and percentage
+        metrics: Normalized metrics schema
+
+    Returns:
+        Student level: "advanced", "intermediate", or "beginner"
+
+    Logic:
+        - Advanced: Grade A/B with most metrics >= 3.5
+        - Beginner: Grade D/F, or average score < 2.0, or testing score < 1.0
+        - Intermediate: Everything else
+    """
+    grade = classification["grade"]
+    percentage = classification["percentage"]
+
+    # Calculate average score across all metrics
+    scores = [
+        metrics.solid.score,
+        metrics.clean_code.score,
+        metrics.oop.score,
+        metrics.error_handling.score,
+        metrics.testing.score,
+        metrics.documentation.score,
+        metrics.complexity.score,
+    ]
+    avg_score = sum(scores) / len(scores)
+
+    # Advanced: High grades and strong overall performance
+    if grade in ["A", "B"] and avg_score >= 3.5:
+        return "advanced"
+
+    # Beginner: Low grades or critical weaknesses
+    elif grade in ["D", "F"] or avg_score < 2.0 or metrics.testing.score < 1.0:
+        return "beginner"
+
+    # Intermediate: Everything else
+    else:
+        return "intermediate"

@@ -12,7 +12,13 @@ class TestGenerate:
     @patch("core.report_generator.subprocess.run")
     def test_successful_generation(self, mock_run):
         """Should generate PDF successfully"""
-        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        # Mock returns different values for AI enhancement (fails) and Typst (succeeds)
+        # First call: AI enhancement (returns non-zero to simulate fallback)
+        # Second call: Typst compilation (succeeds)
+        mock_run.side_effect = [
+            MagicMock(returncode=1, stderr="AI not available"),  # AI enhancement fails
+            MagicMock(returncode=0, stderr=""),  # Typst succeeds
+        ]
 
         metrics = MetricsSchema(
             solid=MetricDetail(score=4.0, notes="Good"),
@@ -29,6 +35,7 @@ class TestGenerate:
         classification = {
             "grade": "B",
             "percentage": 80.0,
+            "student_level": "intermediate",
             "breakdown": {
                 "solid": {"score": 4.0, "max": 5.0, "weighted_contribution": 16.0}
             },
@@ -43,12 +50,18 @@ class TestGenerate:
         )
 
         assert result.endswith("123.pdf")
-        mock_run.assert_called_once()
+        # Should be called twice: AI enhancement + Typst compilation
+        assert mock_run.call_count == 2
 
     @patch("core.report_generator.subprocess.run")
     def test_typst_compilation_failure(self, mock_run):
         """Should raise error on Typst compilation failure"""
-        mock_run.return_value = MagicMock(returncode=1, stderr="Compilation error")
+        # First call: AI enhancement (fails)
+        # Second call: Typst compilation (also fails)
+        mock_run.side_effect = [
+            MagicMock(returncode=1, stderr="AI not available"),
+            MagicMock(returncode=1, stderr="Compilation error"),
+        ]
 
         metrics = MetricsSchema(
             solid=MetricDetail(score=3.0, notes="OK"),
@@ -60,7 +73,12 @@ class TestGenerate:
             complexity=MetricDetail(score=3.0, notes="OK"),
         )
 
-        classification = {"grade": "C", "percentage": 60.0, "breakdown": {}}
+        classification = {
+            "grade": "C",
+            "percentage": 60.0,
+            "student_level": "intermediate",
+            "breakdown": {},
+        }
 
         with pytest.raises(RuntimeError, match="Typst compilation failed"):
             report_generator.generate(

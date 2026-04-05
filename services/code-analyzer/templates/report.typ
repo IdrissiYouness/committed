@@ -36,3 +36,11 @@
 #for rec in recommendations [
   - #rec
 ]
+
+#if encouragement != "" [
+  ---
+  
+  == Keep Going!
+  
+  #encouragement
+]
