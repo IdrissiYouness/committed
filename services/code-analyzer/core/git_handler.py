@@ -41,9 +41,9 @@ def clone(repo_url: str, submission_id: int) -> str:
 
     os.makedirs(Config.TEMP_DIR, exist_ok=True)
 
-    # Clone with shallow depth to save time and space
+    # Fetch enough history for commit hygiene analysis while keeping clones fast
     result = subprocess.run(
-        ["git", "clone", "--depth", "1", repo_url, target],
+        ["git", "clone", "--depth", "50", repo_url, target],
         timeout=Config.CLONE_TIMEOUT,
         capture_output=True,
         text=True,

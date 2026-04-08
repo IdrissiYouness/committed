@@ -7,14 +7,15 @@ def extract_json(output: str, anchor_key: str) -> dict:
     """
     Extract a JSON object from kilo CLI output.
 
-    Tries three strategies in order:
-    1. Regex search for an object containing anchor_key
-    2. Parse the entire output directly
-    3. Line-by-line scan with brace counting
+    Uses json.JSONDecoder.raw_decode() to find the first valid JSON object
+    that contains anchor_key, stopping exactly at the end of the object
+    regardless of any trailing text the model may have appended.
+
+    Falls back to a brace-counting scan if the first pass finds nothing.
 
     Args:
         output: Raw stdout from the kilo CLI
-        anchor_key: A key expected in the target JSON object (used to anchor the regex)
+        anchor_key: A key expected in the target JSON object
 
     Returns:
         Parsed dictionary
@@ -22,38 +23,20 @@ def extract_json(output: str, anchor_key: str) -> dict:
     Raises:
         RuntimeError: If no valid JSON object can be extracted
     """
-    import re
+    decoder = json.JSONDecoder()
 
-    # Strategy 1: find an object that contains the expected key
-    match = re.search(r'\{[\s\S]*"' + re.escape(anchor_key) + r'"[\s\S]*\}', output)
-    if match:
-        return json.loads(match.group(0))
+    # Scan for every '{' and attempt a raw_decode from that position.
+    # raw_decode stops exactly at the end of the first valid JSON value,
+    # so trailing model commentary never causes "extra data" errors.
+    for i, char in enumerate(output):
+        if char != "{":
+            continue
+        try:
+            obj, _ = decoder.raw_decode(output, i)
+            if isinstance(obj, dict) and anchor_key in obj:
+                return obj
+        except json.JSONDecodeError:
+            continue
 
-    # Strategy 2: try the whole output
-    try:
-        return json.loads(output.strip())
-    except json.JSONDecodeError:
-        pass
+    raise RuntimeError(f"Could not extract valid JSON from kilo output:\n{output[:500]}")
 
-    # Strategy 3: scan line by line, use brace counting to find the object boundary
-    lines = output.split("\n")
-    for i, line in enumerate(lines):
-        if line.strip().startswith("{"):
-            candidate = "\n".join(lines[i:])
-            brace_count = 0
-            end_idx = -1
-            for j, char in enumerate(candidate):
-                if char == "{":
-                    brace_count += 1
-                elif char == "}":
-                    brace_count -= 1
-                    if brace_count == 0:
-                        end_idx = j + 1
-                        break
-            if end_idx > 0:
-                try:
-                    return json.loads(candidate[:end_idx])
-                except json.JSONDecodeError:
-                    continue
-
-    raise RuntimeError(f"Could not extract valid JSON from kilo output:\n{output}")

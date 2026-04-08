@@ -1,6 +1,5 @@
 from flask import Flask, jsonify, request, send_from_directory
 from datetime import datetime
-import os
 from config import Config
 from core.pipeline import run_analysis
 

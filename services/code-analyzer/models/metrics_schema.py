@@ -1,15 +1,89 @@
 """Metrics schema definition using Pydantic"""
 
 from pydantic import BaseModel, Field, field_validator
-from typing import List
+from typing import List, Optional
 
 
 class MetricDetail(BaseModel):
-    """Individual metric with score and notes"""
+    """Individual metric with score, notes, and confidence"""
 
     score: float = Field(..., ge=0.0, le=5.0)
     max: float = 5.0
     notes: str = ""
+    confidence: float = Field(default=0.8, ge=0.0, le=1.0)
+
+
+class FileIssue(BaseModel):
+    """An issue found at a specific line in a file"""
+
+    line: int = 0
+    severity: str = "medium"  # "high", "medium", "low"
+    message: str = ""
+
+
+class FileAnalysis(BaseModel):
+    """Per-file analysis result"""
+
+    filename: str
+    lines: int = 0
+    cyclomatic_complexity: float = 0.0
+    duplication_pct: float = 0.0
+    issues: List[FileIssue] = []
+
+
+class DependencyDetail(BaseModel):
+    """Individual dependency entry"""
+
+    name: str
+    current: str = ""
+    status: str = "ok"  # "ok", "outdated", "vulnerable", "unused"
+    note: str = ""
+
+
+class DependencyHealth(BaseModel):
+    """Dependency health summary"""
+
+    total: int = 0
+    outdated: int = 0
+    vulnerable: int = 0
+    unused: int = 0
+    details: List[DependencyDetail] = []
+
+
+class CommitHygiene(BaseModel):
+    """Commit hygiene metrics derived from git history"""
+
+    score: float = Field(default=0.0, ge=0.0, le=5.0)
+    total_commits: int = 0
+    single_purpose_pct: float = 0.0
+    message_quality_score: float = Field(default=0.0, ge=0.0, le=5.0)
+    notes: str = ""
+
+
+class RecommendationEvidence(BaseModel):
+    """Code evidence backing a recommendation"""
+
+    file: str = ""
+    line: int = 0
+    snippet: str = ""
+
+
+class Recommendation(BaseModel):
+    """Structured actionable recommendation"""
+
+    title: str
+    description: str
+    priority: str = "medium"  # "high", "medium", "low"
+    effort: str = ""
+    evidence: List[RecommendationEvidence] = []
+
+
+class QuickWin(BaseModel):
+    """A small, low-effort improvement"""
+
+    title: str
+    description: str
+    effort: str = ""
 
 
 class MetricsSchema(BaseModel):
@@ -23,14 +97,56 @@ class MetricsSchema(BaseModel):
     documentation: MetricDetail
     complexity: MetricDetail
     feedback: str = ""
-    recommendations: List[str] = []
+    recommendations: List[Recommendation] = []
+    per_file: List[FileAnalysis] = []
+    dependencies: DependencyHealth = Field(default_factory=DependencyHealth)
+    duplication_score: float = 0.0
+    commit_hygiene: CommitHygiene = Field(default_factory=CommitHygiene)
+    accessibility_score: float = 0.0
+    performance_hints: List[str] = []
+    quick_wins: List[QuickWin] = []
+    positives: List[str] = []
 
     @field_validator("recommendations", mode="before")
     @classmethod
     def normalize_recommendations(cls, v):
         if isinstance(v, str):
-            return [rec.strip() for rec in v.split(",") if rec.strip()]
-        return list(v)
+            items = [r.strip() for r in v.split(",") if r.strip()]
+            return [{"title": item, "description": item} for item in items]
+        result = []
+        for item in v:
+            if isinstance(item, str):
+                result.append({"title": item, "description": item, "priority": "medium", "effort": "", "evidence": []})
+            elif isinstance(item, dict):
+                if "title" not in item:
+                    item["title"] = item.get("description", "Recommendation")
+                if "description" not in item:
+                    item["description"] = item.get("title", "")
+                item.setdefault("priority", "medium")
+                item.setdefault("effort", "")
+                item.setdefault("evidence", [])
+                result.append(item)
+            else:
+                result.append(item)
+        return result
+
+    @field_validator("quick_wins", mode="before")
+    @classmethod
+    def normalize_quick_wins(cls, v):
+        result = []
+        for item in v:
+            if isinstance(item, str):
+                result.append({"title": item, "description": item, "effort": ""})
+            elif isinstance(item, dict):
+                if "title" not in item:
+                    item["title"] = item.get("description", "Quick Win")
+                if "description" not in item:
+                    item["description"] = item.get("title", "")
+                item.setdefault("effort", "")
+                result.append(item)
+            else:
+                result.append(item)
+        return result
 
 
 class EnhancedContent(BaseModel):
