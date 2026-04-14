@@ -266,7 +266,7 @@ def run_analysis(submission_id: int, repo_url: str) -> Dict[str, Any]:
         return {
             "submissionId": submission_id,
             "status": "failed",
-            "error": str(e),
+            "errorMessage": str(e),
         }
 
     finally:

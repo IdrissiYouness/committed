@@ -1,0 +1,19 @@
+# Python
+.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Kilo node_modules — installed fresh during build via COPY .kilo/package.json + npm install
+.kilo/node_modules/
+.kilo/bun.lock
+
+# Secrets & local config
+.env
+
+# Dev-only
+requirements-dev.txt
+tests/
+docs/

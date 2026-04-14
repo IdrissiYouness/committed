@@ -99,7 +99,7 @@ def analyze():
 
     except Exception as e:
         logger.exception("Unhandled error in /analyze")
-        return jsonify({"status": "failed", "error": str(e)}), 500
+        return jsonify({"status": "failed", "errorMessage": str(e)}), 500
 
 
 @app.route("/reports/<path:filename>", methods=["GET"])
