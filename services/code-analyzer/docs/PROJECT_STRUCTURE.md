@@ -1,184 +1,171 @@
-# Code Analyzer Service - Project Structure
+# Code Analyzer Service — Project Structure
 
-## 📁 Directory Overview
+## Directory Overview
 
 ```
 services/code-analyzer/
 ├── .kilo/                      # Kilo CLI configuration
-├── core/                       # Business logic modules
+├── core/                       # Business logic
 ├── docs/                       # Documentation
-├── models/                     # Data schemas
-├── scripts/                    # Utility scripts
-├── templates/                  # Report templates
-├── tests/                      # Tests & examples
-├── app.py                      # Flask application
-├── config.py                   # Configuration
-├── Dockerfile                  # Container definition
-├── README.md                   # Main documentation
-└── requirements*.txt           # Dependencies
+├── models/                     # Pydantic data schemas
+├── report_samples/             # Generated PDF samples (git-ignored)
+├── scripts/                    # Utility and wrapper scripts
+├── templates/                  # Typst report template
+├── tests/                      # Unit and integration tests
+├── app.py                      # Flask HTTP layer
+├── config.py                   # All configuration (single source of truth)
+├── Dockerfile                  # Production container
+├── README.md                   # Quick-start and API reference
+├── requirements.txt            # Production dependencies
+└── requirements-dev.txt        # Dev tools (pytest, black, ruff)
 ```
-
-## 📂 Detailed Structure
-
-### `.kilo/` - Kilo CLI Configuration
-```
-.kilo/
-└── agent/
-    └── analyzer.md         # Custom analyzer agent for code quality analysis
-```
-
-**Purpose**: Defines custom kilo agents for AI-powered code analysis
-
-### `core/` - Business Logic
-```
-core/
-├── __init__.py
-├── agent_runner.py         # AI analysis orchestration (OpenAI/Kilo)
-├── classifier.py           # Grade calculation (A-F)
-├── git_handler.py          # Git operations (clone/cleanup)
-├── metrics_parser.py       # Normalize AI responses
-├── pipeline.py             # Main orchestration pipeline
-└── report_generator.py     # PDF generation via Typst
-```
-
-**Purpose**: Core business logic for the analysis pipeline
-
-**Key Files**:
-- `pipeline.py` - Entry point that orchestrates all steps
-- `agent_runner.py` - Handles AI backends (switchable)
-- `classifier.py` - Grading algorithm (configurable weights)
-
-### `docs/` - Documentation
-```
-docs/
-├── KILO_INTEGRATION.md     # Kilo CLI integration guide
-├── KILO_SETUP.md           # Implementation summary
-├── ONBOARDING.md           # Developer onboarding (15 min read)
-├── PROJECT_STRUCTURE.md    # Structure and dependencies
-└── REPORT_CUSTOMIZATION.md # AI report customization
-```
-
-**Purpose**: Comprehensive documentation for developers
-
-**Start Here**:
-1. Read `ONBOARDING.md` first (complete guide)
-2. Then `KILO_INTEGRATION.md` (if using kilo)
-3. Refer to `KILO_SETUP.md` (quick reference)
-
-### `models/` - Data Schemas
-```
-models/
-├── __init__.py
-└── metrics_schema.py       # Pydantic models for validation
-```
-
-**Purpose**: Define data structures with type validation
-
-**Key Classes**:
-- `MetricDetail` - Individual metric (score + notes)
-- `MetricsSchema` - Complete analysis result
-
-### `scripts/` - Utility Scripts
-```
-scripts/
-├── kilo-analyze-wrapper.py  # Python wrapper for kilo CLI
-├── kilo-analyze.sh          # Bash wrapper (alternative)
-└── manual_test_kilo.sh      # Quick manual test
-```
-
-**Purpose**: Helper scripts for kilo integration and testing
-
-**Usage**:
-- `kilo-analyze-wrapper.py` - Called by `KiloCodeRunner`
-- `manual_test_kilo.sh` - Quick CLI test
-
-### `templates/` - Report Templates
-```
-templates/
-└── report.typ              # Typst PDF template
-```
-
-**Purpose**: PDF report generation templates
-
-**Format**: Typst markup language (modern LaTeX alternative)
-
-### `tests/` - Tests & Examples
-```
-tests/
-├── __init__.py
-├── test_app_routes.py      # POST /analyze route tests
-├── quick_test.py           # Quick verification (30 sec)
-├── test_analysis.py        # Full pipeline test
-├── test_classifier.py      # Grading logic tests (unit)
-├── test_enhanced_pipeline.py # Pipeline integration checks
-├── test_git_handler.py     # Git operations tests (unit)
-├── test_kilo_analyzer.py   # Kilo integration test
-├── test_manual_flow.py     # Manual simulation (no AI)
-├── test_metrics_parser.py  # Parser tests (unit)
-├── test_report_content.py  # AI report-content tests
-├── test_report_generator.py # PDF generation tests (unit)
-└── test_student_level_inference.py # student_level inference tests
-```
-
-**Purpose**: Unit tests and integration examples
-
-**Test Categories**:
-- **Unit tests**: parser/classifier/report tests (fast, mocked)
-- **Integration tests**: `test_analysis.py`, `test_kilo_analyzer.py`, `test_app_routes.py`
-- **Examples**: `test_manual_flow.py`, `quick_test.py`
-
-**Run Tests**:
-```bash
-.venv/bin/pytest tests/ -v                     # All tests
-.venv/bin/pytest tests/test_classifier.py -v   # Specific test
-.venv/bin/pytest --cov=core --cov=models       # With coverage
-```
-
-### Root Files
-
-**Configuration**:
-- `.env` - Local environment variables (git-ignored)
-- `.env.example` - Environment template
-- `config.py` - Configuration loader
-- `pyrightconfig.json` - Python type checking config
-
-**Application**:
-- `app.py` - Flask HTTP server
-- `Dockerfile` - Production container
-
-**Dependencies**:
-- `requirements.txt` - Production dependencies
-- `requirements-dev.txt` - Development tools
-
-**Documentation**:
-- `README.md` - Main project documentation
-
-## 🧪 Test Organization
-
-### Unit Tests (Fast, Mocked)
-- `test_classifier.py` - Grading algorithm
-- `test_git_handler.py` - Git operations
-- `test_metrics_parser.py` - Data parsing
-- `test_report_generator.py` - PDF generation
-- `test_report_content.py` - AI enhancement parsing/fallback
-- `test_student_level_inference.py` - Student level inference rules
-
-### Integration Tests (Slower, Real)
-- `test_kilo_analyzer.py` - Kilo CLI integration (skipped by default, requires auth)
-- `test_app_routes.py` - Flask route behaviour with mocks
-- `test_enhanced_pipeline.py` - Pipeline integration checks
-
-### Manual Scripts (not pytest)
-- `scripts/run_analysis.py` - Full pipeline against a real repo
-- `scripts/quick_check.py` - Quick kilo sanity check
-
-## 📚 Related Documentation
-
-- [README.md](../README.md) - Quick start guide
-- [docs/ONBOARDING.md](../docs/ONBOARDING.md) - Developer onboarding
-- [docs/KILO_INTEGRATION.md](../docs/KILO_INTEGRATION.md) - Kilo setup
 
 ---
 
-**Last Updated**: 2026-04-05
-**Status**: ✅ Clean structure, all tests passing
+## `.kilo/` — Kilo CLI Agent
+
+```
+.kilo/
+└── agent/
+    └── analyzer.md     # Custom agent: reads repos, outputs structured JSON
+```
+
+The agent prompt defines scoring guidelines, per-file analysis rules, architecture/class
+diagram extraction, and the `project_overview` academic report format.
+It is read-only — no bash, write, or edit permissions.
+
+---
+
+## `core/` — Business Logic
+
+```
+core/
+├── __init__.py
+├── pipeline.py          # Step 1–7 orchestration (clone → AI → parse → grade → PDF)
+├── git_handler.py       # Clone + URL validation + cleanup
+├── agent_runner.py      # KiloCodeRunner + MockRunner; get_runner() selector
+├── metrics_parser.py    # Normalize raw agent JSON → MetricsSchema
+├── classifier.py        # Weighted grade calculation + floor rules + student level
+└── report_generator.py  # SVG generation + Typst compilation → PDF
+```
+
+**Entry points:**
+
+| File | What it does |
+|---|---|
+| `pipeline.py` | `run_analysis(submission_id, repo_url)` — the full pipeline |
+| `agent_runner.py` | `get_runner()` — returns `KiloCodeRunner` or `MockRunner` |
+| `classifier.py` | `classify(metrics)` — weighted grade, floor rules, student level |
+| `report_generator.py` | `generate(...)` — SVG charts + Typst PDF |
+
+---
+
+## `models/` — Data Schemas
+
+```
+models/
+├── __init__.py
+└── metrics_schema.py    # All Pydantic models
+```
+
+**Key models:**
+
+| Model | Purpose |
+|---|---|
+| `MetricDetail` | One metric: `score`, `max`, `notes`, `confidence` |
+| `FileAnalysis` | Per-file: lines, complexity, duplication, issues list |
+| `DependencyHealth` | Dependency counts + `DependencyDetail` list |
+| `CommitHygiene` | Score, commit count, message quality |
+| `Recommendation` | Title, description, priority, effort, evidence |
+| `QuickWin` | Title, description, effort |
+| `ArchComponent` / `ArchConnection` | Architecture diagram nodes and edges |
+| `ClassEntry` / `ClassRelationship` | UML class boxes and relationships |
+| `ProjectOverview` | Formal academic report: summary, technologies, contributors, … |
+| `MetricsSchema` | Root model containing all of the above |
+
+---
+
+## `scripts/` — Utilities
+
+```
+scripts/
+├── kilo-analyze-wrapper.py  # Subprocess wrapper: invokes Kilo CLI, returns raw output
+├── kilo_utils.py            # extract_json() + markdown fence stripper
+├── quick_check.py           # Sanity-check script for Kilo CLI availability
+└── run_analysis.py          # Local end-to-end test (runs against a real GitHub URL)
+```
+
+Run a full local test without the Flask server:
+
+```bash
+cd services/code-analyzer
+source .venv/bin/activate
+python scripts/run_analysis.py
+```
+
+---
+
+## `templates/` — PDF Template
+
+```
+templates/
+└── report.typ    # Typst source: layout, colors, all section rendering
+```
+
+Sections are conditionally rendered based on whether the corresponding data field is
+non-empty.  See [REPORT_CUSTOMIZATION.md](REPORT_CUSTOMIZATION.md) for the full section
+reference and customization guide.
+
+---
+
+## `tests/` — Test Suite
+
+```
+tests/
+├── __init__.py
+├── test_app_routes.py              # Flask routes (POST /analyze, GET /reports/<f>)
+├── test_classifier.py              # Grade calc, floor rules, boundary smoothing
+├── test_enhanced_pipeline.py       # Full pipeline with all external calls mocked
+├── test_git_handler.py             # URL validation, clone success/failure
+├── test_kilo_analyzer.py           # Live Kilo CLI integration (skipped in CI)
+├── test_kilo_utils.py              # extract_json + fence stripping
+├── test_metrics_parser.py          # All parser normalization paths
+├── test_report_generator.py        # Typst compilation (mocked subprocess)
+└── test_student_level_inference.py # Student level boundary conditions
+```
+
+**Test categories:**
+
+| Category | Files | Speed |
+|---|---|---|
+| Unit (fully mocked) | classifier, git_handler, metrics_parser, kilo_utils, report_generator, student_level | Fast (< 1 s) |
+| Integration (mocked external) | app_routes, enhanced_pipeline | Fast (< 1 s) |
+| Live (real Kilo CLI) | test_kilo_analyzer | Slow (~3 min), skipped by default |
+
+```bash
+pytest tests/ -v                           # All tests
+pytest tests/test_classifier.py -v        # Single module
+pytest --cov=core --cov=models            # With coverage
+```
+
+---
+
+## `docs/` — Documentation
+
+```
+docs/
+├── ONBOARDING.md           # 15-minute developer onboarding guide (start here)
+├── KILO_INTEGRATION.md     # Kilo CLI integration details and troubleshooting
+├── PROJECT_STRUCTURE.md    # This file
+└── REPORT_CUSTOMIZATION.md # Template, data payload, and section reference
+```
+
+**Reading order for new contributors:**
+
+1. `ONBOARDING.md` — architecture, data flow, common pitfalls
+2. `KILO_INTEGRATION.md` — AI backend setup and configuration
+3. `REPORT_CUSTOMIZATION.md` — if you need to modify the PDF output
+
+---
+
+**Last updated**: 2026-04-13

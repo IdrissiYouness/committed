@@ -1,109 +1,53 @@
-# Kilo Analyzer Integration
+# Kilo Code Integration
 
-This document explains how the kilo CLI is integrated with the code-analyzer service to perform automated code quality analysis.
+How the Kilo Code CLI is used as the AI analysis backend for the code-analyzer service.
 
-## Overview
-
-The code analyzer service can now use the **kilo CLI** with a custom **analyzer agent** to evaluate code quality. This provides an alternative to using OpenAI's API directly.
+---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                Code Analyzer Service                     │
-│                                                          │
-│  ┌────────────────────────────────────────────────────┐ │
-│  │          core/pipeline.py                          │ │
-│  │          (orchestrates analysis)                   │ │
-│  └─────────────────┬──────────────────────────────────┘ │
-│                    │                                     │
-│                    ▼                                     │
-│  ┌────────────────────────────────────────────────────┐ │
-│  │      core/agent_runner.py                          │ │
-│  │      get_runner() → KiloCodeRunner                 │ │
-│  └─────────────────┬──────────────────────────────────┘ │
-│                    │                                     │
-│                    ▼                                     │
-│  ┌────────────────────────────────────────────────────┐ │
-│  │   kilo-analyze-wrapper.py                          │ │
-│  │   (Python script)                                  │ │
-│  └─────────────────┬──────────────────────────────────┘ │
-└────────────────────┼──────────────────────────────────────┘
-                     │
-                     ▼
-           ┌─────────────────┐
-           │   kilo run      │
-           │   --agent       │
-           │   analyzer      │
-           └────────┬────────┘
-                    │
-                    ▼
-      ┌──────────────────────────────┐
-      │ .kilo/agent/analyzer.md      │
-      │ (Custom agent definition)    │
-      │                              │
-      │ - Reads codebase             │
-      │ - Evaluates 7 metrics        │
-      │ - Outputs JSON               │
-      └──────────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│                Code Analyzer Service             │
+│                                                  │
+│  core/pipeline.py                                │
+│    │                                             │
+│    ▼                                             │
+│  core/agent_runner.py  →  get_runner()           │
+│    │                       ├── KiloCodeRunner    │
+│    │                       └── MockRunner        │
+│    ▼ (KiloCodeRunner)                            │
+│  scripts/kilo-analyze-wrapper.py                 │
+└──────────────────────────────────────────────────┘
+         │
+         ▼
+   kilo run --agent analyzer   (Kilo CLI)
+         │
+         ▼
+  .kilo/agent/analyzer.md      (Custom agent prompt)
+         │  reads repo, outputs JSON
+         ▼
+   scripts/kilo_utils.py       (extract_json + fence stripping)
 ```
+
+---
 
 ## Components
 
-### 1. Custom Analyzer Agent (`.kilo/agent/analyzer.md`)
+### Custom Analyzer Agent — `.kilo/agent/analyzer.md`
 
-A custom kilo agent specifically designed for code quality analysis:
+A version-controlled Kilo agent prompt that instructs the AI to:
 
-- **Purpose**: Analyzes code and outputs structured JSON metrics
-- **Permissions**: Read-only (can read, glob, grep but cannot edit or execute bash)
-- **Output**: JSON with 7 quality metrics (SOLID, clean code, OOP, error handling, testing, documentation, complexity)
+- Explore the repository structure (glob, grep, read)
+- Score 7 code quality metrics (0.0–5.0 each) with confidence values
+- Generate per-file analysis with issues, cyclomatic complexity, and duplication estimates
+- Map architectural components and class relationships
+- Produce a structured `project_overview` for academic/professor review
+- Output **only** a single JSON object — no markdown, no commentary
 
-**Key Features**:
-- Scores each metric from 0.0 to 5.0
-- Provides detailed notes for each metric
-- Includes overall feedback (3-5 sentences)
-- Lists 3-5 actionable recommendations
-
-### 2. Wrapper Script (`scripts/kilo-analyze-wrapper.py`)
-
-Python wrapper that:
-- Invokes `${AGENT_CLI} run --agent analyzer` on the target repository
-- Extracts JSON from kilo's output (handles various output formats)
-- Returns clean JSON to the KiloCodeRunner
-
-### 3. KiloCodeRunner (`core/agent_runner.py`)
-
-The runner implementation that:
-- Calls the wrapper script
-- Parses JSON response
-- Integrates with the analysis pipeline
-
-## Configuration
-
-### Environment Variables
-
-Set these in `.env`:
-
-```bash
-# Use kilo instead of OpenAI
-AGENT_BACKEND=kilocode
-
-# CLI command (single source of truth used by wrappers)
-AGENT_CLI=kilo
-
-# Timeout for analysis (seconds)
-AGENT_TIMEOUT=300
-```
-
-### Kilo Configuration
-
-The analyzer agent is defined in `.kilo/agent/analyzer.md` with:
+Permissions set in the frontmatter:
 
 ```yaml
----
-description: Analyzes code quality and outputs structured JSON metrics
-mode: primary
-temperature: 0.3
 permission:
   read: allow
   glob: allow
@@ -111,151 +55,159 @@ permission:
   bash: deny
   edit: deny
   write: deny
----
 ```
+
+The agent is entirely read-only and cannot modify the repository.
+
+### Wrapper Script — `scripts/kilo-analyze-wrapper.py`
+
+Invokes `${AGENT_CLI} run --agent analyzer --path <repo_path>` and captures stdout.
+Uses `kilo_utils.extract_json()` to locate and parse the JSON block inside the CLI output,
+handling markdown code fences and any leading prose the model may emit.
+
+### JSON Utilities — `scripts/kilo_utils.py`
+
+- `_strip_markdown_fences(text)` — removes ` ```json ` / ` ``` ` wrappers
+- `extract_json(text, anchor_key)` — scans for the outermost `{...}` that contains `anchor_key`, raises `ValueError` if not found or invalid JSON
+
+### Runner Selection — `core/agent_runner.py`
+
+```python
+def get_runner() -> BaseRunner:
+    return MockRunner() if Config.AGENT_RUNNER == "mock" else KiloCodeRunner()
+```
+
+`MockRunner` returns deterministic stub data so the full pipeline (parsing, grading, PDF) can
+run in CI without a live Kilo installation. Activate it with `AGENT_RUNNER=mock`.
+
+---
+
+## Configuration
+
+Set in `.env` (or injected by Docker/K8s):
+
+```bash
+AGENT_RUNNER=kilo          # "kilo" for real analysis, "mock" for CI/tests
+AGENT_CLI=kilo             # CLI command name (must be on PATH)
+AGENT_TIMEOUT=300          # Seconds before the Kilo subprocess is killed
+```
+
+### Installing the Kilo CLI
+
+```bash
+npm install -g kilocode
+kilo --version
+```
+
+### Verifying the Agent
+
+```bash
+cd services/code-analyzer
+kilo run --agent analyzer --path /tmp/some-repo
+```
+
+The output should be a single JSON object beginning with `{` and containing the `solid` key.
+
+---
 
 ## JSON Output Format
 
-The analyzer outputs JSON in this exact format:
+The agent is expected to return a JSON object with these top-level keys
+(see `.kilo/agent/analyzer.md` for the full example with all sub-fields):
 
-```json
-{
-  "solid": {
-    "score": 3.5,
-    "notes": "Good separation of concerns but some classes have multiple responsibilities."
-  },
-  "clean_code": {
-    "score": 3.0,
-    "notes": "Some magic numbers, variable names could be more descriptive."
-  },
-  "oop": {
-    "score": 4.0,
-    "notes": "Well-structured classes with proper encapsulation."
-  },
-  "error_handling": {
-    "score": 2.5,
-    "notes": "Basic try-catch blocks, missing edge case handling."
-  },
-  "testing": {
-    "score": 1.5,
-    "notes": "Minimal unit tests, low coverage."
-  },
-  "documentation": {
-    "score": 2.0,
-    "notes": "README exists but code comments are sparse."
-  },
-  "complexity": {
-    "score": 3.5,
-    "notes": "Moderate complexity, some functions could be broken down."
-  },
-  "feedback": "Overall assessment summarizing strengths and improvement areas.",
-  "recommendations": [
-    "Add comprehensive unit tests",
-    "Implement proper error handling for network failures",
-    "Add JSDoc comments to public methods"
-  ]
-}
-```
+| Key | Type | Description |
+|---|---|---|
+| `solid` … `complexity` | `{score, notes, confidence}` | 7 core metric objects |
+| `feedback` | string | 3-5 sentence narrative |
+| `encouragement` | string | 1-2 sentence motivational close |
+| `project_overview` | dict | Formal structured project report |
+| `per_file` | list | Per-file metrics and issues |
+| `dependencies` | dict | Dependency health summary |
+| `duplication_score` | float | Overall duplication % |
+| `accessibility_score` | float | 0-5 ARIA / semantic HTML score |
+| `performance_hints` | list[string] | Concrete performance suggestions |
+| `quick_wins` | list | Small improvements with effort estimates |
+| `positives` | list[string] | Genuine code strengths |
+| `recommendations` | list | Structured actionable items |
+| `architecture_components` | list | Nodes for the architecture diagram |
+| `architecture_connections` | list | Edges for the architecture diagram |
+| `class_diagram` | list | UML class boxes |
 
-## Usage
+`commit_hygiene` and `file_tree` are **not** produced by the agent — they are
+injected by `pipeline.py` after the agent finishes (from `git log` and filesystem walk).
 
-### Command Line Testing
+---
 
-Test the kilo analyzer directly:
+## Testing Without Kilo
 
 ```bash
-# Create a test repository
-mkdir /tmp/test-repo
-cd /tmp/test-repo
-echo 'def add(a, b): return a + b' > test.py
+# Activate mock runner — no Kilo CLI required
+AGENT_RUNNER=mock python scripts/run_analysis.py
 
-# Run the wrapper
-cd services/code-analyzer
-.venv/bin/python scripts/kilo-analyze-wrapper.py /tmp/test-repo
+# Run full test suite (all tests mock the Kilo subprocess)
+pytest tests/ -v
+
+# Live integration test (skipped unless Kilo is installed)
+pytest tests/test_kilo_analyzer.py -v -s
 ```
 
-### Python Integration
-
-```python
-from core.agent_runner import KiloCodeRunner
-
-runner = KiloCodeRunner()
-result = runner.run("/path/to/repository")
-
-print(f"SOLID score: {result['solid']['score']}")
-print(f"Testing score: {result['testing']['score']}")
-```
-
-### Full Pipeline Test
-
-```bash
-cd services/code-analyzer
-.venv/bin/python tests/test_kilo_analyzer.py
-```
-
-## Comparison: Kilo vs OpenAI
-
-| Feature | Kilo Analyzer | OpenAI |
-|---------|--------------|--------|
-| **Cost** | Free (uses local kilo) | Paid (GPT-4 API calls) |
-| **Speed** | Depends on model | Fast with GPT-4 |
-| **Customization** | Fully customizable agent | Limited to prompt |
-| **Privacy** | Can use local models | Data sent to OpenAI |
-| **Setup** | Requires kilo CLI installed | Requires API key |
-
-## Advantages of Kilo Integration
-
-1. **Cost-effective**: No API charges when using local or free models
-2. **Flexible**: Can use any model via kilo Gateway (500+ models)
-3. **Customizable**: Agent behavior defined in version-controlled `.md` files
-4. **Privacy**: Can use local models that don't send data externally
-5. **Team collaboration**: Share analyzer agent config across team
+---
 
 ## Troubleshooting
 
-### Issue: "kilo: command not found"
+**`kilo: command not found`**
 
-Solution: Install kilo CLI:
 ```bash
-npm install -g @kilocode/cli
+npm install -g kilocode
+# or check the path:
+which kilo
+# then set AGENT_CLI=/full/path/to/kilo in .env
 ```
 
-### Issue: "analyzer agent not found"
+**`analyzer agent not found`**
 
-Solution: Ensure `.kilo/agent/analyzer.md` exists in the service directory.
+Ensure `.kilo/agent/analyzer.md` exists in the `services/code-analyzer/` directory and
+the current working directory when invoking `kilo` is set to the service root.
 
-### Issue: "JSON parsing error"
+**`ValueError: no JSON object found`**
 
-Solution: The wrapper tries multiple strategies to extract JSON. Check that:
-1. The analyzer agent is outputting valid JSON
-2. No extra text is being added to the output
-3. The JSON structure matches the expected format
+The model produced output that `extract_json` could not parse.
+Run the wrapper directly to inspect the raw output:
 
-### Issue: "Timeout"
-
-Solution: Increase `AGENT_TIMEOUT` in `.env`:
 ```bash
-AGENT_TIMEOUT=600  # 10 minutes
+.venv/bin/python scripts/kilo-analyze-wrapper.py /path/to/repo 2>&1 | head -100
 ```
 
-## Future Improvements
+Increase `AGENT_TIMEOUT` if the model is being cut off mid-response.
 
-1. **Caching**: Cache analysis results by repository commit hash
-2. **Streaming**: Stream analysis progress to user
-3. **Multi-model**: Compare results from multiple models
-4. **Fine-tuning**: Create fine-tuned models for code analysis
-5. **Custom metrics**: Allow users to define custom quality metrics
+**Analysis takes too long**
 
-## Files Created
+`AGENT_TIMEOUT` defaults to 300 s (5 minutes).
+For very large repositories, increase it:
 
-- `.kilo/agent/analyzer.md` - Custom analyzer agent definition
-- `scripts/kilo-analyze-wrapper.py` - Python wrapper for kilo CLI
-- `scripts/kilo-analyze.sh` - Bash wrapper (alternative, simpler version)
-- `tests/test_kilo_analyzer.py` - Integration test for kilo analyzer
-- `scripts/manual_test_kilo.sh` - Quick manual test script
+```bash
+AGENT_TIMEOUT=600
+```
 
-## Related Documentation
+---
 
-- [Kilo Custom Modes](https://kilo.ai/docs/customize/custom-modes)
-- [Kilo CLI Documentation](https://kilo.ai/docs/code-with-ai/platforms/cli)
-- [Code Analyzer ONBOARDING.md](./docs/ONBOARDING.md)
+## Performance Characteristics
+
+| Step | Typical duration |
+|---|---|
+| Git shallow clone (`depth=50`) | 5 – 30 s |
+| Kilo AI analysis | 1.5 – 4 min |
+| Commit hygiene + file tree | < 1 s |
+| Typst PDF compilation | 2 – 5 s |
+| **Total per request** | **2 – 5 min** |
+
+The AI analysis is the dominant cost.
+Response time scales with repository size and model load.
+
+---
+
+## Related
+
+- [ONBOARDING.md](ONBOARDING.md) — full developer guide
+- [REPORT_CUSTOMIZATION.md](REPORT_CUSTOMIZATION.md) — template and data payload reference
+- `.kilo/agent/analyzer.md` — agent prompt (the single source of truth for AI behavior)

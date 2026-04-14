@@ -5,6 +5,9 @@ from unittest.mock import patch
 from app import app
 
 
+# ── /analyze ──────────────────────────────────────────────────────────────────
+
+
 def test_analyze_route_success_returns_pipeline_payload():
     """POST /analyze returns 200 and pipeline payload on success."""
     client = app.test_client()
@@ -60,3 +63,62 @@ def test_analyze_route_failure_returns_500():
     assert data["status"] == "failed"
     assert "error" in data
     mock_run.assert_called_once_with(555, "https://github.com/example/repo")
+
+
+def test_analyze_missing_body_returns_400():
+    """POST /analyze without a JSON body returns 400."""
+    client = app.test_client()
+    response = client.post("/analyze", data="not json", content_type="text/plain")
+    assert response.status_code == 400
+
+
+def test_analyze_missing_required_fields_returns_400():
+    """POST /analyze with missing submissionId returns 400."""
+    client = app.test_client()
+    response = client.post("/analyze", json={"repoUrl": "https://github.com/x/y"})
+    assert response.status_code == 400
+
+
+def test_analyze_invalid_submission_id_returns_400():
+    """POST /analyze with a non-integer submissionId returns 400."""
+    client = app.test_client()
+    response = client.post(
+        "/analyze",
+        json={"submissionId": "not-a-number", "repoUrl": "https://github.com/x/y"},
+    )
+    assert response.status_code == 400
+    assert "positive integer" in response.get_json()["error"]
+
+
+def test_analyze_negative_submission_id_returns_400():
+    """POST /analyze with a negative submissionId returns 400."""
+    client = app.test_client()
+    response = client.post(
+        "/analyze",
+        json={"submissionId": -1, "repoUrl": "https://github.com/x/y"},
+    )
+    assert response.status_code == 400
+
+
+# ── /reports ──────────────────────────────────────────────────────────────────
+
+
+def test_serve_report_rejects_path_traversal():
+    """GET /reports/<filename> must reject path components to prevent traversal."""
+    client = app.test_client()
+    response = client.get("/reports/../etc/passwd")
+    assert response.status_code in (400, 404)
+
+
+def test_serve_report_rejects_non_pdf():
+    """GET /reports/<filename> must reject files that are not .pdf."""
+    client = app.test_client()
+    response = client.get("/reports/report.txt")
+    assert response.status_code == 400
+
+
+def test_serve_report_rejects_path_with_slash():
+    """GET /reports/<filename> must reject filenames containing directory separators."""
+    client = app.test_client()
+    response = client.get("/reports/subdir/123.pdf")
+    assert response.status_code == 400

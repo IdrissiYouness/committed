@@ -1,131 +1,184 @@
 # Report Customization Guide
 
-This document explains how AI-enhanced report personalization works and how to customize it safely.
+How to modify the generated PDF reports: template layout, data payload, and per-section behavior.
+
+---
 
 ## Overview
 
-The report pipeline uses a hybrid strategy:
+The report pipeline is:
 
-1. Static Typst template defines structure and consistent layout.
-2. AI enhancement (optional) generates personalized feedback content.
-3. Fallback logic keeps report generation reliable if AI fails.
+```
+MetricsSchema  →  report_generator.py  →  data.json + SVGs  →  Typst compile  →  PDF
+```
 
-Flow:
+There is no secondary AI pass — the Kilo agent produces everything in a single run.
+The Typst template consumes the JSON data blob directly.
 
-`analysis -> metrics -> classification (+ student_level) -> optional AI enhancement -> typst compile -> pdf`
+---
+
+## Template File
+
+**Location**: `templates/report.typ`
+
+The template is a Typst source file that reads two bindings prepended by `report_generator.py`:
+
+```typst
+#let data = json("{id}_data.json")   // all metrics + narrative + diagrams
+#let radar_path = "{id}_radar.svg"   // spider chart (always present)
+```
+
+SVG filenames for the architecture/class diagrams are embedded inside `data` itself
+(`data.arch_svg`, `data.class_svg`), and sections that use them are skipped when the
+string is empty.
+
+---
+
+## Data Payload
+
+`report_generator.generate()` writes a JSON file containing:
+
+| Key | Type | Description |
+|---|---|---|
+| `repo_url` | string | Original repository URL |
+| `repo_username` | string | GitHub/GitLab username extracted from URL |
+| `project_name` | string | Repository name extracted from URL |
+| `submission_id` | string | Submission identifier |
+| `analyzed_at` | string | Formatted date (e.g. `"13 Apr 2026"`) |
+| `analyzed_in` | string | Human-readable duration (e.g. `"2m 52s"`) |
+| `grade` | string | Letter grade `A`–`F` |
+| `percentage` | float | Weighted score `0–100` |
+| `student_level` | string | `"beginner"` / `"intermediate"` / `"advanced"` |
+| `feedback` | string | AI narrative (3-5 sentences) |
+| `encouragement` | string | Motivating closing sentence |
+| `floor_rules` | list[string] | Human-readable floor rule violation messages |
+| `metrics` | dict | Per-metric `{score, max, notes, confidence}` for all 7 metrics |
+| `project_overview` | dict | Structured formal project report (see below) |
+| `file_tree` | string | ASCII directory tree |
+| `per_file` | list | Per-file analysis `{filename, lines, cyclomatic_complexity, duplication_pct, issues}` |
+| `dependencies` | dict | `{total, outdated, vulnerable, unused, details[]}` |
+| `commit_hygiene` | dict | `{score, total_commits, single_purpose_pct, message_quality_score, notes}` |
+| `duplication_score` | float | Overall duplication % |
+| `accessibility_score` | float | 0–5 ARIA/semantic HTML score |
+| `performance_hints` | list[string] | Performance improvement hints |
+| `quick_wins` | list | `{title, description, effort}` |
+| `positives` | list[string] | Genuine code strengths |
+| `recommendations` | list | `{title, description, priority, effort, evidence[]}` |
+| `arch_svg` | string | Filename of architecture SVG, or `""` |
+| `class_svg` | string | Filename of class diagram SVG, or `""` |
+
+### `project_overview` fields
+
+| Sub-key | Type | Description |
+|---|---|---|
+| `summary` | string | One-paragraph formal summary (who, what, using what, purpose) |
+| `contributors` | list[string] | Identified author/contributor names |
+| `technologies` | list[string] | Languages, frameworks, libraries, tools |
+| `implementation` | string | How the project was built |
+| `design_decisions` | string | Key architectural choices |
+| `key_features` | list[string] | Main application capabilities |
+| `setup_instructions` | string | Plain-text compile and run instructions |
+| `limitations` | string | Known limitations and future work |
+
+---
+
+## Report Sections
+
+| Section | Condition | Source |
+|---|---|---|
+| Header (project name, grade, bar) | Always | `data.project_name`, `data.grade`, `data.percentage` |
+| Metadata box | Always | `data.repo_url`, `data.submission_id`, `data.analyzed_in`, … |
+| Floor rule warnings | `floor_rules.len() > 0` | `data.floor_rules` |
+| Radar chart + metrics table | Always | `radar_path`, `data.metrics` |
+| Metric notes | Notes exist for ≥1 metric | `data.metrics[key].notes` |
+| Project Overview | `project_overview.summary != ""` | `data.project_overview` |
+| What Went Well | `positives.len() > 0` | `data.positives` |
+| Quick Wins | `quick_wins.len() > 0` | `data.quick_wins` |
+| Project Structure | `file_tree != ""` | `data.file_tree` |
+| Per-File Analysis | `per_file.len() > 0` | `data.per_file` |
+| Dependency Health | `dependencies.details.len() > 0` | `data.dependencies` |
+| Architecture Overview | `arch_svg != ""` | SVG file |
+| Class Diagram | `class_svg != ""` | SVG file |
+| Recommendations | `recommendations.len() > 0` | `data.recommendations` |
+| Commit Hygiene | `commit_hygiene.total_commits > 0` | `data.commit_hygiene` |
+| Performance Hints | `performance_hints.len() > 0` | `data.performance_hints` |
+
+---
 
 ## Student Level Inference
 
-Location: `core/classifier.py`
+**Location**: `core/classifier.py` → `infer_student_level()`
 
-Function: `infer_student_level(classification, metrics)`
+| Level | Condition |
+|---|---|
+| `advanced` | Grade A or B **and** avg score ≥ 3.5 **and** percentage ≥ 72 |
+| `beginner` | Grade D/F **or** avg score < 2.0 **or** testing score < 1.0 |
+| `intermediate` | Everything else |
 
-Rules:
-- `advanced`: grade in `A/B` and average metric score >= `3.5`
-- `beginner`: grade in `D/F`, or average score < `2.0`, or testing score < `1.0`
-- `intermediate`: all other cases
+The level drives the encouragement label in the header callout:
 
-Tune these thresholds in `core/classifier.py` to match your rubric.
-
-## AI Content Agent
-
-Location: `.kilo/agent/report-content.md`
-
-The agent receives structured JSON including:
-- inferred `student_level`
-- grade and percentage
-- metric scores and notes
-- original feedback and recommendations
-
-It must return JSON only:
-
-```json
-{
-  "feedback": "...",
-  "recommendations": ["..."],
-  "encouragement": "..."
+```typst
+#let encouragement_label(lvl) = {
+  if lvl == "advanced"     { "Keep Pushing!" }
+  else if lvl == "beginner" { "You're Getting There!" }
+  else                      { "Good Progress!" }
 }
 ```
 
-If output is invalid, the system falls back to original analyzer feedback.
+---
 
-## Wrapper Script
+## Adding a New Template Section
 
-Location: `scripts/kilo-report-content.py`
-
-Responsibilities:
-- invoke Kilo with the `report-content` agent
-- pass input payload as prompt
-- extract and print JSON result
-
-You can adjust:
-- timeout value (currently 30 seconds)
-- prompt instructions for stricter output control
-- extraction regex (if your CLI output format changes)
-
-## Report Generator Integration
-
-Location: `core/report_generator.py`
-
-Key behavior:
-- `enhance_content_with_ai()` is guarded by `ENABLE_AI_REPORTS`
-- enhancement calls are cached with `lru_cache(maxsize=100)`
-- schema validation is enforced with `EnhancedContent`
-- any failure returns `None` and reuses original report content
-
-## Template Customization
-
-Location: `templates/report.typ`
-
-The template now supports an optional encouragement section:
+1. Add the data to the JSON payload in `report_generator.generate()`.
+2. Add the field to `MetricsSchema` in `models/metrics_schema.py` (if it comes from the agent).
+3. Add parsing in `core/metrics_parser.py`.
+4. Add the section to `templates/report.typ` with a guard:
 
 ```typst
-#if encouragement != "" [
-  ---
-  == Keep Going!
-  #encouragement
+#let my_field = data.at("my_field", default: "")
+#if my_field != "" [
+  #section_header("My Section")
+  #text(size: 9pt)[#my_field]
 ]
 ```
 
-You can add more optional sections (e.g., next steps) using the same conditional pattern.
+---
 
-## Configuration
+## Customising Colors and Typography
 
-Location: `config.py` and `.env`
+All colors are defined as `#let` bindings at the top of `report.typ`:
 
-Flag:
-
-```bash
-ENABLE_AI_REPORTS=true
+```typst
+#let accent    = rgb("#1e3a5f")   // primary blue — used for headings, borders, tags
+#let muted     = rgb("#64748b")   // grey — used for labels
+#let border_cl = rgb("#e2e8f0")   // light border
+#let bg_alt    = rgb("#f8fafc")   // subtle background fill
 ```
 
-Set to `false` to disable AI enhancement and use static feedback only.
+Change any of these to restyle the entire document consistently.
 
-## Testing
-
-Relevant tests:
-- `tests/test_student_level_inference.py`
-- `tests/test_report_content.py`
-- `tests/test_report_generator.py`
-- `tests/test_enhanced_pipeline.py`
-
-Recommended command:
-
-```bash
-cd services/code-analyzer
-source .venv/bin/activate
-.venv/bin/pytest tests/ -v
-```
+---
 
 ## Troubleshooting
 
-- AI enhancement always missing:
-  - verify `ENABLE_AI_REPORTS=true`
-  - verify Kilo CLI is installed and configured
-  - run wrapper manually with sample payload
-- Typst compile fails:
-  - verify `TYPST_BIN` path
-  - inspect generated Typst data for unescaped quotes
-- Slow reports:
-  - keep enhancement enabled only when needed
-  - increase cache size if workloads repeat similar patterns
+**Typst compilation fails**
+
+Inspect the generated `.typ` source file in `REPORTS_DIR` before it is deleted.
+Temporarily comment out the cleanup block in `report_generator.py`:
+
+```python
+# for tmp in tmp_files:
+#     os.remove(tmp)
+```
+
+Then re-run and open `{id}_data.typ` to see what Typst received.
+
+**Section missing from PDF**
+
+Check that the corresponding field is non-empty in `{id}_data.json`.
+The guard condition in the template (e.g. `data.at("file_tree", default: "") != ""`) will suppress any section whose data is absent or empty.
+
+**Wrong font**
+
+The template uses `"Linux Libertine"` for body text and `"DejaVu Sans Mono"` for code.
+Install both on the host running Typst, or change the `#set text(font: ...)` directive.

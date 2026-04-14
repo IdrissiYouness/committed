@@ -1,953 +1,478 @@
-# AI Analysis Service - Senior Developer Onboarding 🎓
+# Code Analyzer Service — Developer Onboarding
 
-Welcome to the Code Analyzer service! Let me walk you through everything you need to know to be productive on this codebase. Grab a coffee ☕ - this will take about 15 minutes.
-
-## 🎯 What Problem Does This Service Solve?
-
-**The Problem**: Students submit code to the Committed platform. Teachers need automated, consistent, professional feedback on code quality.
-
-**Our Solution**: This service takes a GitHub/GitLab URL, analyzes the code using AI, generates quality metrics, assigns an A-F grade, and produces a professional PDF report.
-
-**Key Constraint**: This is a **stateless microservice**. We have NO database. The Gateway service sends us everything we need via HTTP, and we return results.
+Welcome! This guide walks through everything you need to be productive on the code-analyzer service in about 15 minutes.
 
 ---
 
-## 🏗️ Architecture Overview
+## What Problem Does This Service Solve?
 
-### The Big Picture
+**Problem**: Students submit code to the Committed platform. Teachers need automated, consistent, professional feedback on code quality.
+
+**Solution**: This service takes a GitHub/GitLab URL, analyzes the code using the Kilo Code AI CLI, generates quality metrics, assigns an A–F grade, and produces a professional PDF report — all in a single synchronous pipeline.
+
+**Key Constraint**: This is a **stateless microservice with no database**. The Gateway sends everything we need via HTTP, and we return results immediately.
+
+---
+
+## Architecture Overview
 
 ```
-Gateway Service (has the DB)
-    ↓ HTTP POST
-┌─────────────────────────────────┐
-│   Code Analyzer (our service)   │
-│                                 │
-│  1. Clone repo from URL         │
-│  2. Run AI analysis             │
-│  3. Parse metrics               │
-│  4. Calculate grade             │
-│  5. Generate PDF report         │
-│  6. Return results              │
-│  7. Cleanup                     │
-└─────────────────────────────────┘
-    ↓ HTTP Response
-Gateway saves results to DB
+Gateway Service (owns the DB)
+    │
+    │ POST /analyze  {"submissionId": 123, "repoUrl": "..."}
+    ▼
+┌─────────────────────────────────────────┐
+│         Code Analyzer (our service)     │
+│                                         │
+│  1. Validate URL + clone repo           │
+│  2. Run Kilo Code analyzer agent        │
+│  3. Inject commit hygiene + file tree   │
+│  4. Parse + validate metrics (Pydantic) │
+│  5. Calculate A–F grade + floor rules   │
+│  6. Generate SVGs + compile PDF (Typst) │
+│  7. Return results + cleanup repo       │
+└─────────────────────────────────────────┘
+    │
+    │ {"status": "completed", "grade": "B", ...}
+    ▼
+Gateway persists to DB
 ```
 
 ### Why This Design?
 
-- **Separation of Concerns**: Analysis logic is isolated from data persistence
-- **Scalability**: Can run multiple analyzer instances, no shared state
-- **Flexibility**: Can swap out AI backends (OpenAI, Kilo Code, etc.) without touching Gateway
-- **Security**: Never stores sensitive data, cleans up immediately
+- **Separation of concerns**: Analysis logic isolated from data persistence
+- **Scalability**: Stateless → multiple instances, no coordination needed
+- **Flexibility**: AI backend is a swappable strategy (`AGENT_RUNNER` env var)
+- **Security**: Never stores student code; cleans up immediately after analysis
 
 ---
 
-## 📁 Project Structure Deep Dive
-
-Let me show you the actual structure and explain WHY each piece exists:
+## Project Structure
 
 ```
 services/code-analyzer/
-├── app.py                 # Flask app - THIN layer, just HTTP handling
-├── config.py              # All environment variables - SINGLE source of config
+├── app.py                 # Flask HTTP layer — thin, validation only
+├── config.py              # All config in one place (reads from env / .env)
 ├── requirements.txt       # Production deps
 ├── requirements-dev.txt   # Dev tools (pytest, black, ruff)
-├── Dockerfile            # Production container with Typst compiler
-├── .env.example          # Template for local development
+├── Dockerfile             # Production container with Typst compiler
+├── .env.example           # Template for local development
 │
-├── core/                 # The BRAIN - all business logic lives here
-│   ├── git_handler.py    # Step 1: Clone repos safely
-│   ├── agent_runner.py   # Step 2: Run AI analysis
-│   ├── metrics_parser.py # Step 3: Normalize AI output
-│   ├── classifier.py     # Step 4: Calculate grades
-│   ├── report_generator.py # Step 5: Create PDFs
-│   └── pipeline.py       # Step 6: Orchestrate everything
+├── core/                  # Business logic
+│   ├── git_handler.py     # Step 1: Clone repos safely
+│   ├── agent_runner.py    # Step 2: Run AI (KiloCodeRunner or MockRunner)
+│   ├── metrics_parser.py  # Step 3: Normalize agent output
+│   ├── classifier.py      # Step 4: Calculate grades + floor rules
+│   ├── report_generator.py # Step 5: SVG charts + Typst PDF
+│   └── pipeline.py        # Orchestrate steps 1–7
 │
-├── models/               # Data contracts - what shape is our data?
-│   └── metrics_schema.py # Pydantic models for validation
+├── models/
+│   └── metrics_schema.py  # Pydantic models — validated data shapes
 │
-├── templates/            # PDF report template
-│   └── report.typ        # Typst markup (like LaTeX but modern)
+├── templates/
+│   └── report.typ         # Typst PDF template
 │
-└── tests/               # Unit tests - your safety net
+├── .kilo/agent/
+│   └── analyzer.md        # Kilo Code agent prompt (read-only permissions)
+│
+└── tests/                 # Unit + integration tests (mock external deps)
+    ├── test_app_routes.py
+    ├── test_classifier.py
     ├── test_git_handler.py
     ├── test_metrics_parser.py
-    ├── test_classifier.py
-    └── test_report_generator.py
+    ├── test_kilo_utils.py
+    ├── test_report_generator.py
+    └── ...
 ```
 
 ---
 
-## 🔄 Data Flow - Follow a Request
+## Data Flow — Follow a Request
 
-Let me trace what happens when a student submits code:
-
-### 1. **Request Arrives** (`app.py`)
+### 1. Request arrives (`app.py`)
 
 ```python
 POST /analyze
-{
-  "submissionId": 123,
-  "repoUrl": "https://github.com/student/assignment-1"
-}
+{"submissionId": 123, "repoUrl": "https://github.com/student/repo", "studentId": 456}
 ```
 
-The Flask app is **dumb** - it just validates input and calls the pipeline:
+`app.py` is intentionally thin — it validates input types and delegates to the pipeline:
 
 ```python
-@app.route('/analyze', methods=['POST'])
+@app.route("/analyze", methods=["POST"])
 def analyze():
-    data = request.get_json()
-    submission_id = data.get('submissionId')
-    repo_url = data.get('repoUrl')
-    
-    # Call the pipeline (all logic is there)
-    result = run_analysis(int(submission_id), repo_url)
-    return jsonify(result)
+    data = request.get_json(force=True, silent=True)
+    submission_id = int(data["submissionId"])   # validated as positive int
+    repo_url = data["repoUrl"]
+    result = run_analysis(submission_id, repo_url)
+    return jsonify(result), 200 if result["status"] == "completed" else 500
 ```
 
-**Why this matters**: Keep app.py thin. Business logic goes in `core/`.
+Business logic lives in `core/`, not in `app.py`.
 
 ---
 
-### 2. **Pipeline Orchestrates** (`core/pipeline.py`)
-
-This is the **conductor** of our orchestra. It coordinates all the steps:
+### 2. Pipeline orchestrates (`core/pipeline.py`)
 
 ```python
 def run_analysis(submission_id: int, repo_url: str) -> dict:
     repo_path = None
     try:
-        # Step 1: Clone
-        repo_path = git_handler.clone(repo_url, submission_id)
-        
-        # Step 2: Analyze with AI
-        runner = agent_runner.get_runner()  # Factory pattern
-        raw = runner.run(repo_path)
-        
-        # Step 3: Parse results
-        metrics = metrics_parser.parse(raw)
-        
-        # Step 4: Grade it
-        classification = classifier.classify(metrics)
-        
-        # Step 5: Make PDF
-        pdf_path = report_generator.generate(...)
-        
-        # Step 6: Return
+        repo_path = git_handler.clone(repo_url, submission_id)    # Step 1
+        raw = agent_runner.get_runner().run(repo_path)             # Step 2
+        raw["commit_hygiene"] = _calculate_commit_hygiene(repo_path)
+        raw["file_tree"] = _generate_file_tree(repo_path)          # Step 3
+        metrics = metrics_parser.parse(raw)                        # Step 4
+        classification = classifier.classify(metrics)              # Step 5
+        pdf_path = report_generator.generate(...)                  # Step 6
         return {"status": "completed", "grade": "B", ...}
-    
     except Exception as e:
         return {"status": "failed", "error": str(e)}
-    
     finally:
-        # Step 7: ALWAYS cleanup
-        if repo_path:
-            git_handler.cleanup(repo_path)
+        git_handler.cleanup(repo_path)                             # Step 7 — always
 ```
 
-**Key Pattern**: Try/Except/Finally ensures we ALWAYS cleanup, even on errors.
+The `finally` block guarantees cleanup even if the analysis fails.
 
 ---
 
-### 3. **Git Handler Clones** (`core/git_handler.py`)
+### 3. Git handler clones (`core/git_handler.py`)
 
-Security is critical here - we're executing `git clone` on user input!
+URL validation uses `Config.ALLOWED_HOSTS` (env-configurable, defaults to GitHub + GitLab). Shallow clones (`--depth Config.CLONE_DEPTH`) keep things fast.
 
 ```python
 def clone(repo_url: str, submission_id: int) -> str:
-    # SECURITY: Validate URL
-    validate_url(repo_url)  # Only GitHub/GitLab allowed
-    
-    # Create isolated directory
-    target = f"/tmp/code-analysis/sub_{submission_id}"
-    
-    # Shallow clone (--depth 1) - fast, uses less disk
+    validate_url(repo_url)   # raises ValueError if host not allowed
     result = subprocess.run(
-        ["git", "clone", "--depth", "1", repo_url, target],
-        timeout=120,  # Hard timeout prevents hanging
-        capture_output=True
+        ["git", "clone", "--depth", str(Config.CLONE_DEPTH), repo_url, target],
+        timeout=Config.CLONE_TIMEOUT,
+        ...
     )
-    
-    if result.returncode != 0:
-        raise RuntimeError(f"Clone failed: {result.stderr}")
-    
-    return target
 ```
 
-**Why shallow clone?** 
-- We only need current code, not git history
-- Saves 90% of time and disk space
-- Student repos can be huge
+To add a new host (e.g. self-hosted Gitea):
+```bash
+ALLOWED_HOSTS=https://github.com/,https://gitea.mycompany.com/
+```
 
-**Why validation?**
-- Prevent command injection
-- Restrict to trusted hosts
-- Regex validates format
+No code change needed.
 
 ---
 
-### 4. **AI Agent Runs** (`core/agent_runner.py`)
+### 4. AI agent runs (`core/agent_runner.py`)
 
-This is where the magic happens. We have two backends:
-
-#### Strategy Pattern
+Two implementations behind a common interface:
 
 ```python
 class BaseRunner(ABC):
     @abstractmethod
-    def run(self, repo_path: str) -> dict:
-        raise NotImplementedError
+    def run(self, repo_path: str) -> dict: ...
 
-class OpenAIRunner(BaseRunner):
-    # Uses OpenAI API directly
-    
 class KiloCodeRunner(BaseRunner):
-    # Uses Kilo Code CLI
+    """Invokes the Kilo Code CLI via kilo-analyze-wrapper.py."""
+
+class MockRunner(BaseRunner):
+    """Returns deterministic stub data — no Kilo CLI needed.
+    Activate with AGENT_RUNNER=mock."""
 
 def get_runner() -> BaseRunner:
-    if Config.AGENT_BACKEND == "openai":
-        return OpenAIRunner()
-    elif Config.AGENT_BACKEND == "kilocode":
-        return KiloCodeRunner()
+    return MockRunner() if Config.AGENT_RUNNER == "mock" else KiloCodeRunner()
 ```
 
-**Why this pattern?**
-- Easy to swap backends
-- Easy to add new backends (Claude, Gemini, etc.)
-- Each runner is independently testable
-
-#### OpenAI Runner Deep Dive
-
-```python
-class OpenAIRunner(BaseRunner):
-    SKIP_DIRS = {".git", "node_modules", "__pycache__"}
-    CODE_EXTS = {".py", ".js", ".ts", ".java"}
-    MAX_FILES = 50
-    MAX_LINES = 200  # Per file
-    
-    def sample_files(self, repo_path: str) -> str:
-        # Walk directory tree
-        # Skip build/vendor directories
-        # Take up to 50 files
-        # Cap each file at 200 lines
-        # Return as concatenated string
-```
-
-**Why sample instead of sending everything?**
-- Token limits (OpenAI has max input size)
-- Cost control (tokens = money)
-- Speed (less to process)
-- Focus on actual code, not dependencies
-
-**What gets sent to OpenAI:**
-
-```
-You are a senior software engineer performing a code review.
-Analyze the following codebase and return ONLY valid JSON:
-
-{
-  "solid": { "score": 0-5, "notes": "..." },
-  "clean_code": { "score": 0-5, "notes": "..." },
-  ...
-}
-
-Codebase:
-### src/main.py
-<200 lines of code>
-
-### src/utils.py
-<200 lines of code>
-...
-```
+The `MockRunner` is the correct way to test the pipeline without a live AI backend. Set `AGENT_RUNNER=mock` in `.env` or in the test environment.
 
 ---
 
-### 5. **Metrics Parser Normalizes** (`core/metrics_parser.py`)
+### 5. Metrics parser normalizes (`core/metrics_parser.py`)
 
-AI output is unpredictable. The parser handles all edge cases:
+AI output is unpredictable. The parser handles all edge cases before Pydantic validation:
 
 ```python
-def parse(raw: dict) -> MetricsSchema:
-    normalized = {}
-    
-    for key in ["solid", "clean_code", "oop", ...]:
-        entry = raw.get(key)
-        
-        if entry is None:
-            # Missing - set default
-            normalized[key] = {"score": 0.0, "notes": "Could not evaluate."}
-        
-        elif isinstance(entry, (int, float)):
-            # AI returned bare number - wrap it
-            normalized[key] = {"score": float(entry), "notes": ""}
-        
-        elif isinstance(entry, dict):
-            # Expected format - use it
-            normalized[key] = {
-                "score": float(entry.get("score", 0)),
-                "notes": entry.get("notes", "")
-            }
-        
-        else:
-            # Unexpected type - default
-            normalized[key] = {"score": 0.0, "notes": "Could not evaluate."}
-    
-    # Validate with Pydantic (raises if invalid)
-    return MetricsSchema(**normalized)
+# Agent returns bare number → wrapped
+{"solid": 4}  →  {"score": 4.0, "notes": "", "confidence": 0.5}
+
+# Agent omits metric → sensible default
+{}  →  {"score": 0.0, "notes": "Could not evaluate.", "confidence": 0.5}
+
+# Agent wraps in markdown fence → fence stripped by kilo_utils first
 ```
 
-**Why Pydantic?**
-- Type validation (score must be 0-5)
-- Data normalization
-- Auto-generated docs
-- Easy serialization to JSON
-
-**Example edge cases this handles:**
-```python
-# AI returns bare numbers
-{"solid": 4, "clean_code": 3}  ✅ Wrapped to dicts
-
-# AI omits some metrics
-{"solid": 4}  ✅ Others get defaults
-
-# AI returns wrong type
-{"solid": "pretty good"}  ✅ Defaults to 0
-
-# AI returns out of range
-{"solid": {"score": 10}}  ❌ Pydantic validation error
-```
+The parsed dict is then validated by `MetricsSchema(**normalized)` — Pydantic rejects out-of-range scores.
 
 ---
 
-### 6. **Classifier Grades** (`core/classifier.py`)
-
-This converts metrics into a letter grade. It's configurable!
+### 6. Classifier grades (`core/classifier.py`)
 
 ```python
-WEIGHTS = {
-    "solid": 0.20,        # 20% of grade
-    "clean_code": 0.20,   # 20% of grade
-    "oop": 0.15,          # 15% of grade
-    "error_handling": 0.15,
-    "testing": 0.15,
-    "documentation": 0.10,
-    "complexity": 0.05
-}
+WEIGHTS = {"solid": 0.20, "clean_code": 0.20, "oop": 0.15, ...}
 
-GRADE_THRESHOLDS = [
-    (85, "A"),
-    (70, "B"),
-    (55, "C"),
-    (40, "D"),
-    (0, "F"),
-]
+GRADE_THRESHOLDS = [(85, "A"), (70, "B"), (55, "C"), (40, "D"), (0, "F")]
 
 FLOOR_RULES = [
-    ("testing", 1.0, "D"),  # If testing < 1.0, cap at D
+    ("testing", 1.0, "D"),        # No tests → cap at D
+    ("error_handling", 1.0, "D"), # No error handling → cap at D
 ]
 ```
 
-**How it works:**
+Grade flow:
 
-1. Calculate weighted percentage:
-```python
-percentage = sum(
-    (metric.score / metric.max) * weight
-    for metric, weight in zip(metrics, WEIGHTS)
-) / sum(WEIGHTS) * 100
-```
+1. Weighted percentage (`0–100`)
+2. Map to letter grade via thresholds
+3. Apply floor rules — if an earned grade is *better* than the cap and the metric is below the minimum, downgrade to the cap
+4. Infer student level (`advanced` / `intermediate` / `beginner`)
 
-2. Find grade from thresholds:
-```python
-# 73.4% → "B" (between 70-85)
-```
-
-3. Apply floor rules:
-```python
-# Even if percentage is 90%, if testing < 1.0, cap at "D"
-# Philosophy: Can't get an A without tests!
-```
-
-**How to customize:**
-
-Want to make testing more important? Edit `WEIGHTS`:
-```python
-WEIGHTS = {
-    "testing": 0.30,  # Now 30% instead of 15%
-    ...
-}
-```
-
-Want stricter grading? Edit `GRADE_THRESHOLDS`:
-```python
-GRADE_THRESHOLDS = [
-    (90, "A"),  # Was 85
-    (75, "B"),  # Was 70
-    ...
-]
-```
+Floor rules use `ord(grade) < ord(cap_grade)` to compare severity — `ord('A')=65 < ord('D')=68`, so a better grade has a lower `ord()` value.
 
 ---
 
-### 7. **Report Generator Creates PDF** (`core/report_generator.py`)
+### 7. Report generator creates PDF (`core/report_generator.py`)
 
-We use **Typst** (modern alternative to LaTeX):
+Three SVG assets are generated in Python and compiled alongside a JSON data blob using Typst:
+
+| SVG | Description |
+|---|---|
+| Radar chart | Spider chart of the 7 metric scores |
+| Architecture diagram | Layered component + arrow diagram |
+| Class diagram | UML-style class boxes with fields/methods |
 
 ```python
-def generate(submission_id, repo_url, metrics, classification, analyzed_at):
-    # 1. Escape special characters
-    escaped_feedback = metrics.feedback.replace('"', r'\"')
-    
-    # 2. Build Typst data file
-    typst_source = f"""
-        #let repo_url = "{repo_url}"
-        #let grade = "{classification['grade']}"
-        #let percentage = "{classification['percentage']}"
-        #let feedback = "{escaped_feedback}"
-        #let metrics_rows = (...)
-        #include "report.typ"
-    """
-    
-    # 3. Write to temp file
-    with open(f"/tmp/reports/{submission_id}_data.typ", "w") as f:
-        f.write(typst_source)
-    
-    # 4. Compile to PDF
-    subprocess.run([
-        "typst", "compile",
-        f"{submission_id}_data.typ",
-        f"{submission_id}.pdf"
-    ])
-    
-    # 5. Return PDF path
-    return f"/tmp/reports/{submission_id}.pdf"
+def generate(submission_id, repo_url, metrics, classification, analyzed_at) -> str:
+    # 1. Generate SVG assets
+    radar_svg = generate_radar_svg(scores, labels)
+    arch_svg = generate_architecture_svg(components, connections)   # if present
+    class_svg = generate_class_diagram_svg(classes)                 # if present
+
+    # 2. Write JSON data blob
+    data_json = json.dumps({...all metrics and metadata...})
+
+    # 3. Compile with Typst
+    subprocess.run(["typst", "compile", src_path, pdf_path], ...)
+
+    # 4. Cleanup temp files, return pdf_path
 ```
 
-**Why Typst over LaTeX?**
-- Single 20MB binary (vs 5GB TeX Live)
-- Compiles in milliseconds (vs seconds)
-- Simple syntax
-- Easy to version control templates
-
-**Template structure** (`templates/report.typ`):
-```typst
-= Code Analysis Report
-
-#grid(
-  [*Grade*], [*#grade*],
-  [*Score*], [#percentage%]
-)
-
-== Metrics Breakdown
-#table(
-  ..metrics_rows
-)
-
-== Feedback
-#feedback
-```
-
-Variables like `#grade`, `#percentage` are defined in the parent file.
+**Why Typst over LaTeX?** Single ~20 MB binary, millisecond compilation, simple syntax, easy to version-control.
 
 ---
 
-## 🧪 Testing Strategy
+## Configuration Reference
 
-We use **unit tests with mocking** - test logic without external dependencies.
+All variables are read from the environment (or `.env` locally). `Config.validate()` logs a warning at startup for any binary that can't be found on PATH.
 
-### Example: Testing Git Handler
+| Variable | Default | Description |
+|---|---|---|
+| `TEMP_DIR` | `/tmp/code-analysis` | Where repos are cloned |
+| `REPORTS_DIR` | `/tmp/reports` | Where PDFs are saved |
+| `TYPST_BIN` | `/usr/local/bin/typst` | Path to Typst binary |
+| `AGENT_CLI` | `kilo` | Kilo CLI command (must be on PATH) |
+| `AGENT_RUNNER` | `kilo` | `"kilo"` for live AI, `"mock"` for CI/tests |
+| `CLONE_DEPTH` | `50` | Git shallow clone depth |
+| `ALLOWED_HOSTS` | GitHub + GitLab | Comma-separated URL prefixes |
+| `CLONE_TIMEOUT` | `120` | Git clone timeout (s) |
+| `AGENT_TIMEOUT` | `300` | Kilo CLI timeout (s) |
+| `PORT` | `5000` | Flask port |
+| `FLASK_DEBUG` | `false` | Never `true` in production |
+| `NOTIFICATION_SERVICE_URL` | `http://notifications:5001` | Placeholder — notifications service not yet wired |
 
-```python
-@patch('core.git_handler.subprocess.run')
-def test_successful_clone(mock_run):
-    # Mock subprocess to avoid real git clone
-    mock_run.return_value = MagicMock(returncode=0, stderr="")
-    
-    # Call function
-    result = git_handler.clone("https://github.com/user/repo", 123)
-    
-    # Assert correct path returned
-    assert "sub_123" in result
-    
-    # Assert git was called correctly
-    mock_run.assert_called_once()
-    args = mock_run.call_args[0][0]
-    assert args == ["git", "clone", "--depth", "1", ...]
-```
+---
 
-**Why mock?**
-- Tests run in <1 second (no waiting for actual git clone)
-- No internet required
-- No file system pollution
-- Test failure scenarios easily
+## Testing Strategy
+
+Tests use **mocking** to avoid external dependencies (no real git clones, no live AI).
 
 ### Running Tests
 
 ```bash
 # All tests
-pytest
+pytest tests/ -v
 
-# One file
-pytest tests/test_classifier.py
+# Single module
+pytest tests/test_classifier.py -v
 
-# One test
-pytest tests/test_classifier.py::TestClassify::test_a_grade -v
+# Single test
+pytest tests/test_classifier.py::TestClassify::test_floor_rule -v -s
 
-# With coverage
-pytest --cov=core --cov=models
+# With coverage report
+pytest --cov=core --cov=models --cov-report=html
+# Open htmlcov/index.html
 ```
 
-**Coverage goal**: 80%+ on core modules
+### Test Layout
+
+```
+test_app_routes.py              → Flask routes (missing fields, path traversal, invalid IDs)
+test_classifier.py              → Grades, floor rules, boundary smoothing, student level
+test_git_handler.py             → URL validation, clone success/failure
+test_metrics_parser.py          → All fields including new schema additions
+test_kilo_utils.py              → JSON extraction + markdown fence stripping
+test_report_generator.py        → Typst compilation mocked, SVG paths
+test_student_level_inference.py → Level boundary conditions
+test_enhanced_pipeline.py       → Full pipeline with all steps mocked
+test_kilo_analyzer.py           → Live Kilo integration (skipped unless Kilo installed)
+```
+
+### Writing a Mock Test
+
+```python
+@patch("core.git_handler.subprocess.run")
+def test_successful_clone(mock_run):
+    mock_run.return_value = MagicMock(returncode=0, stderr="")
+    result = git_handler.clone("https://github.com/user/repo", 123)
+    assert "sub_123" in result
+    mock_run.assert_called_once()
+```
 
 ---
 
-## 🔧 How to Make Changes
+## How to Make Changes
 
 ### Adding a New Metric
 
-Let's say you want to add a "security" metric. Here's the checklist:
+1. **Schema** (`models/metrics_schema.py`): `MetricsSchema` covers 7 standard metrics via `MetricDetail`. Add a new field there.
+2. **Parser** (`core/metrics_parser.py`): Add the key to the core-metrics loop.
+3. **Classifier** (`core/classifier.py`): Add to `WEIGHTS` (must still sum to 1.0).
+4. **Agent prompt** (`.kilo/agent/analyzer.md`): Add description and JSON example.
+5. **Tests**: Add assertions in `test_metrics_parser.py` and `test_classifier.py`.
 
-1. **Update the schema** (`models/metrics_schema.py`):
+### Adding a Narrative Field (non-metric)
+
+For fields like `project_overview` that come from the agent but aren't graded:
+
+1. **Schema** (`models/metrics_schema.py`): Add a new Pydantic model and a field on `MetricsSchema`.
+2. **Parser** (`core/metrics_parser.py`): Add a `_parse_*()` helper and call it from `parse()`.
+3. **Report generator** (`core/report_generator.py`): Include the field in the `data` dict passed to Typst.
+4. **Template** (`templates/report.typ`): Add a guarded section using `data.at("field", default: ...)`.
+5. **Agent prompt** (`.kilo/agent/analyzer.md`): Add the field spec and a complete JSON example.
+
+### Adding a New AI Backend
+
+1. Create a class extending `BaseRunner` in `core/agent_runner.py`:
+
 ```python
-class MetricsSchema(BaseModel):
-    # ... existing metrics
-    security: MetricDetail  # ADD THIS
+class MyRunner(BaseRunner):
+    def run(self, repo_path: str) -> dict:
+        # ... call your AI API and return the raw metrics dict
 ```
 
-2. **Update the AI prompt** (`core/agent_runner.py`):
+2. Register it in `get_runner()`:
+
 ```python
-prompt = """
-{
-  "solid": { "score": <float 0-5>, "notes": "..." },
-  ...
-  "security": { "score": <float 0-5>, "notes": "..." }  # ADD THIS
-}
-"""
+def get_runner() -> BaseRunner:
+    match Config.AGENT_RUNNER.lower():
+        case "kilo": return KiloCodeRunner()
+        case "mock": return MockRunner()
+        case "mine": return MyRunner()
+        case _:      return KiloCodeRunner()
 ```
 
-3. **Update the parser** (`core/metrics_parser.py`):
-```python
-for key in ["solid", "clean_code", ..., "security"]:  # ADD HERE
-```
-
-4. **Update the classifier** (`core/classifier.py`):
-```python
-WEIGHTS = {
-    # ... existing
-    "security": 0.10,  # ADD THIS (adjust others to sum to 1.0)
-}
-```
-
-5. **Write tests** (`tests/test_classifier.py`):
-```python
-def test_security_metric():
-    metrics = MetricsSchema(
-        # ... all required metrics including:
-        security=MetricDetail(score=4.0, notes="Good practices")
-    )
-    result = classifier.classify(metrics)
-    assert "security" in result["breakdown"]
-```
-
-6. **Run tests**: `pytest`
-
-7. **Test end-to-end** with a real repo
-
----
+3. Add any required env vars to `config.py` and `.env.example`.
 
 ### Changing the Grading Algorithm
 
-Want to use median instead of weighted average?
+Edit `core/classifier.py`. The `classify()` function is self-contained — change `WEIGHTS`, `GRADE_THRESHOLDS`, or `FLOOR_RULES` without touching anything else.
 
-Edit `core/classifier.py`:
+### Customizing the PDF Report
+
+See [REPORT_CUSTOMIZATION.md](REPORT_CUSTOMIZATION.md). The template is `templates/report.typ`; the data it receives is the JSON blob built in `report_generator.generate()`.
+
+---
+
+## Common Pitfalls
+
+### Forgetting to clean up cloned repos
 
 ```python
-def classify(metrics: MetricsSchema) -> dict:
-    # OLD: weighted average
-    # weighted_sum = sum(...)
-    
-    # NEW: median
-    scores = [m.score for m in [
-        metrics.solid,
-        metrics.clean_code,
-        # ...
-    ]]
-    median_score = statistics.median(scores)
-    percentage = (median_score / 5.0) * 100
-    
-    # Rest stays the same...
+# Always wrap the pipeline in try/finally
+repo_path = None
+try:
+    repo_path = git_handler.clone(...)
+    # ...
+finally:
+    git_handler.cleanup(repo_path)  # runs even on exception
+```
+
+### Using model_copy() to inject data into MetricsSchema
+
+`model_copy(update={...})` bypasses Pydantic validators, so nested dicts stay as plain dicts instead of becoming Pydantic models.
+
+```python
+# Wrong — architecture_components remain as plain dicts
+metrics = metrics.model_copy(update={"architecture_components": [{"id": "X", ...}]})
+
+# Correct — go through MetricsSchema(**...) so validators run
+data = metrics.model_dump()
+data["architecture_components"] = [{"id": "X", ...}]
+metrics = MetricsSchema(**data)
+```
+
+### Hardcoding configuration
+
+```python
+# Wrong
+timeout = 120
+
+# Correct
+timeout = Config.CLONE_TIMEOUT
+```
+
+### Not escaping user content in SVG
+
+SVG is XML. Java generics (`Map<String, Foo>`) and special characters break the document if not escaped. Always use the `_svg_escape()` helper:
+
+```python
+label = _svg_escape(comp.get("label", ""))   # html.escape under the hood
 ```
 
 ---
 
-### Adding a New AI Backend (e.g., Claude)
-
-1. **Create new runner** (`core/agent_runner.py`):
-```python
-class ClaudeRunner(BaseRunner):
-    def __init__(self):
-        self.client = Anthropic(api_key=Config.ANTHROPIC_API_KEY)
-    
-    def run(self, repo_path: str) -> dict:
-        # Sample files
-        code_sample = self.sample_files(repo_path)
-        
-        # Call Claude API
-        response = self.client.messages.create(
-            model="claude-3-opus",
-            messages=[{"role": "user", "content": prompt + code_sample}]
-        )
-        
-        # Parse response
-        return json.loads(response.content)
-```
-
-2. **Update factory** (`core/agent_runner.py`):
-```python
-def get_runner() -> BaseRunner:
-    if Config.AGENT_BACKEND == "openai":
-        return OpenAIRunner()
-    elif Config.AGENT_BACKEND == "claude":  # ADD THIS
-        return ClaudeRunner()
-    elif Config.AGENT_BACKEND == "kilocode":
-        return KiloCodeRunner()
-```
-
-3. **Add config** (`config.py`):
-```python
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-```
-
-4. **Update docs** (`README.md`)
-
----
-
-## 🎨 Design Patterns Used
-
-### 1. **Strategy Pattern** (Agent Runner)
-- Interchangeable AI backends
-- Common interface, different implementations
-
-### 2. **Factory Pattern** (`get_runner()`)
-- Centralized creation logic
-- Easy to extend
-
-### 3. **Pipeline Pattern** (`pipeline.py`)
-- Linear sequence of transformations
-- Easy to understand flow
-- Easy to add/remove steps
-
-### 4. **Repository Pattern** (Sort of)
-- Filesystem is our "repository"
-- git_handler abstracts storage details
-
-### 5. **Data Transfer Object** (Pydantic models)
-- Validated data shapes
-- Type safety
-- Serialization
-
----
-
-## 🚨 Common Pitfalls & How to Avoid Them
-
-### 1. **Not cleaning up cloned repos**
-
-❌ **Wrong:**
-```python
-def run_analysis(submission_id, repo_url):
-    repo_path = git_handler.clone(repo_url, submission_id)
-    # ... do stuff
-    return result
-    # LEAK: repo never deleted!
-```
-
-✅ **Right:**
-```python
-def run_analysis(submission_id, repo_url):
-    repo_path = None
-    try:
-        repo_path = git_handler.clone(repo_url, submission_id)
-        # ... do stuff
-        return result
-    finally:
-        if repo_path:
-            git_handler.cleanup(repo_path)
-```
-
-### 2. **Forgetting to escape user input in Typst**
-
-❌ **Wrong:**
-```python
-typst_source = f'#let feedback = "{metrics.feedback}"'
-# If feedback contains ", Typst compilation breaks!
-```
-
-✅ **Right:**
-```python
-escaped_feedback = metrics.feedback.replace('"', r'\"')
-typst_source = f'#let feedback = "{escaped_feedback}"'
-```
-
-### 3. **Hardcoding configuration**
-
-❌ **Wrong:**
-```python
-timeout = 120  # Hardcoded
-```
-
-✅ **Right:**
-```python
-timeout = Config.CLONE_TIMEOUT  # From environment
-```
-
-### 4. **Not validating external input**
-
-❌ **Wrong:**
-```python
-subprocess.run(["git", "clone", repo_url])  # Injection risk!
-```
-
-✅ **Right:**
-```python
-validate_url(repo_url)  # Check format, allowed hosts
-subprocess.run(["git", "clone", repo_url], timeout=120)
-```
-
----
-
-## 🛠️ Development Workflow
-
-### Day-to-Day Development
+## Development Workflow
 
 ```bash
-# 1. Activate virtual environment
+# 1. Activate environment
 source .venv/bin/activate
 
-# 2. Make changes to code
+# 2. Make changes
 
-# 3. Format code (auto-fix style issues)
-black .
+# 3. Format + lint
+black . && ruff check .
 
-# 4. Lint code (catch bugs)
-ruff check .
+# 4. Test
+pytest tests/ -v
 
-# 5. Run tests
-pytest -v
-
-# 6. Run specific test during debugging
-pytest tests/test_classifier.py::TestClassify::test_floor_rule -v -s
-
-# 7. Check coverage
-pytest --cov=core --cov-report=html
-# Open htmlcov/index.html in browser
-
-# 8. Manual testing
-python app.py
-# In another terminal:
+# 5. Manual test with a real repo
+python app.py   # in one terminal
 curl -X POST http://localhost:5000/analyze \
   -H "Content-Type: application/json" \
   -d '{"submissionId": 999, "repoUrl": "https://github.com/octocat/Hello-World"}'
 ```
 
-### Debugging
+---
 
-Add breakpoints with `import pdb; pdb.set_trace()`:
+## Resources
 
-```python
-def classify(metrics: MetricsSchema) -> dict:
-    percentage = calculate_percentage(metrics)
-    
-    import pdb; pdb.set_trace()  # Debugger stops here
-    
-    grade = determine_grade(percentage)
-    return {"grade": grade, ...}
-```
-
-Run with:
-```bash
-pytest tests/test_classifier.py::test_a_grade -s
-# -s shows stdout/stderr including debugger
-```
-
-Commands in debugger:
-- `n` - next line
-- `s` - step into function
-- `c` - continue
-- `p variable` - print variable
-- `l` - list code around current line
+- [Typst Docs](https://typst.app/docs) — PDF template syntax
+- [Pydantic Docs](https://docs.pydantic.dev) — Data validation
+- [Flask Docs](https://flask.palletsprojects.com) — Web framework
+- [pytest Docs](https://docs.pytest.org) — Testing
 
 ---
 
-## 📊 Monitoring & Observability
-
-### Logs
-
-Add logging:
-
-```python
-import logging
-
-logger = logging.getLogger(__name__)
-
-def run_analysis(submission_id, repo_url):
-    logger.info(f"Starting analysis for submission {submission_id}")
-    
-    try:
-        repo_path = git_handler.clone(repo_url, submission_id)
-        logger.debug(f"Cloned to {repo_path}")
-        
-        # ...
-        
-    except Exception as e:
-        logger.error(f"Analysis failed for {submission_id}: {e}", exc_info=True)
-        raise
-```
-
-### Metrics to Track
-
-- Analysis success rate
-- Average analysis time
-- Grade distribution
-- Common failure reasons
-- API token usage (for cost control)
-
----
-
-## 🔐 Security Considerations
-
-### Input Validation
-
-```python
-# NEVER trust user input
-def validate_url(url: str) -> None:
-    # Whitelist approach
-    allowed_hosts = ("https://github.com/", "https://gitlab.com/")
-    if not any(url.startswith(h) for h in allowed_hosts):
-        raise ValueError("Invalid host")
-    
-    # Regex validation
-    if not re.match(r"^https://(?:github|gitlab)\.com/[^/]+/[^/]+", url):
-        raise ValueError("Invalid format")
-```
-
-### Resource Limits
-
-```python
-# Timeouts prevent hanging
-subprocess.run(..., timeout=120)
-
-# File size limits prevent DoS
-if file_size > MAX_FILE_SIZE:
-    skip_file()
-
-# Disk space limits
-if total_size > MAX_TOTAL_SIZE:
-    raise Exception("Repo too large")
-```
-
-### Cleanup
-
-```python
-# ALWAYS cleanup sensitive data
-finally:
-    if repo_path and os.path.exists(repo_path):
-        shutil.rmtree(repo_path, ignore_errors=True)
-```
-
----
-
-## 📈 Performance Optimization
-
-### Current Bottlenecks
-
-1. **Git clone** - Mitigated with `--depth 1`
-2. **AI API calls** - Batching, caching possible
-3. **PDF generation** - Fast (Typst is quick)
-
-### Future Optimizations
-
-1. **Caching**: Cache analysis results by repo commit hash
-```python
-cache_key = f"{repo_url}:{commit_hash}"
-if cache.has(cache_key):
-    return cache.get(cache_key)
-```
-
-2. **Async processing**: Return immediately, poll for results
-```python
-POST /analyze → 202 Accepted, {"statusUrl": "/status/123"}
-GET /status/123 → {"status": "processing"} | {"status": "completed", ...}
-```
-
-3. **Parallel file sampling**: Process multiple files concurrently
-
----
-
-## 🎓 Next Steps for You
-
-### Week 1: Get Familiar
-- [ ] Clone the repo
-- [ ] Run all tests
-- [ ] Start the dev server
-- [ ] Make a small change (e.g., adjust a weight)
-- [ ] Add a test
-
-### Week 2: Add a Feature
-- [ ] Pick from roadmap (Phases 2-8)
-- [ ] Design the change
-- [ ] Write tests first (TDD)
-- [ ] Implement
-- [ ] Get code review
-
-### Week 3: Own a Module
-- [ ] Become the expert on one module
-- [ ] Review others' PRs for that module
-- [ ] Identify improvements
-- [ ] Mentor others
-
----
-
-## 📚 Resources
-
-- [Typst Docs](https://typst.app/docs) - PDF template syntax
-- [Pydantic Docs](https://docs.pydantic.dev) - Data validation
-- [Flask Docs](https://flask.palletsprojects.com) - Web framework
-- [OpenAI API Docs](https://platform.openai.com/docs) - AI integration
-- [pytest Docs](https://docs.pytest.org) - Testing
-
----
-
-## 💬 Questions?
-
-Common questions from new team members:
+## FAQ
 
 **Q: Why no database?**
-A: Microservices principle - single responsibility. Gateway handles persistence, we handle analysis.
+Microservice principle — single responsibility. The Gateway handles persistence; we handle analysis.
 
-**Q: Why Typst instead of LaTeX?**
-A: Smaller Docker image (20MB vs 5GB), faster compilation, simpler syntax.
+**Q: Why Typst over LaTeX?**
+~20 MB binary vs 5 GB TeX Live. Millisecond compilation. Simple syntax.
 
-**Q: Why both OpenAI and Kilo Code?**
-A: Flexibility. OpenAI is reliable but costs money. Kilo Code might be free/local.
+**Q: How long does one analysis take?**
+Typically 2–5 minutes end-to-end. The dominant cost is the Kilo AI analysis (~1.5–4 min depending on repo size and model load). Git clone adds 5–30 s; Typst PDF compilation adds 2–5 s. Everything else is under 1 s.
 
-**Q: What if AI returns garbage?**
-A: `metrics_parser.py` handles all edge cases. Worst case: defaults to 0 scores.
+**Q: What if the AI returns garbage?**
+`metrics_parser.py` handles all edge cases with sensible defaults. Worst case: all scores default to 0.
 
-**Q: How do we prevent malicious repos?**
-A: URL validation, shallow clone, timeouts, file size limits, cleanup.
+**Q: How do we prevent malicious repositories?**
+URL allow-list (`ALLOWED_HOSTS`), shallow clone, timeouts, and the Kilo agent is read-only (no bash/write permissions).
 
----
-
-That's the complete picture! You now understand:
-- ✅ What the service does
-- ✅ How data flows through the system
-- ✅ Each module's responsibility
-- ✅ Design patterns used
-- ✅ How to make changes
-- ✅ How to test
-- ✅ How to debug
-- ✅ Best practices
-
-**Your homework**: Run the service, read through one module (`git_handler.py` is a good start), and make a small test pass. Welcome to the team! 🎉
+**Q: How do I test without a real Kilo installation?**
+Set `AGENT_RUNNER=mock`. `MockRunner` returns a valid stub payload so the full pipeline runs without any AI.

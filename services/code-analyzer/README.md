@@ -2,130 +2,119 @@
 
 AI-powered code quality analysis service for the Committed platform. Analyzes student code submissions and generates detailed PDF reports with quality metrics and grades.
 
-## 🎯 What Does This Service Do?
+## What Does This Service Do?
 
-Takes a GitHub/GitLab URL → Analyzes code with AI → Assigns A-F grade → Generates PDF report
+Takes a GitHub/GitLab URL → Analyzes code with AI → Assigns A–F grade → Generates PDF report
 
 **Key Features**:
 - 7 quality metrics: SOLID, clean code, OOP, error handling, testing, documentation, complexity
-- AI-powered analysis (OpenAI or Kilo CLI)
-- Automated grading with configurable weights
-- Student level inference (beginner/intermediate/advanced)
-- Hybrid AI-enhanced report content with static Typst layout
+- Single AI analysis pass via Kilo Code CLI (one agent, one structured JSON output)
+- Formal **Project Overview** section — structured academic report (summary, technologies, contributors, implementation, setup, limitations)
+- ASCII file tree, architecture diagram, and UML class diagram in every report
+- Automated grading with floor rules (no tests → capped at D)
+- Student level inference (beginner / intermediate / advanced)
 - Professional PDF reports via Typst
 - Stateless microservice (no database)
+- **~2–5 min per request** (Kilo AI analysis dominates; Typst PDF adds ~3 s)
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 services/code-analyzer/
 ├── app.py                      # Flask HTTP server
-├── config.py                   # Environment configuration
+├── config.py                   # Environment configuration (single source of truth)
 ├── requirements.txt            # Production dependencies
-├── requirements-dev.txt        # Development dependencies
+├── requirements-dev.txt        # Development dependencies (pytest, black, ruff)
 ├── Dockerfile                  # Production container
-├── .env                        # Environment variables (local)
-├── .env.example               # Environment template
+├── .env                        # Environment variables (local — not committed)
+├── .env.example                # Environment template
 │
 ├── .kilo/                      # Kilo CLI configuration
 │   └── agent/
-│       ├── analyzer.md         # Custom code analyzer agent
-│       └── report-content.md   # Personalized report content agent
+│       └── analyzer.md         # Code analyzer agent prompt
 │
 ├── core/                       # Business logic
-│   ├── git_handler.py         # Git clone/cleanup
-│   ├── agent_runner.py        # AI analysis (OpenAI/Kilo)
-│   ├── metrics_parser.py      # Normalize AI output
-│   ├── classifier.py          # Calculate grades
-│   ├── report_generator.py   # Generate PDFs
-│   └── pipeline.py            # Orchestrate everything
+│   ├── git_handler.py          # Clone & cleanup repositories
+│   ├── agent_runner.py         # AI analysis (KiloCodeRunner + MockRunner)
+│   ├── metrics_parser.py       # Normalize raw agent output → MetricsSchema
+│   ├── classifier.py           # Weighted grade calculation + floor rules
+│   ├── report_generator.py     # SVG charts + Typst PDF compilation
+│   └── pipeline.py             # Orchestrate all steps
 │
-├── models/                     # Data schemas
-│   └── metrics_schema.py      # Pydantic models
+├── models/
+│   └── metrics_schema.py       # Pydantic schemas for all data shapes
 │
-├── templates/                  # Report templates
-│   └── report.typ             # Typst PDF template
+├── templates/
+│   └── report.typ              # Typst PDF template
 │
-├── scripts/                    # Utility scripts
-│   ├── kilo-analyze-wrapper.py  # Kilo CLI wrapper
-│   ├── kilo-report-content.py   # Report content agent wrapper
-│   ├── kilo-analyze.sh         # Bash wrapper (alternative)
-│   └── manual_test_kilo.sh     # Quick manual test
+├── scripts/
+│   ├── kilo-analyze-wrapper.py # Kilo CLI subprocess wrapper
+│   ├── kilo_utils.py           # JSON extraction from CLI output
+│   └── run_analysis.py         # Local pipeline test script
 │
-├── tests/                      # Tests & examples
-│   ├── test_classifier.py     # Grading logic tests
-│   ├── test_git_handler.py    # Git operations tests
-│   ├── test_metrics_parser.py # Parser tests
-│   ├── test_report_generator.py # PDF generation tests
-│   ├── test_report_content.py # AI enhancement tests
-│   ├── test_student_level_inference.py # Level inference tests
-│   ├── test_enhanced_pipeline.py # Pipeline integration checks
-│   ├── test_manual_flow.py    # Manual flow simulation
-│   ├── test_analysis.py       # Full pipeline test
-│   ├── test_kilo_analyzer.py  # Kilo integration test
-│   └── quick_test.py          # Quick verification
+├── tests/
+│   ├── test_app_routes.py          # Flask route integration tests
+│   ├── test_classifier.py          # Grading & floor rule tests
+│   ├── test_git_handler.py         # Git clone/validation tests
+│   ├── test_metrics_parser.py      # Parser normalization tests
+│   ├── test_kilo_utils.py          # JSON extraction tests
+│   ├── test_report_generator.py    # PDF generation tests
+│   ├── test_student_level_inference.py
+│   ├── test_enhanced_pipeline.py   # Pipeline integration tests
+│   └── test_kilo_analyzer.py       # Live Kilo integration test (skipped in CI)
 │
-└── docs/                       # Documentation
-    ├── ONBOARDING.md          # Developer onboarding guide
-    ├── KILO_INTEGRATION.md    # Kilo CLI integration docs
-    ├── KILO_SETUP.md          # Implementation summary
-    └── REPORT_CUSTOMIZATION.md # AI report customization guide
+└── docs/
+    ├── ONBOARDING.md           # Developer onboarding guide (start here)
+    ├── KILO_INTEGRATION.md     # Kilo CLI integration, timing, troubleshooting
+    ├── PROJECT_STRUCTURE.md    # Directory map and test categories
+    └── REPORT_CUSTOMIZATION.md # Typst template, data payload, section reference
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
 - Python 3.11+
 - Git
-- Typst (for PDF generation)
-- Kilo CLI (optional, for kilo backend)
+- [Typst](https://typst.app) — PDF compiler
+- [Kilo Code CLI](https://kilocode.ai) — AI analysis backend
 
 ### Installation
 
 ```bash
 cd services/code-analyzer
 
-# Create virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Install dependencies
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
 ```
 
 ### Configuration
 
-Copy the example environment file:
-
 ```bash
 cp .env.example .env
+# Edit .env as needed (defaults work for local dev with Kilo installed)
 ```
 
-Edit `.env` and configure:
+Key variables (see [Configuration](#configuration) for full reference):
 
-```bash
-# Choose backend: "openai" or "kilocode" (default: openai)
-AGENT_BACKEND=kilocode
-
-# OpenAI (if using OpenAI backend)
-OPENAI_API_KEY=your_key_here
-
-# Kilo CLI command (single source of truth for wrappers)
-AGENT_CLI=kilo
-
-# AI-enhanced report content
-ENABLE_AI_REPORTS=true
-```
+| Variable | Default | Purpose |
+|---|---|---|
+| `AGENT_RUNNER` | `kilo` | `kilo` for real analysis, `mock` for tests |
+| `TYPST_BIN` | `/usr/local/bin/typst` | Path to Typst binary |
+| `AGENT_CLI` | `kilo` | Kilo CLI command |
+| `CLONE_DEPTH` | `50` | Shallow clone depth |
+| `ALLOWED_HOSTS` | GitHub + GitLab | Accepted repository hosts |
 
 ### Run the Service
 
 ```bash
-# Development mode
+# Development
 python app.py
 
-# Production mode
+# Production
 gunicorn app:app --bind 0.0.0.0:5000
 ```
 
@@ -135,57 +124,69 @@ gunicorn app:app --bind 0.0.0.0:5000
 # All tests
 .venv/bin/pytest tests/ -v
 
-# Specific test
+# Specific module
 .venv/bin/pytest tests/test_classifier.py -v
 
 # With coverage
-.venv/bin/pytest --cov=core --cov=models
+.venv/bin/pytest --cov=core --cov=models --cov-report=html
 ```
 
-## 🧪 Testing & Examples
+## Configuration
 
-### Quick Tests
+All settings are read from environment variables (via `.env` in development, injected by Docker/K8s in production). `Config.validate()` is called on startup and warns about missing binaries.
+
+### Full Variable Reference
 
 ```bash
-# Quick verification test
-.venv/bin/python tests/quick_test.py
+# ── Directories ───────────────────────────────────────────────────────────────
+TEMP_DIR=/tmp/code-analysis        # Where repos are cloned
+REPORTS_DIR=/tmp/reports           # Where PDFs are saved
 
-# Manual flow simulation (no AI required)
-.venv/bin/python tests/test_manual_flow.py
+# ── External tools ────────────────────────────────────────────────────────────
+TYPST_BIN=/usr/local/bin/typst     # Typst binary path
+AGENT_CLI=kilo                      # Kilo CLI command
+AGENT_RUNNER=kilo                   # "kilo" or "mock" (for tests/CI)
 
-# Kilo integration test
-.venv/bin/python tests/test_kilo_analyzer.py
+# ── Git settings ──────────────────────────────────────────────────────────────
+CLONE_DEPTH=50                      # Shallow clone depth
+ALLOWED_HOSTS=https://github.com/,https://gitlab.com/  # Comma-separated prefixes
+
+# ── Timeouts (seconds) ────────────────────────────────────────────────────────
+CLONE_TIMEOUT=120
+AGENT_TIMEOUT=300
+
+# ── Flask ─────────────────────────────────────────────────────────────────────
+PORT=5000
+FLASK_DEBUG=false                   # Never true in production
+
+# ── Services ──────────────────────────────────────────────────────────────────
+NOTIFICATION_SERVICE_URL=http://notifications:5001
 ```
 
-### Test with Real Repository
+### Adding a Custom Repository Host
+
+To accept Gitea or Bitbucket repositories, extend `ALLOWED_HOSTS`:
 
 ```bash
-# Edit tests/test_analysis.py and set your repo URL
-.venv/bin/python tests/test_analysis.py
+ALLOWED_HOSTS=https://github.com/,https://gitlab.com/,https://gitea.mycompany.com/
 ```
 
-## 🔧 Configuration
+No code changes required.
 
-### AI Backend Options
+### Using the Mock Runner (CI / Tests)
 
-**Option 1: OpenAI (GPT-4)**
+Set `AGENT_RUNNER=mock` to skip the live Kilo CLI and return deterministic stub metrics. Useful for CI pipelines and integration tests that don't have Kilo installed:
+
 ```bash
-AGENT_BACKEND=openai
-OPENAI_API_KEY=sk-...
+AGENT_RUNNER=mock python app.py
 ```
 
-**Option 2: Kilo CLI (500+ models)**
-```bash
-AGENT_BACKEND=kilocode
-AGENT_CLI=kilo
-```
+## Grading Configuration
 
-### Grading Configuration
-
-Edit `core/classifier.py` to customize:
+Weights and floor rules are defined in [core/classifier.py](core/classifier.py):
 
 ```python
-# Adjust weights (must sum to 1.0)
+# Metric weights (must sum to 1.0)
 WEIGHTS = {
     "solid": 0.20,
     "clean_code": 0.20,
@@ -196,55 +197,42 @@ WEIGHTS = {
     "complexity": 0.05,
 }
 
-# Adjust grade thresholds
+# Grade thresholds
 GRADE_THRESHOLDS = [
-    (85, "A"),
-    (70, "B"),
-    (55, "C"),
-    (40, "D"),
-    (0, "F"),
+    (85, "A"), (70, "B"), (55, "C"), (40, "D"), (0, "F"),
 ]
 
-# Floor rules (minimum requirements)
+# Floor rules — cap the grade when a critical metric is missing.
+# Even if all other metrics are perfect, no tests → max D.
 FLOOR_RULES = [
-    ("testing", 1.0, "D"),  # Testing < 1.0 caps at D
+    ("testing", 1.0, "D"),        # No meaningful tests
+    ("error_handling", 1.0, "D"), # No error handling
 ]
 ```
 
 ### Student Level Inference
 
-Student level is inferred from classification and metric profile:
+Inferred after grading and included in every analysis result:
 
-- `advanced`: grade A/B and average metric score >= 3.5
-- `beginner`: grade D/F, or average < 2.0, or testing < 1.0
-- `intermediate`: all other cases
+| Level | Condition |
+|---|---|
+| `advanced` | Grade A or B, avg score ≥ 3.5, percentage ≥ 72 |
+| `beginner` | Grade D/F, avg score < 2.0, or testing < 1.0 |
+| `intermediate` | Everything else |
 
-This is implemented in `core/classifier.py`.
-
-### AI-Enhanced Reports
-
-When `ENABLE_AI_REPORTS=true`, report generation attempts a personalization step:
-
-1. Build payload from metrics, grade, and inferred student level
-2. Invoke `scripts/kilo-report-content.py`
-3. Validate output against `EnhancedContent` schema
-4. Inject enhanced feedback/recommendations into Typst data
-5. Fall back to original static content if enhancement fails
-
-Caching is enabled via `lru_cache(maxsize=100)` for repeated similar payloads.
-
-## 📊 API Endpoints
+## API Endpoints
 
 ### POST /analyze
 
-Analyze a code repository:
+Accepts a submission and runs the full analysis pipeline synchronously.
 
 ```bash
 curl -X POST http://localhost:5000/analyze \
   -H "Content-Type: application/json" \
   -d '{
     "submissionId": 123,
-    "repoUrl": "https://github.com/user/repo"
+    "repoUrl": "https://github.com/user/repo",
+    "studentId": 456
   }'
 ```
 
@@ -256,159 +244,90 @@ Response:
   "grade": "B",
   "percentage": 73.4,
   "student_level": "intermediate",
-  "breakdown": {...},
-  "metrics": {...},
+  "breakdown": { "solid": { "score": 3.8, "max": 5.0, "weighted_contribution": 15.2 }, "..." },
+  "metrics": { "..." },
   "reportUrl": "/reports/123.pdf",
   "analyzedAt": "2026-04-01T12:00:00+00:00"
 }
 ```
 
-### GET /health
+Error response (pipeline failure):
+```json
+{
+  "submissionId": 123,
+  "status": "failed",
+  "error": "Git clone failed: repository not found"
+}
+```
 
-Health check:
+### GET /health
 
 ```bash
 curl http://localhost:5000/health
+# {"status": "UP", "service": "code-analyzer", "timestamp": "..."}
 ```
 
-### GET /reports/:filename
+### GET /reports/\<filename\>
 
-Download PDF report:
+Serves a previously generated PDF. Only `.pdf` filenames are accepted; path traversal attempts return 400.
 
 ```bash
 curl http://localhost:5000/reports/123.pdf -o report.pdf
 ```
 
-## 📚 Documentation
-
-- **[ONBOARDING.md](docs/ONBOARDING.md)** - Comprehensive developer guide (15 min read)
-- **[KILO_INTEGRATION.md](docs/KILO_INTEGRATION.md)** - Kilo CLI integration details
-- **[KILO_SETUP.md](docs/KILO_SETUP.md)** - Implementation summary
-- **[REPORT_CUSTOMIZATION.md](docs/REPORT_CUSTOMIZATION.md)** - Report personalization customization
-
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────┐
-│   Gateway   │ (Has database)
+│   Gateway   │ (owns the database)
 └──────┬──────┘
-       │ HTTP POST /analyze
+       │ POST /analyze
        ▼
-┌─────────────────────────────────┐
-│   Code Analyzer (this service)  │
-│                                 │
-│  1. Clone repo from URL         │
-│  2. Run AI analysis             │
-│  3. Parse metrics               │
-│  4. Calculate grade             │
-│  5. Generate PDF                │
-│  6. Return results              │
-│  7. Cleanup                     │
-└─────────────────────────────────┘
+┌─────────────────────────────────────────┐
+│         Code Analyzer (this service)    │
+│                                         │
+│  1. Validate & clone repository         │
+│  2. Run Kilo Code analyzer agent        │
+│  3. Inject commit hygiene + file tree   │
+│  4. Parse & validate metrics (Pydantic) │
+│  5. Calculate A–F grade + floor rules   │
+│  6. Generate SVGs + compile PDF (Typst) │
+│  7. Return results + cleanup            │
+└─────────────────────────────────────────┘
        │ HTTP Response
        ▼
 ┌─────────────┐
-│   Gateway   │ Saves to DB
+│   Gateway   │ Persists to DB
 └─────────────┘
 ```
 
-## 🎓 Key Concepts
+## Security
 
-### The 7 Quality Metrics
+- **Input validation**: Only allow-listed host prefixes accepted; configurable via `ALLOWED_HOSTS`
+- **Path traversal protection**: `/reports/<file>` rejects any filename with path components or non-`.pdf` extension
+- **Resource limits**: `CLONE_TIMEOUT`, `AGENT_TIMEOUT`, shallow clone depth
+- **Read-only agent**: Kilo agent has no `write`/`edit`/`bash` permissions (see `.kilo/agent/analyzer.md`)
+- **Stateless**: No student data stored — cloned repos deleted immediately after analysis
 
-1. **SOLID Principles** - Design pattern adherence
-2. **Clean Code** - Readability, naming, simplicity
-3. **OOP** - Object-oriented design quality
-4. **Error Handling** - Exception handling, validation
-5. **Testing** - Unit tests, coverage, quality
-6. **Documentation** - README, comments, docs
-7. **Complexity** - Cyclomatic complexity, nesting
-
-### Grading Flow
-
-```
-Metrics (0-5 each) → Weighted Average → Percentage → Letter Grade (A-F)
-                                ↓
-                         Floor Rules Applied
-```
-
-### AI Backends
-
-**OpenAI**:
-- Uses GPT-4 API
-- Samples up to 50 files, 200 lines each
-- Fast and reliable
-- Costs money
-
-**Kilo CLI**:
-- Uses custom analyzer agent (`.kilo/agent/analyzer.md`)
-- Access to 500+ models via kilo Gateway
-- Can use local/free models
-- More flexible and customizable
-
-## 🔐 Security
-
-- **Input validation**: Only GitHub/GitLab URLs allowed
-- **Resource limits**: Timeouts, file size limits, shallow clones
-- **Cleanup**: Always removes cloned repos
-- **Read-only**: Kilo agent has no write/execute permissions
-- **Stateless**: No sensitive data stored
-
-## 🐳 Docker
-
-Build and run:
+## Docker
 
 ```bash
 docker build -t code-analyzer .
 docker run -p 5000:5000 \
-  -e AGENT_BACKEND=openai \
-  -e OPENAI_API_KEY=sk-... \
+  -e AGENT_CLI=kilo \
+  -e TYPST_BIN=/usr/local/bin/typst \
   code-analyzer
 ```
 
-## 🤝 Contributing
+## Contributing
 
 1. Read [docs/ONBOARDING.md](docs/ONBOARDING.md)
 2. Run tests: `.venv/bin/pytest tests/ -v`
-3. Format code: `black .`
+3. Format: `black .`
 4. Lint: `ruff check .`
-5. Make changes
-6. Add tests
-7. Submit PR
-
-## 🛠️ Development
-
-### Code Style
-
-```bash
-# Format code
-black .
-
-# Lint code
-ruff check .
-```
-
-### Running Tests
-
-```bash
-# All tests
-.venv/bin/pytest tests/ -v
-
-# With coverage
-.venv/bin/pytest --cov=core --cov-report=html
-
-# Specific test
-.venv/bin/pytest tests/test_classifier.py::TestClassify::test_a_grade -v
-```
-
-## 🆘 Support
-
-- **Issues**: Create a Gitlab issue
-- **Docs**: See [docs/ONBOARDING.md](docs/ONBOARDING.md) for detailed guide
-- **Tests**: Run `.venv/bin/pytest tests/ -v` to verify setup
+5. Add tests for your change
+6. Submit PR
 
 ---
 
-**Status**: ✅ Pipeline endpoint wired | ✅ AI report enhancement with fallback | ✅ Tests passing
-
-**Made for the Committed platform**
+**Documentation**: [ONBOARDING.md](docs/ONBOARDING.md) · [KILO_INTEGRATION.md](docs/KILO_INTEGRATION.md) · [REPORT_CUSTOMIZATION.md](docs/REPORT_CUSTOMIZATION.md) · [PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)

@@ -19,8 +19,8 @@ class TestValidateUrl:
         git_handler.validate_url(url)  # Should not raise
 
     def test_invalid_host(self):
-        """Should reject URLs from other hosts"""
-        with pytest.raises(ValueError, match="Only GitHub and GitLab"):
+        """Should reject URLs from hosts not in the allow-list"""
+        with pytest.raises(ValueError, match="must start with one of"):
             git_handler.validate_url("https://bitbucket.org/user/repo")
 
     def test_malformed_url(self):

@@ -8,14 +8,21 @@ Usage:
     python scripts/run_analysis.py
 """
 
+import json
+import logging
 import sys
 from pathlib import Path
+
+from core.pipeline import run_analysis
 
 # Add the service root to Python path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.pipeline import run_analysis
-import json
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s  %(levelname)-8s  %(name)s — %(message)s",
+    datefmt="%H:%M:%S",
+)
 
 
 def test_repo_analysis():
@@ -23,7 +30,7 @@ def test_repo_analysis():
 
     # Your test repo
     repo_url = "https://github.com/IdrissiYouness/JChat"
-    submission_id = 999  # Test submission ID
+    submission_id = 11
 
     print(f"🔍 Analyzing: {repo_url}")
     print(f"📋 Submission ID: {submission_id}")
