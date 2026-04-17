@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ClipboardList, Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { ROUTES } from '../../../utils/constants';
 
 /**
  * AssignmentItem
@@ -120,16 +122,23 @@ export default function AssignmentItem({ assignment, className = '' }) {
 
   const due = parseDue(assignment.dueDate, now);
   const status = assignment.status;
+  const isTeacher = (assignment.roleContext || '').toLowerCase() === 'teacher';
 
   // If already submitted/graded, show status badge instead of due-date badge
   const showStatusBadge = status && status !== 'pending' && STATUS_LABELS[status];
 
+  const to = isTeacher
+    ? `${ROUTES.ASSIGNMENTS}/${assignment.assignmentId}/submissions`
+    : `${ROUTES.ASSIGNMENTS}/${assignment.assignmentId}`;
+
   return (
-    <li
+    <li className={className}>
+    <Link
+      to={to}
       className={[
         'flex items-center gap-4 rounded-xl border border-neutral-100 bg-white',
-        'px-4 py-3 hover:border-neutral-200 transition-colors duration-150',
-        className,
+        'px-4 py-3 hover:border-primary-200 hover:bg-primary-50/30 transition-colors duration-150',
+        'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500',
       ].join(' ')}
     >
       {/* ── Icon ───────────────────────────────────────────────────────────── */}
@@ -198,6 +207,7 @@ export default function AssignmentItem({ assignment, className = '' }) {
           {assignment.maxPoints}pt
         </span>
       )}
+    </Link>
     </li>
   );
 }
