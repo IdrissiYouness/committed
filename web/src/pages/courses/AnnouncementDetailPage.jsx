@@ -15,6 +15,8 @@ import announcementService from '../../services/announcementService';
 import courseService from '../../services/courseService';
 import { useAuthStore } from '../../store/authStore';
 import { ROUTES } from '../../utils/constants';
+import fileService from '../../services/fileService';
+import useBreadcrumbStore from '../../store/breadcrumbStore';
 
 import Button from '../../components/common/Button';
 import AnnouncementComments from '../../components/features/courses/AnnouncementComments';
@@ -23,9 +25,22 @@ export default function AnnouncementDetailPage() {
   const { courseId, announcementId } = useParams();
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
+  const setBreadcrumbLabel = useBreadcrumbStore((state) => state.setLabel);
 
   const [course, setCourse] = useState(null);
   const [announcement, setAnnouncement] = useState(null);
+
+  useEffect(() => {
+    if (course?.courseName) {
+      setBreadcrumbLabel(courseId, course.courseName);
+    }
+  }, [course, courseId, setBreadcrumbLabel]);
+
+  useEffect(() => {
+    if (announcement?.title) {
+      setBreadcrumbLabel(announcementId, announcement.title);
+    }
+  }, [announcement, announcementId, setBreadcrumbLabel]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -115,6 +130,23 @@ export default function AnnouncementDetailPage() {
   const normalizedAnnouncementId = announcement.announcementId || announcement.id;
   const attachments = announcement.attachments || [];
 
+  const handleDownloadAttachment = async (attachment) => {
+    const attachmentId = attachment?.attachmentId || attachment?.id;
+    if (!attachmentId) {
+      toast.error('Attachment ID is missing.');
+      return;
+    }
+
+    try {
+      await fileService.download(
+        `/api/courses/${courseId}/announcements/${normalizedAnnouncementId}/attachments/${attachmentId}`,
+        { fileName: attachment?.fileName || `attachment-${attachmentId}` }
+      );
+    } catch (err) {
+      toast.error(err?.message || 'Failed to download attachment.');
+    }
+  };
+
   return (
     <div className="flex flex-col gap-8 max-w-5xl mx-auto w-full pb-12">
       {/* Header */}
@@ -193,10 +225,9 @@ export default function AnnouncementDetailPage() {
                 const attachmentId = att.attachmentId || att.id;
                 return (
                   <li key={attachmentId || idx}>
-                    <a
-                      href={`/api/courses/${courseId}/announcements/${normalizedAnnouncementId}/attachments/${attachmentId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadAttachment(att)}
                       className="inline-flex w-full items-center justify-between gap-3 p-3 rounded-lg border border-primary-200 bg-primary-50 hover:bg-primary-100 transition-colors text-sm text-primary-700"
                     >
                       <span className="inline-flex items-center gap-2 min-w-0">
@@ -204,9 +235,9 @@ export default function AnnouncementDetailPage() {
                         <span className="truncate">{att.fileName || `Attachment #${idx + 1}`}</span>
                       </span>
                       <span className="inline-flex items-center rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-primary-700 ring-1 ring-primary-200">
-                        Pinned
+                        Download
                       </span>
-                    </a>
+                    </button>
                   </li>
                 );
               })}

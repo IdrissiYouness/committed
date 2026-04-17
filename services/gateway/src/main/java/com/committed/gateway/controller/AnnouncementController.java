@@ -10,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -113,28 +115,69 @@ public class AnnouncementController {
 
     @GetMapping("/api/courses/{courseId}/announcements/{announcementId}/attachments/{attachmentId}")
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
-    public ResponseEntity<Resource> downloadAttachment(
+    public ResponseEntity<byte[]> downloadAttachment(
             @PathVariable Integer courseId,
             @PathVariable Integer announcementId,
             @PathVariable Integer attachmentId,
             Authentication authentication
     ) {
-        log.info("Downloading attachment: {}", attachmentId);
+        log.info("Downloading attachment: {} for announcement: {} in course: {}", attachmentId, announcementId, courseId);
         JwtPrincipal userDetails = (JwtPrincipal) authentication.getPrincipal();
-        
+
         verifyEnrolledOrTeacherOrAdmin(courseId, userDetails);
 
         AttachmentResponse metadata = announcementServiceClient.getAttachment(attachmentId);
+        if (metadata == null || metadata.getFilePath() == null || metadata.getFilePath().isBlank()) {
+            log.warn("Attachment metadata missing filePath for attachmentId={}", attachmentId);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
 
-        // Stream the file directly from the Core service's public uploads directory
-        String fileUrl = coreServiceUrl + "/uploads/" + metadata.getFilePath();
-        
-        ResponseEntity<Resource> fileResponse = restTemplate.getForEntity(fileUrl, Resource.class);
+        String filePath = metadata.getFilePath().trim();
+        String fileUrl = resolveCoreUploadUrl(filePath);
+        log.info("Resolved core upload URL for attachmentId={}: {}", attachmentId, fileUrl);
+
+        ResponseEntity<byte[]> fileResponse = restTemplate.exchange(
+                fileUrl,
+                HttpMethod.GET,
+                HttpEntity.EMPTY,
+                byte[].class
+        );
+
+        byte[] fileBytes = fileResponse.getBody() != null ? fileResponse.getBody() : new byte[0];
+
+        // Guard rail: 9 bytes usually means literal "undefined" body from bad upstream path
+        if (fileBytes.length == 9 && "undefined".equalsIgnoreCase(new String(fileBytes).trim())) {
+            log.error("Upstream returned literal 'undefined' for attachmentId={}, filePath={}, fileUrl={}",
+                    attachmentId, filePath, fileUrl);
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body("{\"error\":\"Attachment source path is invalid\"}".getBytes());
+        }
+
+        String fileName = metadata.getFileName() != null ? metadata.getFileName() : "attachment-" + attachmentId;
+        String fileType = metadata.getFileType() != null ? metadata.getFileType() : MediaType.APPLICATION_OCTET_STREAM_VALUE;
 
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(metadata.getFileType() != null ? metadata.getFileType() : MediaType.APPLICATION_OCTET_STREAM_VALUE))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + metadata.getFileName() + "\"")
-                .body(fileResponse.getBody());
+                .contentType(MediaType.parseMediaType(fileType))
+                .contentLength(fileBytes.length)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                .body(fileBytes);
+    }
+
+    private String resolveCoreUploadUrl(String filePath) {
+        if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
+            return filePath;
+        }
+
+        if (filePath.startsWith("/uploads/")) {
+            return coreServiceUrl + filePath;
+        }
+
+        if (filePath.startsWith("uploads/")) {
+            return coreServiceUrl + "/" + filePath;
+        }
+
+        return coreServiceUrl + "/uploads/" + filePath;
     }
 
     private void verifyTeacherOrAdmin(Integer courseId, JwtPrincipal userDetails) {

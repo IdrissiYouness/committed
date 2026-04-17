@@ -33,11 +33,7 @@ const toFormData = (data) => {
   return formData;
 };
 
-const multipartConfig = {
-  headers: {
-    'Content-Type': 'multipart/form-data',
-  },
-};
+const multipartConfig = {};
 
 const submissionService = {
   /**

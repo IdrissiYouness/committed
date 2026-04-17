@@ -27,6 +27,7 @@ import submissionService from '../../services/submissionService';
 import gradeService from '../../services/gradeService';
 import courseService from '../../services/courseService';
 import { useAuthStore } from '../../store/authStore';
+import useBreadcrumbStore from '../../store/breadcrumbStore';
 import { ROUTES } from '../../utils/constants';
 
 import Button from '../../components/common/Button';
@@ -178,12 +179,27 @@ export default function AssignmentSubmissionsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
+  const setBreadcrumbLabel = useBreadcrumbStore(state => state.setLabel);
 
   const isAdmin = user?.systemRole?.toLowerCase() === 'admin';
   const currentUserId = toNumber(user?.userId, -1);
 
   const [assignment, setAssignment] = useState(null);
   const [course, setCourse] = useState(null);
+
+  useEffect(() => {
+    if (assignment?.title) {
+      setBreadcrumbLabel(id, assignment.title);
+    }
+  }, [assignment, id, setBreadcrumbLabel]);
+
+  useEffect(() => {
+    const courseId = course?.id || course?.courseId || assignment?.courseId;
+    if (course?.courseName && courseId) {
+      setBreadcrumbLabel(String(courseId), course.courseName);
+    }
+  }, [course, assignment, setBreadcrumbLabel]);
+
   const [studentsById, setStudentsById] = useState({});
   const [submissions, setSubmissions] = useState([]);
 

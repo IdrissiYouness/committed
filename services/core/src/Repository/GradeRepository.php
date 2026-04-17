@@ -38,4 +38,24 @@ class GradeRepository extends ServiceEntityRepository
             $this->getEntityManager()->flush();
         }
     }
+
+    /**
+     * Get recent grades for a specific student, newest first.
+     *
+     * @param int $studentId
+     * @param int $limit
+     * @return Grade[]
+     */
+    public function findRecentByStudentId(int $studentId, int $limit = 20): array
+    {
+        return $this->createQueryBuilder('g')
+            ->innerJoin('g.submission', 's')
+            ->innerJoin('s.student', 'st')
+            ->andWhere('st.userId = :studentId')
+            ->setParameter('studentId', $studentId)
+            ->orderBy('g.gradedAt', 'DESC')
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+    }
 }

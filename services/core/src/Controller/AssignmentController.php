@@ -196,10 +196,8 @@ class AssignmentController extends AbstractController
             $removeAttachmentIds = $data['removeAttachmentIds'] ?? [];
         } else {
             $data = $request->request->all();
-            $removeAttachmentIds = $request->request->all('removeAttachmentIds');
-            if (!is_array($removeAttachmentIds)) {
-                $removeAttachmentIds = [];
-            }
+            $removeParam = $request->request->get('removeAttachmentIds');
+            $removeAttachmentIds = is_array($removeParam) ? $removeParam : ($removeParam ? [$removeParam] : []);
         }
 
         if (isset($data['title'])) {
@@ -231,11 +229,11 @@ class AssignmentController extends AbstractController
         }
 
         if (isset($data['allowLateSubmission'])) {
-            $assignment->setAllowLateSubmission((bool) $data['allowLateSubmission']);
+            $assignment->setAllowLateSubmission(filter_var($data['allowLateSubmission'], FILTER_VALIDATE_BOOLEAN));
         }
 
         if (isset($data['requireGithubRepo'])) {
-            $assignment->setRequireGithubRepo((bool) $data['requireGithubRepo']);
+            $assignment->setRequireGithubRepo(filter_var($data['requireGithubRepo'], FILTER_VALIDATE_BOOLEAN));
         }
 
         $assignment->setUpdatedAt(new \DateTime());

@@ -14,9 +14,6 @@ import { API_BASE_URL, TOKEN_KEY, REFRESH_TOKEN_KEY, USER_KEY, REMEMBER_ME_KEY, 
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10_000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
 });
 
 // ─── Request Interceptor ─────────────────────────────────────────────────────
@@ -32,6 +29,13 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    } else if (!config.headers['Content-Type']) {
+      config.headers['Content-Type'] = 'application/json';
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -41,6 +45,12 @@ api.interceptors.request.use(
 
 api.interceptors.response.use(
   (response) => {
+    // If the request was for a blob (e.g., file download), return the full response
+    // so callers can access headers like Content-Disposition.
+    if (response.config?.responseType === 'blob') {
+      return response;
+    }
+
     // Gateway wraps every successful response in { success, data, message, timestamp }
     // Unwrap so service callers work with `data` directly.
     const body = response.data;

@@ -279,7 +279,7 @@ function UserDashboard({ user, dashboardData }) {
         'You have no pending assignments. New assignments will appear here once your professors post them.';
 
   return (
-    <div className="flex flex-col gap-8 max-w-5xl">
+    <div className="mx-auto w-full max-w-7xl flex flex-col gap-8">
 
       {/* ── Welcome banner ───────────────────────────────────────────────── */}
       <WelcomeBanner user={user} isAdmin={false} />
@@ -472,7 +472,70 @@ function UserDashboard({ user, dashboardData }) {
         </DashboardSection>
       </div>
 
+      {/* ── Needs Grading (Teacher) ──────────────────────────────────────── */}
+      {effectiveContext === 'teacher' && (
+        <DashboardSection
+          id="needs-grading-heading"
+          title="Needs Grading"
+          icon={ClipboardList}
+          viewAllTo={ROUTES.COURSES}
+          isLoading={isLoading}
+          isEmpty={!isLoading && scopedAssignments.filter(a => a.ungradedCount > 0).length === 0}
+          emptyNode={
+            <div className="rounded-2xl border border-neutral-200 bg-white shadow-elegant">
+              <EmptyState
+                icon={ClipboardList}
+                title="All caught up!"
+                description="You have no ungraded submissions waiting for your review."
+              />
+            </div>
+          }
+        >
+          {/* Skeleton */}
+          {isLoading && (
+            <ul className="flex flex-col gap-2" aria-label="Loading assignments">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <SkeletonListItem key={i} />
+              ))}
+            </ul>
+          )}
+
+          {/* Needs Grading List */}
+          {!isLoading && scopedAssignments.filter(a => a.ungradedCount > 0).length > 0 && (
+            <ul className="flex flex-col gap-2">
+              {scopedAssignments
+                .filter(a => a.ungradedCount > 0)
+                .slice(0, PREVIEW_LIMIT)
+                .map((assignment) => (
+                  <li key={assignment.assignmentId}>
+                    <Link
+                      to={`${ROUTES.COURSES}/${assignment.courseId}/assignments/${assignment.assignmentId}`}
+                      className="flex items-center gap-4 rounded-xl border border-neutral-100 bg-white px-4 py-3 hover:border-secondary-200 hover:bg-secondary-50/50 transition-colors"
+                    >
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-secondary-100 bg-secondary-50">
+                        <ClipboardList className="h-4 w-4 text-secondary-600" aria-hidden="true" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-body text-sm font-semibold text-neutral-800 truncate">
+                          {assignment.title}
+                        </p>
+                        <p className="font-body text-xs text-neutral-400 truncate">
+                          {assignment.courseName}
+                        </p>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-secondary-100 px-2.5 py-0.5 text-xs font-bold text-secondary-800">
+                        {assignment.ungradedCount} to grade
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+            </ul>
+          )}
+        </DashboardSection>
+      )}
+
       {/* ── Recent Grades ────────────────────────────────────────────────── */}
+      {effectiveContext !== 'teacher' && (
       <DashboardSection
         id="grades-heading"
         title="Recent Grades"
@@ -526,6 +589,7 @@ function UserDashboard({ user, dashboardData }) {
           </ul>
         )}
       </DashboardSection>
+      )}
 
     </div>
   );

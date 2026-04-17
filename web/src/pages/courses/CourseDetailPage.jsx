@@ -27,6 +27,7 @@ import assignmentService from '../../services/assignmentService';
 import submissionService from '../../services/submissionService';
 import announcementService from '../../services/announcementService';
 import { useAuthStore } from '../../store/authStore';
+import useBreadcrumbStore from '../../store/breadcrumbStore';
 import { ROUTES } from '../../utils/constants';
 
 import Button from '../../components/common/Button';
@@ -171,6 +172,13 @@ export default function CourseDetailPage() {
   const [activeTab, setActiveTab] = useState('thread');
 
   const [course, setCourse] = useState(null);
+  const setBreadcrumbLabel = useBreadcrumbStore(state => state.setLabel);
+
+  useEffect(() => {
+    if (course?.courseName) {
+      setBreadcrumbLabel(id, course.courseName);
+    }
+  }, [course, id, setBreadcrumbLabel]);
   const [assignments, setAssignments] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [students, setStudents] = useState([]);
