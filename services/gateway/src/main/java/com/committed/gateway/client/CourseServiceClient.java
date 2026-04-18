@@ -85,6 +85,9 @@ public class CourseServiceClient {
         coreRequest.put("description", request.getDescription());
         coreRequest.put("section", request.getSection());
         coreRequest.put("subject", request.getSubject());
+        if (request.getIsOpen() != null) {
+            coreRequest.put("isOpen", request.getIsOpen());
+        }
         coreRequest.put("teacherId", teacherId);
 
         try {

@@ -12,14 +12,11 @@ import {
   FileText,
   Filter,
   Github,
-  History,
   ListFilter,
-  Sparkles,
+  Paperclip,
   User,
-  Wand2,
   AlertTriangle,
   CheckCircle2,
-  Send,
 } from 'lucide-react';
 
 import assignmentService from '../../services/assignmentService';
@@ -27,13 +24,16 @@ import submissionService from '../../services/submissionService';
 import gradeService from '../../services/gradeService';
 import courseService from '../../services/courseService';
 import { useAuthStore } from '../../store/authStore';
+import useBreadcrumbStore from '../../store/breadcrumbStore';
 import { ROUTES } from '../../utils/constants';
 
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Badge from '../../components/common/Badge';
 import Pagination from '../../components/common/Pagination';
+import AttachmentButton from '../../components/common/AttachmentButton';
 import AssignmentStatusBadge from '../../components/features/assignments/AssignmentStatusBadge';
+import CodeAnalysisPanel from '../../components/features/assignments/CodeAnalysisPanel';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 30];
 
@@ -178,12 +178,27 @@ export default function AssignmentSubmissionsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
+  const setBreadcrumbLabel = useBreadcrumbStore(state => state.setLabel);
 
   const isAdmin = user?.systemRole?.toLowerCase() === 'admin';
   const currentUserId = toNumber(user?.userId, -1);
 
   const [assignment, setAssignment] = useState(null);
   const [course, setCourse] = useState(null);
+
+  useEffect(() => {
+    if (assignment?.title) {
+      setBreadcrumbLabel(id, assignment.title);
+    }
+  }, [assignment, id, setBreadcrumbLabel]);
+
+  useEffect(() => {
+    const courseId = course?.id || course?.courseId || assignment?.courseId;
+    if (course?.courseName && courseId) {
+      setBreadcrumbLabel(String(courseId), course.courseName);
+    }
+  }, [course, assignment, setBreadcrumbLabel]);
+
   const [studentsById, setStudentsById] = useState({});
   const [submissions, setSubmissions] = useState([]);
 
@@ -371,6 +386,14 @@ export default function AssignmentSubmissionsPage() {
   useEffect(() => {
     fetchWorkspaceData();
   }, [fetchWorkspaceData]);
+
+  // Poll every 10 s while the selected submission's analysis is still running
+  useEffect(() => {
+    const status = selectedSubmission?.codeAnalysis?.status;
+    if (status !== 'pending' && status !== 'analyzing') return;
+    const intervalId = setInterval(fetchWorkspaceData, 10_000);
+    return () => clearInterval(intervalId);
+  }, [selectedSubmission?.codeAnalysis?.status, fetchWorkspaceData]);
 
   useEffect(() => {
     if (!selectedSubmission) return;
@@ -1107,7 +1130,37 @@ export default function AssignmentSubmissionsPage() {
                     </p>
                   </div>
                 ) : null}
+
+                {/* ── Submitted files ──────────────────────────────────── */}
+                {selectedSubmission.attachments?.length > 0 ? (
+                  <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2 inline-flex items-center gap-1">
+                      <Paperclip className="h-3.5 w-3.5" />
+                      Submitted Files ({selectedSubmission.attachments.length})
+                    </p>
+                    <ul className="space-y-1.5">
+                      {selectedSubmission.attachments.map((file, idx) => (
+                        <li key={file.attachmentId || file.id || idx}>
+                          <AttachmentButton
+                            url={`/api/submissions/${selectedSubmission.submissionId}/attachments/${file.attachmentId || file.id}`}
+                            fileName={file.fileName || `submission-attachment-${idx + 1}`}
+                            fileSize={file.fileSize}
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <p className="text-xs text-neutral-400 italic">No files attached to this submission.</p>
+                )}
               </div>
+
+              {/* Code analysis results */}
+              <CodeAnalysisPanel
+                codeAnalysis={selectedSubmission?.codeAnalysis}
+                showRubric={true}
+                rubricItems={selectedRubric}
+              />
 
               {/* Grading form */}
               <div className="rounded-xl border border-neutral-200 p-3 space-y-3">

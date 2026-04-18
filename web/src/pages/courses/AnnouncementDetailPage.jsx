@@ -15,20 +15,37 @@ import announcementService from '../../services/announcementService';
 import courseService from '../../services/courseService';
 import { useAuthStore } from '../../store/authStore';
 import { ROUTES } from '../../utils/constants';
+import useBreadcrumbStore from '../../store/breadcrumbStore';
 
 import Button from '../../components/common/Button';
+import AttachmentButton from '../../components/common/AttachmentButton';
+import ConfirmDialog from '../../components/common/ConfirmDialog';
 import AnnouncementComments from '../../components/features/courses/AnnouncementComments';
 
 export default function AnnouncementDetailPage() {
   const { courseId, announcementId } = useParams();
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
+  const setBreadcrumbLabel = useBreadcrumbStore((state) => state.setLabel);
 
   const [course, setCourse] = useState(null);
   const [announcement, setAnnouncement] = useState(null);
 
+  useEffect(() => {
+    if (course?.courseName) {
+      setBreadcrumbLabel(courseId, course.courseName);
+    }
+  }, [course, courseId, setBreadcrumbLabel]);
+
+  useEffect(() => {
+    if (announcement?.title) {
+      setBreadcrumbLabel(announcementId, announcement.title);
+    }
+  }, [announcement, announcementId, setBreadcrumbLabel]);
+
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [error, setError] = useState(null);
 
   const isAdmin = user?.systemRole?.toLowerCase() === 'admin';
@@ -62,9 +79,9 @@ export default function AnnouncementDetailPage() {
     fetchData();
   }, [fetchData]);
 
-  const handleDelete = async () => {
-    if (!window.confirm('Delete this announcement?')) return;
+  const handleDelete = () => setConfirmOpen(true);
 
+  const handleConfirmDelete = async () => {
     setIsDeleting(true);
     try {
       await announcementService.delete(courseId, announcementId);
@@ -73,6 +90,7 @@ export default function AnnouncementDetailPage() {
     } catch (err) {
       toast.error(err.message || 'Failed to delete announcement.');
       setIsDeleting(false);
+      setConfirmOpen(false);
     }
   };
 
@@ -114,6 +132,7 @@ export default function AnnouncementDetailPage() {
 
   const normalizedAnnouncementId = announcement.announcementId || announcement.id;
   const attachments = announcement.attachments || [];
+
 
   return (
     <div className="flex flex-col gap-8 max-w-5xl mx-auto w-full pb-12">
@@ -193,20 +212,11 @@ export default function AnnouncementDetailPage() {
                 const attachmentId = att.attachmentId || att.id;
                 return (
                   <li key={attachmentId || idx}>
-                    <a
-                      href={`/api/courses/${courseId}/announcements/${normalizedAnnouncementId}/attachments/${attachmentId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex w-full items-center justify-between gap-3 p-3 rounded-lg border border-primary-200 bg-primary-50 hover:bg-primary-100 transition-colors text-sm text-primary-700"
-                    >
-                      <span className="inline-flex items-center gap-2 min-w-0">
-                        <FileText className="h-4 w-4 shrink-0" />
-                        <span className="truncate">{att.fileName || `Attachment #${idx + 1}`}</span>
-                      </span>
-                      <span className="inline-flex items-center rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-primary-700 ring-1 ring-primary-200">
-                        Pinned
-                      </span>
-                    </a>
+                    <AttachmentButton
+                      url={`/api/courses/${courseId}/announcements/${normalizedAnnouncementId}/attachments/${attachmentId}`}
+                      fileName={att.fileName || `attachment-${idx + 1}`}
+                      fileSize={att.fileSize}
+                    />
                   </li>
                 );
               })}
@@ -224,6 +234,17 @@ export default function AnnouncementDetailPage() {
           />
         </div>
       </section>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Delete announcement?"
+        description="This announcement and all its replies will be permanently removed. This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onClose={() => !isDeleting && setConfirmOpen(false)}
+      />
     </div>
   );
 }

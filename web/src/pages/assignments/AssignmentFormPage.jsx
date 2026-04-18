@@ -3,16 +3,20 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import assignmentService from '../../services/assignmentService';
+import courseService from '../../services/courseService';
 import Button from '../../components/common/Button';
 import { ROUTES } from '../../utils/constants';
+import useBreadcrumbStore from '../../store/breadcrumbStore';
 
 export default function AssignmentFormPage() {
   const { courseId, id } = useParams();
   const navigate = useNavigate();
   const isEditing = Boolean(id);
+  const setBreadcrumbLabel = useBreadcrumbStore(state => state.setLabel);
   const { register, handleSubmit, reset, formState: { errors } } = useForm({
     defaultValues: {
       allowLateSubmission: false,
+      requireGithubRepo: false,
     },
   });
   
@@ -26,11 +30,26 @@ export default function AssignmentFormPage() {
           if (data.dueDate) {
             data.dueDate = new Date(data.dueDate).toISOString().slice(0, 16);
           }
+          if (data.title) {
+            setBreadcrumbLabel(id, data.title);
+          }
           reset(data);
         })
         .catch(console.error);
     }
-  }, [id, reset]);
+  }, [id, reset, isEditing, setBreadcrumbLabel]);
+
+  useEffect(() => {
+    if (courseId) {
+      courseService.getById(courseId)
+        .then(course => {
+          if (course?.courseName) {
+            setBreadcrumbLabel(courseId, course.courseName);
+          }
+        })
+        .catch(console.error);
+    }
+  }, [courseId, setBreadcrumbLabel]);
 
   const onSubmit = async (data) => {
     setIsLoading(true);
@@ -40,8 +59,9 @@ export default function AssignmentFormPage() {
       formData.append('description', data.description);
       formData.append('dueDate', new Date(data.dueDate).toISOString());
       formData.append('maxPoints', data.maxPoints);
-      formData.append('allowLateSubmission', data.allowLateSubmission ? 'true' : 'false');
-      
+      formData.append('allowLateSubmission', data.allowLateSubmission === true || data.allowLateSubmission === 'true' ? 'true' : 'false');
+      formData.append('requireGithubRepo', data.requireGithubRepo === true || data.requireGithubRepo === 'true' ? 'true' : 'false');
+
       if (data.file && data.file[0]) {
         formData.append('files', data.file[0]);
       }
@@ -129,6 +149,20 @@ export default function AssignmentFormPage() {
           </label>
           <p className="mt-1 text-xs text-neutral-500">
             If enabled, students can submit after the due date and their submission will be marked late.
+          </p>
+        </div>
+
+        <div className="rounded-lg border border-neutral-200 p-3">
+          <label className="inline-flex items-center gap-2 text-sm font-medium text-neutral-700">
+            <input
+              type="checkbox"
+              {...register('requireGithubRepo')}
+              className="h-4 w-4 rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
+            />
+            Require GitHub Repository
+          </label>
+          <p className="mt-1 text-xs text-neutral-500">
+            If enabled, students must provide a valid GitHub repository URL when submitting.
           </p>
         </div>
 

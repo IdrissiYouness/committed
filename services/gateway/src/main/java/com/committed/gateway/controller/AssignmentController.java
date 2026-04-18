@@ -2,6 +2,7 @@ package com.committed.gateway.controller;
 
 import com.committed.gateway.client.AssignmentServiceClient;
 import com.committed.gateway.client.CourseServiceClient;
+import com.committed.gateway.client.SubmissionClient;
 import com.committed.gateway.dto.ApiResponse;
 import com.committed.gateway.dto.CourseResponse;
 import com.committed.gateway.dto.PagedResponse;
@@ -15,7 +16,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.Resource;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -41,6 +43,7 @@ public class AssignmentController {
     private final CourseServiceClient courseServiceClient;
     private final NotificationService notificationService;
     private final RestTemplate restTemplate;
+    private final SubmissionClient submissionClient;
 
     @Value("${core.service.url}")
     private String coreServiceUrl;
@@ -151,6 +154,143 @@ public class AssignmentController {
 
         assignmentServiceClient.deleteAssignment(id, userId);
         return ResponseEntity.ok(ApiResponse.success(null, "Assignment deleted successfully"));
+    }
+
+    @GetMapping("/assignments/{assignmentId}/attachments/{attachmentId}")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    public ResponseEntity<byte[]> downloadAssignmentAttachment(
+            @PathVariable Long assignmentId,
+            @PathVariable Long attachmentId,
+            Authentication authentication
+    ) {
+        log.info("Downloading assignment attachment: {} for assignment: {}", attachmentId, assignmentId);
+
+        AssignmentResponse assignment = assignmentServiceClient.getAssignment(assignmentId);
+        JwtPrincipal userDetails = (JwtPrincipal) authentication.getPrincipal();
+        verifyEnrolledOrTeacherOrAdmin(assignment.getCourseId().intValue(), userDetails);
+
+        AssignmentAttachmentDto attachment = null;
+        if (assignment.getAttachments() != null) {
+            for (AssignmentAttachmentDto item : assignment.getAttachments()) {
+                if (item != null && item.getId() != null && item.getId().equals(attachmentId)) {
+                    attachment = item;
+                    break;
+                }
+            }
+        }
+
+        if (attachment == null || attachment.getFilePath() == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        String filePath = attachment.getFilePath().trim();
+        String fileUrl = resolveCoreUploadUrl(filePath);
+        log.info("Resolved assignment attachment URL for attachmentId={}: {}", attachmentId, fileUrl);
+
+        ResponseEntity<byte[]> fileResponse = restTemplate.exchange(
+                fileUrl,
+                HttpMethod.GET,
+                HttpEntity.EMPTY,
+                byte[].class
+        );
+
+        byte[] fileBytes = fileResponse.getBody() != null ? fileResponse.getBody() : new byte[0];
+
+        if (fileBytes.length == 9 && "undefined".equalsIgnoreCase(new String(fileBytes).trim())) {
+            log.error("Upstream returned literal 'undefined' for assignment attachmentId={}, filePath={}, fileUrl={}",
+                    attachmentId, filePath, fileUrl);
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body("{\"error\":\"Assignment attachment source path is invalid\"}".getBytes());
+        }
+
+        String fileName = attachment.getFileName() != null ? attachment.getFileName() : "assignment-attachment-" + attachmentId;
+        String fileType = attachment.getFileType() != null ? attachment.getFileType() : MediaType.APPLICATION_OCTET_STREAM_VALUE;
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(fileType))
+                .contentLength(fileBytes.length)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                .body(fileBytes);
+    }
+
+    @GetMapping("/submissions/{submissionId}/attachments/{attachmentId}")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    public ResponseEntity<byte[]> downloadSubmissionAttachment(
+            @PathVariable Integer submissionId,
+            @PathVariable Integer attachmentId,
+            Authentication authentication
+    ) {
+        log.info("Downloading submission attachment: {} for submission: {}", attachmentId, submissionId);
+
+        JwtPrincipal userDetails = (JwtPrincipal) authentication.getPrincipal();
+        Long userId = Long.parseLong(userDetails.userId());
+
+        com.committed.gateway.dto.SubmissionResponse submission =
+                submissionClient.getSubmission(submissionId, userId, userDetails.systemRole());
+
+        AssignmentResponse assignment = assignmentServiceClient.getAssignment(submission.getAssignmentId().longValue());
+        verifyEnrolledOrTeacherOrAdmin(assignment.getCourseId().intValue(), userDetails);
+
+        com.committed.gateway.dto.SubmissionAttachmentResponse attachment = null;
+        if (submission.getAttachments() != null) {
+            for (com.committed.gateway.dto.SubmissionAttachmentResponse item : submission.getAttachments()) {
+                if (item != null && item.getAttachmentId() != null && item.getAttachmentId().equals(attachmentId)) {
+                    attachment = item;
+                    break;
+                }
+            }
+        }
+
+        if (attachment == null || attachment.getFilePath() == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        String filePath = attachment.getFilePath().trim();
+        String fileUrl = resolveCoreUploadUrl(filePath);
+        log.info("Resolved submission attachment URL for attachmentId={}: {}", attachmentId, fileUrl);
+
+        ResponseEntity<byte[]> fileResponse = restTemplate.exchange(
+                fileUrl,
+                HttpMethod.GET,
+                HttpEntity.EMPTY,
+                byte[].class
+        );
+
+        byte[] fileBytes = fileResponse.getBody() != null ? fileResponse.getBody() : new byte[0];
+
+        if (fileBytes.length == 9 && "undefined".equalsIgnoreCase(new String(fileBytes).trim())) {
+            log.error("Upstream returned literal 'undefined' for submission attachmentId={}, filePath={}, fileUrl={}",
+                    attachmentId, filePath, fileUrl);
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body("{\"error\":\"Submission attachment source path is invalid\"}".getBytes());
+        }
+
+        String fileName = attachment.getFileName() != null ? attachment.getFileName() : "submission-attachment-" + attachmentId;
+        String fileType = attachment.getFileType() != null ? attachment.getFileType() : MediaType.APPLICATION_OCTET_STREAM_VALUE;
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(fileType))
+                .contentLength(fileBytes.length)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                .body(fileBytes);
+    }
+
+    private String resolveCoreUploadUrl(String filePath) {
+        if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
+            return filePath;
+        }
+
+        if (filePath.startsWith("/uploads/")) {
+            return coreServiceUrl + filePath;
+        }
+
+        if (filePath.startsWith("uploads/")) {
+            return coreServiceUrl + "/" + filePath;
+        }
+
+        return coreServiceUrl + "/uploads/" + filePath;
     }
 
     private void verifyTeacherOrAdmin(Integer courseId, JwtPrincipal userDetails) {

@@ -36,6 +36,7 @@ export default function AdminPage() {
     pagination,
     stats,
     isLoading,
+    isFetching,
     isLoadingStats,
     mutatingIds,
     error,
@@ -82,7 +83,7 @@ export default function AdminPage() {
     const action   = isActive ? 'deactivated' : 'reactivated';
     setIsConfirming(true);
     try {
-      await deactivateUser(userId);
+      await deactivateUser(userId, deactivateTarget?.isActive ?? true);
       toast.success(`User ${action} successfully.`);
       closeDeactivate();
     } catch (err) {
@@ -94,7 +95,7 @@ export default function AdminPage() {
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col gap-8 max-w-6xl">
+    <div className="flex flex-col gap-8 max-w-6xl mx-auto w-full">
 
       {/* ── Page heading ──────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4">
@@ -180,6 +181,7 @@ export default function AdminPage() {
           <UserTable
             users={users}
             isLoading={isLoading}
+            isFetching={isFetching}
             filters={filters}
             onSortChange={handleSortChange}
             currentUserId={currentUserId}

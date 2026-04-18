@@ -27,9 +27,11 @@ import assignmentService from '../../services/assignmentService';
 import submissionService from '../../services/submissionService';
 import announcementService from '../../services/announcementService';
 import { useAuthStore } from '../../store/authStore';
+import useBreadcrumbStore from '../../store/breadcrumbStore';
 import { ROUTES } from '../../utils/constants';
 
 import Button from '../../components/common/Button';
+import ConfirmDialog from '../../components/common/ConfirmDialog';
 import AssignmentStatusBadge from '../../components/features/assignments/AssignmentStatusBadge';
 
 const toList = (payload) => {
@@ -171,6 +173,13 @@ export default function CourseDetailPage() {
   const [activeTab, setActiveTab] = useState('thread');
 
   const [course, setCourse] = useState(null);
+  const setBreadcrumbLabel = useBreadcrumbStore(state => state.setLabel);
+
+  useEffect(() => {
+    if (course?.courseName) {
+      setBreadcrumbLabel(id, course.courseName);
+    }
+  }, [course, id, setBreadcrumbLabel]);
   const [assignments, setAssignments] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [students, setStudents] = useState([]);
@@ -180,9 +189,27 @@ export default function CourseDetailPage() {
   const [commentCountsByAnnouncement, setCommentCountsByAnnouncement] = useState({});
 
   const [isLoading, setIsLoading] = useState(true);
-  const [isUnenrolling, setIsUnenrolling] = useState(false);
-  const [isDeletingCourse, setIsDeletingCourse] = useState(false);
   const [error, setError] = useState(null);
+
+  // Single confirm-dialog state — stores config + the async action to run
+  const [confirmDialog, setConfirmDialog] = useState(null);
+  const [isConfirming, setIsConfirming] = useState(false);
+
+  const openConfirm = (cfg) => setConfirmDialog(cfg);
+  const closeConfirm = () => { if (!isConfirming) setConfirmDialog(null); };
+
+  const handleConfirmAction = async () => {
+    if (!confirmDialog?.action) return;
+    setIsConfirming(true);
+    try {
+      await confirmDialog.action();
+    } catch (err) {
+      toast.error(confirmDialog.errorMessage || err?.message || 'Something went wrong.');
+    } finally {
+      setIsConfirming(false);
+      setConfirmDialog(null);
+    }
+  };
 
   const currentUserId = Number(user?.userId);
   const isAdmin = user?.systemRole?.toLowerCase() === 'admin';
@@ -333,54 +360,57 @@ export default function CourseDetailPage() {
     };
   }, [assignments.length, assignmentMeta]);
 
-  const handleDeleteCourse = async () => {
-    if (!window.confirm('Are you sure you want to delete this course?')) return;
-
-    setIsDeletingCourse(true);
-    try {
+  const handleDeleteCourse = () => openConfirm({
+    title: 'Delete this course?',
+    description: 'All assignments, submissions, announcements, and student data will be permanently removed. This cannot be undone.',
+    confirmLabel: 'Delete',
+    variant: 'danger',
+    errorMessage: 'Failed to delete course.',
+    action: async () => {
       await courseService.delete(id);
       toast.success('Course deleted successfully.');
       navigate(ROUTES.COURSES);
-    } catch (requestError) {
-      toast.error(requestError?.message || 'Failed to delete course.');
-      setIsDeletingCourse(false);
-    }
-  };
+    },
+  });
 
-  const handleDeleteAnnouncement = async (announcementId) => {
-    if (!window.confirm('Delete this announcement?')) return;
-    try {
+  const handleDeleteAnnouncement = (announcementId) => openConfirm({
+    title: 'Delete announcement?',
+    description: 'This announcement and all its replies will be permanently removed.',
+    confirmLabel: 'Delete',
+    variant: 'danger',
+    errorMessage: 'Failed to delete announcement.',
+    action: async () => {
       await announcementService.delete(id, announcementId);
       toast.success('Announcement deleted.');
       fetchCourseData();
-    } catch (requestError) {
-      toast.error(requestError?.message || 'Failed to delete announcement.');
-    }
-  };
+    },
+  });
 
-  const handleDeleteAssignment = async (assignmentId) => {
-    if (!window.confirm('Delete this assignment?')) return;
-    try {
+  const handleDeleteAssignment = (assignmentId) => openConfirm({
+    title: 'Delete assignment?',
+    description: 'All submissions and grades for this assignment will be permanently removed.',
+    confirmLabel: 'Delete',
+    variant: 'danger',
+    errorMessage: 'Failed to delete assignment.',
+    action: async () => {
       await assignmentService.delete(assignmentId);
       toast.success('Assignment deleted.');
       fetchCourseData();
-    } catch (requestError) {
-      toast.error(requestError?.message || 'Failed to delete assignment.');
-    }
-  };
+    },
+  });
 
-  const handleUnenroll = async () => {
-    if (!window.confirm('Are you sure you want to unenroll from this course?')) return;
-    setIsUnenrolling(true);
-    try {
+  const handleUnenroll = () => openConfirm({
+    title: 'Unenroll from course?',
+    description: 'You will lose access to all course materials, assignments, and your submission history.',
+    confirmLabel: 'Unenroll',
+    variant: 'warning',
+    errorMessage: 'Failed to unenroll.',
+    action: async () => {
       await courseService.unenroll(id);
       toast.success('Successfully unenrolled from this course.');
       navigate(ROUTES.COURSES);
-    } catch (requestError) {
-      toast.error(requestError?.message || 'Failed to unenroll.');
-      setIsUnenrolling(false);
-    }
-  };
+    },
+  });
 
   if (isLoading) return <CourseDetailSkeleton />;
 
@@ -471,8 +501,6 @@ export default function CourseDetailPage() {
                 <Button
                   variant="danger"
                   onClick={handleDeleteCourse}
-                  isLoading={isDeletingCourse}
-                  disabled={isDeletingCourse}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
                   Delete Course
@@ -482,8 +510,6 @@ export default function CourseDetailPage() {
               <Button
                 variant="danger"
                 onClick={handleUnenroll}
-                disabled={isUnenrolling}
-                isLoading={isUnenrolling}
               >
                 Unenroll
               </Button>
@@ -799,6 +825,18 @@ export default function CourseDetailPage() {
           </div>
         </section>
       )}
+
+      {/* Confirm Dialog (shared for all destructive actions on this page) */}
+      <ConfirmDialog
+        open={confirmDialog !== null}
+        title={confirmDialog?.title ?? ''}
+        description={confirmDialog?.description}
+        confirmLabel={confirmDialog?.confirmLabel ?? 'Confirm'}
+        variant={confirmDialog?.variant ?? 'danger'}
+        isLoading={isConfirming}
+        onConfirm={handleConfirmAction}
+        onClose={closeConfirm}
+      />
 
       {/* Grades Tab */}
       {activeTab === 'grades' && (

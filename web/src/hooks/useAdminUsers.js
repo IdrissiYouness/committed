@@ -64,8 +64,12 @@ export function useAdminUsers() {
 
   // ── UI state ───────────────────────────────────────────────────────────────
   const [isLoading,   setIsLoading]   = useState(false);
+  const [isFetching,  setIsFetching]  = useState(false);
   const [mutatingIds, setMutatingIds] = useState(new Set());
   const [error,       setError]       = useState(null);
+
+  // True until the very first list fetch completes — used to show skeleton only once
+  const isInitialLoadRef = useRef(true);
 
   // ── Filter / pagination controls ───────────────────────────────────────────
   const [filters, setFiltersRaw] = useState({
@@ -120,8 +124,16 @@ export function useAdminUsers() {
   // ── List fetch ─────────────────────────────────────────────────────────────
   const fetchList = useCallback(async () => {
     const fetchId = ++fetchIdRef.current;
+    const isFirst = isInitialLoadRef.current;
 
-    setIsLoading(true);
+    // Show full skeleton only on the very first load; subsequent fetches (filter
+    // changes, page changes) keep the existing rows visible and use isFetching
+    // for a subtle visual cue instead.
+    if (isFirst) {
+      setIsLoading(true);
+    } else {
+      setIsFetching(true);
+    }
     setError(null);
 
     try {
@@ -151,7 +163,11 @@ export function useAdminUsers() {
       if (fetchId !== fetchIdRef.current) return;
       setError(err?.message ?? 'Failed to load users. Please try again.');
     } finally {
-      if (fetchId === fetchIdRef.current) setIsLoading(false);
+      if (fetchId === fetchIdRef.current) {
+        setIsLoading(false);
+        setIsFetching(false);
+        isInitialLoadRef.current = false;
+      }
     }
   }, [page, size, filters]);
 
@@ -195,21 +211,28 @@ export function useAdminUsers() {
   }, [fetchList, fetchStats]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
-   * Deactivate (soft-delete) a user.
-   * Optimistically flips isActive=false, then re-fetches.
+   * Toggle a user's active status.
+   * If currently active → DELETE (deactivate).
+   * If currently inactive → PUT { isActive: true } (reactivate).
+   * Optimistically flips isActive, then re-fetches.
    *
-   * @param {number} userId
+   * @param {number}  userId
+   * @param {boolean} currentIsActive — the user's current isActive value
    */
-  const deactivateUser = useCallback(async (userId) => {
+  const deactivateUser = useCallback(async (userId, currentIsActive) => {
     addMutating(userId);
 
     // Optimistic flip
     setUsers((prev) =>
-      prev.map((u) => (u.userId === userId ? { ...u, isActive: false } : u)),
+      prev.map((u) => (u.userId === userId ? { ...u, isActive: !currentIsActive } : u)),
     );
 
     try {
-      await adminService.deactivateUser(userId);
+      if (currentIsActive) {
+        await adminService.deactivateUser(userId);       // DELETE → sets isActive=false
+      } else {
+        await adminService.updateUser(userId, { isActive: true }); // PUT → reactivates
+      }
       await fetchList();
       await fetchStats();
     } catch (err) {
@@ -231,6 +254,7 @@ export function useAdminUsers() {
 
     // Loading / error
     isLoading,
+    isFetching,
     isLoadingStats,
     isMutating,
     mutatingIds,

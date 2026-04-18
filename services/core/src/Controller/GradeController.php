@@ -74,7 +74,7 @@ class GradeController extends AbstractController
         return $this->json($this->formatGrade($grade), Response::HTTP_CREATED);
     }
 
-    #[Route('/internal/grades/{gradeId}', methods: ['PUT'])]
+    #[Route('/internal/grades/{gradeId}', methods: ['PUT'], requirements: ['gradeId' => '\d+'])]
     public function updateGrade(int $gradeId, Request $request): JsonResponse
     {
         $grade = $this->gradeRepository->find($gradeId);
@@ -108,7 +108,7 @@ class GradeController extends AbstractController
         return $this->json($this->formatGrade($grade));
     }
 
-    #[Route('/internal/grades/{gradeId}', methods: ['GET'])]
+    #[Route('/internal/grades/{gradeId}', methods: ['GET'], requirements: ['gradeId' => '\d+'])]
     public function getGradeById(int $gradeId): JsonResponse
     {
         $grade = $this->gradeRepository->find($gradeId);
@@ -133,6 +133,35 @@ class GradeController extends AbstractController
         }
 
         return $this->json($this->formatGrade($grade));
+    }
+
+    #[Route('/internal/grades/recent', methods: ['GET'])]
+    public function getRecentGrades(Request $request): JsonResponse
+    {
+        $userId = $request->headers->get('X-User-Id');
+        if (!$userId) {
+            return $this->json(['error' => 'Missing X-User-Id header'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $limit = max(1, min(50, (int) $request->query->get('limit', 20)));
+        $grades = $this->gradeRepository->findRecentByStudentId((int) $userId, $limit);
+
+        $data = array_map(function (Grade $grade) {
+            $formatted = $this->formatGrade($grade);
+            $submission = $grade->getSubmission();
+            $assignment = $submission->getAssignment();
+            $course = $assignment->getCourse();
+
+            $formatted['assignmentId'] = $assignment->getAssignmentId();
+            $formatted['assignmentTitle'] = $assignment->getTitle();
+            $formatted['courseId'] = $course->getCourseId();
+            $formatted['courseName'] = $course->getCourseName();
+            $formatted['courseCode'] = $course->getCourseCode();
+
+            return $formatted;
+        }, $grades);
+
+        return $this->json($data, Response::HTTP_OK);
     }
 
     private function formatGrade(Grade $grade): array

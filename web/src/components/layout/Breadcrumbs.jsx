@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { ChevronRight, Home } from 'lucide-react';
 
 import { ROUTES } from '../../utils/constants';
+import useBreadcrumbStore from '../../store/breadcrumbStore';
 
 /**
  * Breadcrumbs
@@ -36,8 +37,8 @@ const SEGMENT_LABELS = {
  * Capitalise first letter of a string.
  * Used as fallback for unknown segments (e.g. IDs).
  */
-function toLabel(segment) {
-  return SEGMENT_LABELS[segment.toLowerCase()] ?? (
+function toLabel(segment, dynamicLabels = {}) {
+  return dynamicLabels[segment] ?? SEGMENT_LABELS[segment.toLowerCase()] ?? (
     segment.charAt(0).toUpperCase() + segment.slice(1)
   );
 }
@@ -46,6 +47,7 @@ function toLabel(segment) {
 
 export default function Breadcrumbs() {
   const { pathname } = useLocation();
+  const dynamicLabels = useBreadcrumbStore((state) => state.labels);
 
   // Split path into non-empty segments
   // e.g. "/courses/123/edit" → ["courses", "123", "edit"]
@@ -58,7 +60,7 @@ export default function Breadcrumbs() {
 
   // Build crumb array: each crumb has a label and a cumulative path
   const crumbs = segments.map((segment, index) => ({
-    label: toLabel(segment),
+    label: toLabel(segment, dynamicLabels),
     to:    '/' + segments.slice(0, index + 1).join('/'),
   }));
 

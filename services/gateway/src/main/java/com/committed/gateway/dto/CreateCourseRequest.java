@@ -29,6 +29,8 @@ public class CreateCourseRequest {
     @Size(max = 100, message = "Subject cannot exceed 100 characters")
     private String subject;
     
-    // We do not include teacherId here because it should be automatically 
+    private Boolean isOpen;
+
+    // We do not include teacherId here because it should be automatically
     // populated from the currently authenticated user's context in the controller.
 }

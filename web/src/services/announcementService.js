@@ -88,14 +88,10 @@ const announcementService = {
   },
 
   create: (courseId, data) =>
-    api.post(`/api/courses/${courseId}/announcements`, data, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }),
+    api.post(`/api/courses/${courseId}/announcements`, data),
 
   update: (courseId, id, data) =>
-    api.put(`/api/courses/${courseId}/announcements/${id}`, data, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }),
+    api.put(`/api/courses/${courseId}/announcements/${id}`, data),
 
   delete: (courseId, id) =>
     api.delete(`/api/courses/${courseId}/announcements/${id}`),

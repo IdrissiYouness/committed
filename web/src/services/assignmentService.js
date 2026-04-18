@@ -38,7 +38,7 @@ const assignmentService = {
   create: async (courseId, formData) => {
     return api.post(`/api/courses/${courseId}/assignments`, formData, {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        
       },
     });
   },
@@ -54,7 +54,7 @@ const assignmentService = {
     const isFormData = data instanceof FormData;
     return api.put(API_ENDPOINTS.ASSIGNMENTS.DETAIL(id), data, {
       headers: {
-        'Content-Type': isFormData ? 'multipart/form-data' : 'application/json',
+        'Content-Type': isFormData ? undefined : 'application/json',
       },
     });
   },
