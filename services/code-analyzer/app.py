@@ -5,7 +5,8 @@ from flask import Flask, jsonify, request, send_from_directory
 from datetime import datetime, timezone
 
 from config import Config
-from core.pipeline import run_analysis
+from core import job_queue
+from core.pipeline import run_analysis, dispatch_result
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -18,10 +19,12 @@ try:
 except Exception as e:
     logger.error("Configuration error on startup: %s", e)
 
+# Initialise the background thread pool.
+job_queue.init(Config.MAX_WORKERS)
+
 
 @app.route("/health", methods=["GET"])
 def health():
-    """Health check endpoint."""
     return jsonify(
         {
             "status": "UP",
@@ -34,34 +37,19 @@ def health():
 @app.route("/analyze", methods=["POST"])
 def analyze():
     """
-    Code analysis endpoint.
-
-    Receives submission data from Gateway.
+    Accept a code analysis request and queue it for background execution.
 
     Expected request body:
     {
         "submissionId": 123,
         "repoUrl": "https://github.com/user/repo",
-        "studentId": 456
+        "studentId": 456,
+        "callbackUrl": "http://gateway:8080/internal/analysis-result"  (optional)
     }
 
-    Returns:
-    {
-        "submissionId": 123,
-        "status": "completed" | "failed",
-        "grade": "A-F",
-        "percentage": 73.4,
-        "student_level": "advanced|intermediate|beginner",
-        "breakdown": {...},
-        "metrics": {...},
-        "reportUrl": "/reports/123.pdf",
-        "analyzedAt": "2026-04-01T12:00:00+00:00"
-    }
+    Returns 202 immediately. Result is POSTed to callbackUrl when done.
+    Poll GET /analyze/<submissionId>/status as a fallback.
     """
-    # TODO: The gateway's MockAIAgentService currently simulates analysis and
-    #       never calls this endpoint. Replace MockAIAgentService with a real
-    #       HTTP call to this service, passing X-User-Id and X-User-Role headers
-    #       so the pipeline has student context available.
     # TODO: Add a lightweight request guard (e.g. check a shared secret header)
     #       to ensure only the gateway can call /analyze — currently any process
     #       on the internal Docker network can trigger an analysis.
@@ -74,6 +62,7 @@ def analyze():
         submission_id = data.get("submissionId")
         repo_url = data.get("repoUrl")
         student_id = data.get("studentId")
+        callback_url = data.get("callbackUrl", Config.GATEWAY_CALLBACK_URL)
 
         if not submission_id or not repo_url:
             return jsonify({"error": "submissionId and repoUrl are required"}), 400
@@ -86,20 +75,34 @@ def analyze():
             return jsonify({"error": "submissionId must be a positive integer"}), 400
 
         # Keep studentId available for future context wiring.
-        # Current pipeline infers student level from analysis metrics.
         # TODO: Once the gateway forwards X-User-Id on real calls, pass studentId
-        #       into the pipeline so the analyzer can provide longitudinal feedback
-        #       (e.g. "your testing score improved from 1.5 to 3.0 since last
-        #       submission") by querying prior results from Core.
+        #       into the pipeline so the analyzer can provide longitudinal feedback.
         _ = student_id
 
-        result = run_analysis(submission_id, repo_url)
-        status_code = 200 if result.get("status") == "completed" else 500
-        return jsonify(result), status_code
+        def _run():
+            result = run_analysis(submission_id, repo_url)
+            job_queue.mark(submission_id, result["status"])
+            dispatch_result(result, callback_url)
+
+        accepted = job_queue.submit(submission_id, _run)
+        if not accepted:
+            return jsonify({"status": "already_queued", "submissionId": submission_id}), 409
+
+        logger.info("[%s] analysis queued — %s", submission_id, repo_url)
+        return jsonify({"status": "accepted", "submissionId": submission_id}), 202
 
     except Exception as e:
         logger.exception("Unhandled error in /analyze")
         return jsonify({"status": "failed", "errorMessage": str(e)}), 500
+
+
+@app.route("/analyze/<int:submission_id>/status", methods=["GET"])
+def analyze_status(submission_id: int):
+    """Polling fallback — returns the current job state for a submission."""
+    status = job_queue.get_status(submission_id)
+    if status is None:
+        return jsonify({"error": "Unknown submissionId"}), 404
+    return jsonify({"submissionId": submission_id, "status": status})
 
 
 @app.route("/reports/<path:filename>", methods=["GET"])
@@ -109,10 +112,8 @@ def serve_report(filename: str):
     Only bare filenames ending in ``.pdf`` are served; path components and
     other extensions are rejected to prevent directory traversal.
     """
-    # TODO: The gateway handles JWT auth at the network boundary and forwards
-    #       X-User-Id / X-User-Role headers. Use these headers here to verify
-    #       report ownership — a student should not be able to fetch another
-    #       student's report by guessing the submissionId filename.
+    # TODO: Use X-User-Id / X-User-Role headers forwarded by the gateway to
+    #       verify report ownership — a student should not fetch another's report.
     safe_name = os.path.basename(filename)
     if safe_name != filename or not safe_name.endswith(".pdf"):
         return jsonify({"error": "Invalid report filename"}), 400

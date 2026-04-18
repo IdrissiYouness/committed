@@ -97,6 +97,9 @@ services:
             - GATEWAY_SERVICE_URL=http://gateway:8080
             - AGENT_CLI=kilo
             - AGENT_RUNNER=kilo
+            - MAX_WORKERS=${ANALYZER_MAX_WORKERS:-4}
+            - CALLBACK_TIMEOUT=${ANALYZER_CALLBACK_TIMEOUT:-10}
+            - GATEWAY_CALLBACK_URL=${GATEWAY_CALLBACK_URL:-http://gateway:8080/internal/analysis-result}
             # Base64-encoded Kilo Code auth.json (GitHub Copilot OAuth tokens).
             # Generate with: base64 -w 0 ~/.local/share/kilo/auth.json
             - KILO_AUTH_JSON_B64=${KILO_AUTH_JSON_B64}

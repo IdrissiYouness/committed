@@ -6,6 +6,10 @@ import subprocess
 import time
 from datetime import datetime, timezone
 from typing import Dict, Any
+
+import requests
+
+from config import Config
 from core import git_handler, agent_runner, metrics_parser, classifier, report_generator
 
 logger = logging.getLogger(__name__)
@@ -273,3 +277,22 @@ def run_analysis(submission_id: int, repo_url: str) -> Dict[str, Any]:
         # Always cleanup cloned repo
         if repo_path:
             git_handler.cleanup(repo_path)
+
+
+def dispatch_result(result: dict, callback_url: str) -> None:
+    """POST analysis result to the gateway callback URL.
+
+    Failures are logged and swallowed — the gateway can poll
+    /analyze/<id>/status as a fallback.
+    """
+    try:
+        resp = requests.post(callback_url, json=result, timeout=Config.CALLBACK_TIMEOUT)
+        resp.raise_for_status()
+        logger.info("[%s] callback delivered to %s", result.get("submissionId"), callback_url)
+    except Exception as exc:
+        logger.error(
+            "[%s] callback to %s failed: %s",
+            result.get("submissionId"),
+            callback_url,
+            exc,
+        )

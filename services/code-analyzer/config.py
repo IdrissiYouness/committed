@@ -2,6 +2,10 @@ import logging
 import os
 import shutil
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 logger = logging.getLogger(__name__)
 
 
@@ -42,6 +46,13 @@ class Config:
     # ── Notification service ──────────────────────────────────────────────────
     NOTIFICATION_SERVICE_URL = os.getenv(
         "NOTIFICATION_SERVICE_URL", "http://notifications:5001"
+    )
+
+    # ── Async job queue ───────────────────────────────────────────────────────
+    MAX_WORKERS = int(os.getenv("MAX_WORKERS", "4"))
+    CALLBACK_TIMEOUT = int(os.getenv("CALLBACK_TIMEOUT", "10"))
+    GATEWAY_CALLBACK_URL = os.getenv(
+        "GATEWAY_CALLBACK_URL", "http://gateway:8080/internal/analysis-result"
     )
 
     @classmethod
