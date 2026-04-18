@@ -84,12 +84,18 @@ api.interceptors.response.use(
       }
     }
 
-    // Normalise the error so callers always read `error.message`
-    const serverMessage =
-      error.response?.data?.message ||
-      error.response?.data?.error ||
-      error.message ||
-      'An unexpected error occurred';
+    // Normalise the error so callers always read `error.message`.
+    // When responseType='blob', error.response.data is a Blob — we can't read
+    // .message on it directly, so leave message extraction to fileService which
+    // already handles JSON-wrapped blob errors. For all other requests extract
+    // the message from the response body as usual.
+    const isBlobResponse = error.config?.responseType === 'blob';
+    const serverMessage = isBlobResponse
+      ? (error.message || 'File download failed.')
+      : (error.response?.data?.message ||
+         error.response?.data?.error ||
+         error.message ||
+         'An unexpected error occurred');
 
     const normalised = new Error(serverMessage);
     normalised.status     = status;

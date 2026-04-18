@@ -3,6 +3,7 @@ import { Send, Trash2, Edit2, MessageCircleReply, ChevronDown, ChevronUp } from 
 import commentService from '../../../services/commentService';
 import { useAuthStore } from '../../../store/authStore';
 import Button from '../../common/Button';
+import ConfirmDialog from '../../common/ConfirmDialog';
 import toast from 'react-hot-toast';
 
 const DEFAULT_VISIBLE_REPLIES = 3;
@@ -281,6 +282,8 @@ export default function AnnouncementComments({ courseId, announcementId }) {
 
   const [expandedThreads, setExpandedThreads] = useState({});
   const [isLoading, setIsLoading] = useState(true);
+  const [deleteTargetId, setDeleteTargetId] = useState(null);
+  const [isDeletingComment, setIsDeletingComment] = useState(false);
 
   const fetchComments = async () => {
     try {
@@ -347,15 +350,20 @@ export default function AnnouncementComments({ courseId, announcementId }) {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this comment and its replies?')) return;
+  const handleDelete = (id) => setDeleteTargetId(id);
 
+  const handleConfirmDelete = async () => {
+    if (!deleteTargetId) return;
+    setIsDeletingComment(true);
     try {
-      await commentService.delete(courseId, announcementId, id);
+      await commentService.delete(courseId, announcementId, deleteTargetId);
       await fetchComments();
       toast.success('Comment deleted');
     } catch (error) {
       toast.error(error?.message || 'Failed to delete comment');
+    } finally {
+      setIsDeletingComment(false);
+      setDeleteTargetId(null);
     }
   };
 
@@ -483,6 +491,17 @@ export default function AnnouncementComments({ courseId, announcementId }) {
           <Send className="h-4 w-4" />
         </Button>
       </form>
+
+      <ConfirmDialog
+        open={deleteTargetId !== null}
+        title="Delete comment?"
+        description="This comment and all its replies will be permanently removed."
+        confirmLabel="Delete"
+        variant="danger"
+        isLoading={isDeletingComment}
+        onConfirm={handleConfirmDelete}
+        onClose={() => !isDeletingComment && setDeleteTargetId(null)}
+      />
     </div>
   );
 }

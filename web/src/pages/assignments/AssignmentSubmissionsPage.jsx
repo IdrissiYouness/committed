@@ -12,14 +12,11 @@ import {
   FileText,
   Filter,
   Github,
-  History,
   ListFilter,
-  Sparkles,
+  Paperclip,
   User,
-  Wand2,
   AlertTriangle,
   CheckCircle2,
-  Send,
 } from 'lucide-react';
 
 import assignmentService from '../../services/assignmentService';
@@ -34,6 +31,7 @@ import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Badge from '../../components/common/Badge';
 import Pagination from '../../components/common/Pagination';
+import AttachmentButton from '../../components/common/AttachmentButton';
 import AssignmentStatusBadge from '../../components/features/assignments/AssignmentStatusBadge';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 30];
@@ -1123,6 +1121,29 @@ export default function AssignmentSubmissionsPage() {
                     </p>
                   </div>
                 ) : null}
+
+                {/* ── Submitted files ──────────────────────────────────── */}
+                {selectedSubmission.attachments?.length > 0 ? (
+                  <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2 inline-flex items-center gap-1">
+                      <Paperclip className="h-3.5 w-3.5" />
+                      Submitted Files ({selectedSubmission.attachments.length})
+                    </p>
+                    <ul className="space-y-1.5">
+                      {selectedSubmission.attachments.map((file, idx) => (
+                        <li key={file.attachmentId || file.id || idx}>
+                          <AttachmentButton
+                            url={`/api/submissions/${selectedSubmission.submissionId}/attachments/${file.attachmentId || file.id}`}
+                            fileName={file.fileName || `submission-attachment-${idx + 1}`}
+                            fileSize={file.fileSize}
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <p className="text-xs text-neutral-400 italic">No files attached to this submission.</p>
+                )}
               </div>
 
               {/* Grading form */}

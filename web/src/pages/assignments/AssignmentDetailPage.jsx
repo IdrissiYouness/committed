@@ -29,10 +29,10 @@ import courseService from '../../services/courseService';
 import { ROUTES } from '../../utils/constants';
 import { useAuthStore } from '../../store/authStore';
 import useBreadcrumbStore from '../../store/breadcrumbStore';
-import fileService from '../../services/fileService';
-
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
+import AttachmentButton from '../../components/common/AttachmentButton';
+import ConfirmDialog from '../../components/common/ConfirmDialog';
 import AssignmentStatusBadge from '../../components/features/assignments/AssignmentStatusBadge';
 
 const getSubmissionSchema = (requireGithubRepo) => z
@@ -202,6 +202,7 @@ export default function AssignmentDetailPage() {
   const [isSavingSubmission, setIsSavingSubmission] = useState(false);
   const [isSavingGrade, setIsSavingGrade] = useState(false);
   const [isDeletingAssignment, setIsDeletingAssignment] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [error, setError] = useState(null);
 
   const [activeSubmissionId, setActiveSubmissionId] = useState(null);
@@ -337,9 +338,9 @@ export default function AssignmentDetailPage() {
     }
   }, [submissions, activeSubmissionId, resetGradeForm]);
 
-  const handleDeleteAssignment = async () => {
-    if (!window.confirm('Are you sure you want to delete this assignment?')) return;
+  const handleDeleteAssignment = () => setDeleteConfirmOpen(true);
 
+  const handleConfirmDeleteAssignment = async () => {
     setIsDeletingAssignment(true);
     try {
       await assignmentService.delete(id);
@@ -348,42 +349,10 @@ export default function AssignmentDetailPage() {
     } catch (requestError) {
       toast.error(requestError?.message || 'Failed to delete assignment.');
       setIsDeletingAssignment(false);
+      setDeleteConfirmOpen(false);
     }
   };
 
-  const handleDownloadAssignmentAttachment = async (file, index = 0) => {
-    const attachmentId = file?.attachmentId || file?.id;
-    if (!attachmentId) {
-      toast.error('Attachment ID is missing.');
-      return;
-    }
-
-    try {
-      await fileService.download(
-        `/api/assignments/${id}/attachments/${attachmentId}`,
-        { fileName: file?.fileName || `assignment-attachment-${index + 1}` }
-      );
-    } catch (requestError) {
-      toast.error(requestError?.message || 'Failed to download assignment attachment.');
-    }
-  };
-
-  const handleDownloadSubmissionAttachment = async (submissionId, file, index = 0) => {
-    const attachmentId = file?.attachmentId || file?.id;
-    if (!attachmentId) {
-      toast.error('Attachment ID is missing.');
-      return;
-    }
-
-    try {
-      await fileService.download(
-        `/api/submissions/${submissionId}/attachments/${attachmentId}`,
-        { fileName: file?.fileName || `submission-attachment-${index + 1}` }
-      );
-    } catch (requestError) {
-      toast.error(requestError?.message || 'Failed to download submission attachment.');
-    }
-  };
 
   const onSubmit = async (data) => {
     if (isLateSubmissionBlocked) {
@@ -669,19 +638,11 @@ export default function AssignmentDetailPage() {
                 <ul className="space-y-2">
                   {assignment.attachments.map((file, idx) => (
                     <li key={file.attachmentId || file.id || idx}>
-                      <button
-                        type="button"
-                        onClick={() => handleDownloadAssignmentAttachment(file, idx)}
-                        className="w-full flex items-center justify-between gap-2 p-3 rounded-lg border border-neutral-200 text-sm hover:bg-neutral-50 transition-colors"
-                      >
-                        <span className="inline-flex items-center gap-2 min-w-0">
-                          <FileText className="h-4 w-4 text-neutral-500 shrink-0" />
-                          <span className="text-neutral-700 truncate">
-                            {file.fileName || `Attachment #${idx + 1}`}
-                          </span>
-                        </span>
-                        <span className="text-xs font-medium text-primary-600">Download</span>
-                      </button>
+                      <AttachmentButton
+                        url={`/api/assignments/${id}/attachments/${file.attachmentId || file.id}`}
+                        fileName={file.fileName || `assignment-attachment-${idx + 1}`}
+                        fileSize={file.fileSize}
+                      />
                     </li>
                   ))}
                 </ul>
@@ -838,26 +799,17 @@ export default function AssignmentDetailPage() {
 
                           {activeSubmission.attachments?.length > 0 && (
                             <div className="rounded-lg border border-neutral-200 bg-white p-3">
-                              <p className="text-xs uppercase tracking-wide text-neutral-500 font-semibold mb-1">
+                              <p className="text-xs uppercase tracking-wide text-neutral-500 font-semibold mb-2">
                                 Attachments
                               </p>
-                              <ul className="space-y-1">
+                              <ul className="space-y-1.5">
                                 {activeSubmission.attachments.map((file, idx) => (
                                   <li key={file.attachmentId || file.id || idx}>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        handleDownloadSubmissionAttachment(
-                                          activeSubmission.submissionId,
-                                          file,
-                                          idx
-                                        )
-                                      }
-                                      className="text-sm text-neutral-700 inline-flex items-center gap-1.5 hover:text-primary-700 transition-colors"
-                                    >
-                                      <FileText className="h-3.5 w-3.5 text-neutral-400" />
-                                      {file.fileName || `File ${idx + 1}`}
-                                    </button>
+                                    <AttachmentButton
+                                      url={`/api/submissions/${activeSubmission.submissionId}/attachments/${file.attachmentId || file.id}`}
+                                      fileName={file.fileName || `submission-attachment-${idx + 1}`}
+                                      fileSize={file.fileSize}
+                                    />
                                   </li>
                                 ))}
                               </ul>
@@ -1009,24 +961,15 @@ export default function AssignmentDetailPage() {
 
                     {studentSubmission.attachments?.length > 0 && (
                       <div className="text-sm">
-                        <span className="block text-neutral-500 mb-1">Files:</span>
-                        <ul className="space-y-2">
+                        <span className="block text-neutral-500 mb-2">Files:</span>
+                        <ul className="space-y-1.5">
                           {studentSubmission.attachments.map((file, idx) => (
                             <li key={file.attachmentId || file.id || idx}>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleDownloadSubmissionAttachment(
-                                    studentSubmission.submissionId,
-                                    file,
-                                    idx
-                                  )
-                                }
-                                className="flex items-center gap-2 text-neutral-700 hover:text-primary-700 transition-colors"
-                              >
-                                <FileText className="h-4 w-4 text-neutral-400" />
-                                <span className="truncate">{file.fileName || 'Attached file'}</span>
-                              </button>
+                              <AttachmentButton
+                                url={`/api/submissions/${studentSubmission.submissionId}/attachments/${file.attachmentId || file.id}`}
+                                fileName={file.fileName || `submission-attachment-${idx + 1}`}
+                                fileSize={file.fileSize}
+                              />
                             </li>
                           ))}
                         </ul>
@@ -1112,6 +1055,17 @@ export default function AssignmentDetailPage() {
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        title="Delete assignment?"
+        description="All submissions and grades for this assignment will be permanently removed. This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        isLoading={isDeletingAssignment}
+        onConfirm={handleConfirmDeleteAssignment}
+        onClose={() => !isDeletingAssignment && setDeleteConfirmOpen(false)}
+      />
     </div>
   );
 }

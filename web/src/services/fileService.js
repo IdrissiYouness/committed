@@ -39,18 +39,36 @@ function triggerBrowserDownload(blob, fileName = 'download') {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  window.URL.revokeObjectURL(url);
+  // Revoke after a delay — revoking synchronously races with the browser's
+  // download initiation and can silently kill the transfer in some browsers.
+  setTimeout(() => window.URL.revokeObjectURL(url), 10_000);
 }
 
 async function fetchBlob(url, config = {}) {
   const response = await api.get(url, {
     responseType: 'blob',
+    timeout: 0,       // no timeout for file downloads
     ...config,
   });
 
   const headers = response?.headers || {};
   const contentType = headers['content-type'] || FALLBACK_MIME;
   const disposition = headers['content-disposition'];
+
+  // Guard: if the server returned an error wrapped in a blob (e.g. JSON 404 body
+  // when the gateway couldn't find the file), surface it as a real error instead
+  // of downloading a corrupted JSON file.
+  if (contentType.includes('application/json')) {
+    const text = await response.data.text();
+    let message = 'File not found or server error.';
+    try {
+      const json = JSON.parse(text);
+      message = json?.message || json?.error || message;
+    } catch {
+      // ignore parse failure
+    }
+    throw new Error(message);
+  }
 
   const blob =
     response?.data instanceof Blob
@@ -59,11 +77,7 @@ async function fetchBlob(url, config = {}) {
 
   const fileNameFromHeader = getFilenameFromDisposition(disposition);
 
-  return {
-    blob,
-    fileNameFromHeader,
-    contentType,
-  };
+  return { blob, fileNameFromHeader, contentType };
 }
 
 const fileService = {
