@@ -58,5 +58,8 @@ ENV TYPST_BIN=/usr/local/bin/typst \
 EXPOSE 5000
 
 ENTRYPOINT ["/entrypoint.sh"]
-# Gunicorn: 2 workers, timeout > AGENT_TIMEOUT (300 s) to avoid premature kills.
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "360", "app:app"]
+# 1 Gunicorn worker — concurrency is handled by the ThreadPoolExecutor in job_queue.py.
+# --threads 8 lets Flask serve up to 8 simultaneous HTTP requests (fast ones like /health,
+# /analyze/<id>/status) while analysis jobs run in the background thread pool.
+# --timeout 30 is safe because /analyze now returns 202 in milliseconds.
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--threads", "8", "--timeout", "30", "app:app"]
