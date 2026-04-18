@@ -3,13 +3,16 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import announcementService from '../../services/announcementService';
+import courseService from '../../services/courseService';
 import Button from '../../components/common/Button';
 import { ROUTES } from '../../utils/constants';
+import useBreadcrumbStore from '../../store/breadcrumbStore';
 
 export default function AnnouncementFormPage() {
   const { courseId, id } = useParams();
   const navigate = useNavigate();
   const isEditing = Boolean(id);
+  const setBreadcrumbLabel = useBreadcrumbStore(state => state.setLabel);
   const { register, handleSubmit, reset, formState: { errors } } = useForm();
   
   const [isLoading, setIsLoading] = useState(false);
@@ -17,10 +20,28 @@ export default function AnnouncementFormPage() {
   useEffect(() => {
     if (isEditing) {
       announcementService.getById(courseId, id)
-        .then(res => reset(res.data || res))
+        .then(res => {
+          const data = res.data || res;
+          if (data.title) {
+            setBreadcrumbLabel(id, data.title);
+          }
+          reset(data);
+        })
         .catch(console.error);
     }
-  }, [id, courseId, reset, isEditing]);
+  }, [id, courseId, reset, isEditing, setBreadcrumbLabel]);
+
+  useEffect(() => {
+    if (courseId) {
+      courseService.getById(courseId)
+        .then(course => {
+          if (course?.courseName) {
+            setBreadcrumbLabel(courseId, course.courseName);
+          }
+        })
+        .catch(console.error);
+    }
+  }, [courseId, setBreadcrumbLabel]);
 
   const onSubmit = async (data) => {
     setIsLoading(true);

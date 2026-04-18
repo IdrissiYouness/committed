@@ -162,10 +162,8 @@ class AnnouncementController extends AbstractController
         } else {
             $title = $request->request->get('title');
             $content = $request->request->get('content');
-            $removeAttachmentIds = $request->request->all('removeAttachmentIds');
-            if (!is_array($removeAttachmentIds)) {
-                $removeAttachmentIds = [];
-            }
+            $removeParam = $request->request->get('removeAttachmentIds');
+            $removeAttachmentIds = is_array($removeParam) ? $removeParam : ($removeParam ? [$removeParam] : []);
         }
 
         if ($title !== null) {

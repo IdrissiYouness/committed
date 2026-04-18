@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
 import { ArrowRight, GitCommit, CheckCircle2 } from 'lucide-react';
 
 import Navbar from '../components/layout/Navbar';
@@ -26,19 +25,6 @@ import { ROUTES, APP_NAME } from '../utils/constants';
 export default function LandingPage() {
   return (
     <>
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 4000,
-          style: {
-            fontFamily: 'Nunito, system-ui, sans-serif',
-            fontSize: '0.9rem',
-            borderRadius: '0.75rem',
-            boxShadow: '0 8px 32px rgba(99, 132, 173, 0.16)',
-          },
-        }}
-      />
-
       {/* Sticky top navigation */}
       <Navbar />
 

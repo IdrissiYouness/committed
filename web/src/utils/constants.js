@@ -50,8 +50,10 @@ export const API_ENDPOINTS = {
   },
 
   SUBMISSIONS: {
-    DETAIL:   (id) => `/api/submissions/${id}`,
-    GRADE:    (id) => `/api/submissions/${id}/grade`,
+    DETAIL:           (id) => `/api/submissions/${id}`,
+    GRADE:            (id) => `/api/submissions/${id}/grade`,
+    ANALYSIS:         (id) => `/api/submissions/${id}/analysis`,
+    TRIGGER_ANALYSIS: (id) => `/api/submissions/${id}/analyze`,
   },
 
   ANNOUNCEMENTS: {

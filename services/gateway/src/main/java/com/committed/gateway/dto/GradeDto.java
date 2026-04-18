@@ -19,6 +19,11 @@ public class GradeDto {
     private BigDecimal maxPoints;
     private String feedback;
     private String gradedAt;
+    private Integer assignmentId;
+    private String assignmentTitle;
+    private Integer courseId;
+    private String courseName;
+    private String courseCode;
 
     @Data
     @Builder

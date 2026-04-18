@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import java.util.List;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -95,6 +96,20 @@ public class GradeController {
 
         GradeDto grade = gradeClient.getGrade(submissionId, userId, userDetails.systemRole());
         return ResponseEntity.ok(ApiResponse.success(grade, "Grade retrieved successfully"));
+    }
+
+    @GetMapping("/grades/recent")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<List<GradeDto>>> getRecentGrades(
+            @RequestParam(defaultValue = "20") int limit,
+            Authentication authentication) {
+
+        log.debug("REST request to get recent grades");
+        JwtPrincipal userDetails = (JwtPrincipal) authentication.getPrincipal();
+        Long userId = Long.parseLong(userDetails.userId());
+
+        List<GradeDto> grades = gradeClient.getRecentGrades(userId, userDetails.systemRole(), limit);
+        return ResponseEntity.ok(ApiResponse.success(grades, "Recent grades retrieved successfully"));
     }
 
     private void verifyTeacherOwnership(Integer submissionId, JwtPrincipal userDetails) {

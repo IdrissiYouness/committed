@@ -33,11 +33,7 @@ const toFormData = (data) => {
   return formData;
 };
 
-const multipartConfig = {
-  headers: {
-    'Content-Type': 'multipart/form-data',
-  },
-};
+const multipartConfig = {};
 
 const submissionService = {
   /**
@@ -85,6 +81,14 @@ const submissionService = {
   update: async (id, data = {}) => {
     const requestData = toFormData(data ?? {});
     return api.put(API_ENDPOINTS.SUBMISSIONS.DETAIL(id), requestData, multipartConfig);
+  },
+
+  getAnalysis: async (submissionId) => {
+    return api.get(API_ENDPOINTS.SUBMISSIONS.ANALYSIS(submissionId));
+  },
+
+  triggerAnalysis: async (submissionId) => {
+    return api.post(API_ENDPOINTS.SUBMISSIONS.TRIGGER_ANALYSIS(submissionId));
   },
 };
 

@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 
 import LandingPage    from './pages/LandingPage';
 import LoginPage      from './pages/auth/LoginPage';
@@ -51,6 +52,28 @@ function AuthLayout({ children }) {
 export default function App() {
   return (
     <BrowserRouter>
+      {/* Single global toast container — covers every page (public + authenticated) */}
+      <Toaster
+        position="bottom-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            fontFamily: 'Nunito, system-ui, sans-serif',
+            fontSize: '0.875rem',
+            borderRadius: '0.75rem',
+            boxShadow: '0 8px 32px rgba(99, 132, 173, 0.16)',
+          },
+          success: {
+            duration: 3000,
+            iconTheme: { primary: '#0d9488', secondary: '#fff' },
+          },
+          error: {
+            duration: 5000,
+            iconTheme: { primary: '#dc2626', secondary: '#fff' },
+          },
+        }}
+      />
+
       <Routes>
 
         {/* ── Public routes ──────────────────────────────────────────────── */}

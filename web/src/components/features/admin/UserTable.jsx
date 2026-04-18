@@ -46,6 +46,7 @@ const SORTABLE_COLUMNS = [
 export default function UserTable({
   users         = [],
   isLoading     = false,
+  isFetching    = false,
   filters       = {},
   onSortChange,
   currentUserId,
@@ -77,7 +78,7 @@ export default function UserTable({
   };
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-neutral-200 bg-white shadow-elegant">
+    <div className={['overflow-x-auto rounded-2xl border bg-white shadow-elegant transition-opacity duration-200', isFetching ? 'opacity-60 border-primary-200' : 'border-neutral-200'].join(' ')}>
       <table className="w-full min-w-[560px] border-collapse text-left" role="table">
 
         {/* ── Head ──────────────────────────────────────────────────────────── */}

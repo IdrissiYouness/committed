@@ -72,6 +72,11 @@ class SubmissionController extends AbstractController
         if ($submissionText) $submission->setSubmissionText($submissionText);
 
         $githubUrl = $request->request->get('githubRepoUrl');
+
+        if ($assignment->isRequireGithubRepo() && empty($githubUrl)) {
+            return $this->json(['error' => 'This assignment requires a GitHub repository URL.'], 400);
+        }
+
         if ($githubUrl) {
             if (!preg_match('/^https?:\/\/github\.com\/[a-zA-Z0-9-]+\/[a-zA-Z0-9-._]+.*$/', $githubUrl)) {
                 return $this->json(['error' => 'Invalid GitHub URL format'], 400);
@@ -79,8 +84,8 @@ class SubmissionController extends AbstractController
             $submission->setGithubRepoUrl($githubUrl === '' ? null : $githubUrl);
         }
 
-        $files = $request->files->all('files') ?? [];
-        if (!is_array($files)) $files = [$files];
+        $filesParam = $request->files->get('files');
+        $files = is_array($filesParam) ? $filesParam : ($filesParam ? [$filesParam] : []);
         
         foreach ($files as $file) {
             if (!$file) continue;
@@ -188,8 +193,8 @@ class SubmissionController extends AbstractController
             $removeAttachmentIds = $data['removeAttachmentIds'] ?? [];
         } else {
             $data = $request->request->all();
-            $removeAttachmentIds = $request->request->all('removeAttachmentIds');
-            if (!is_array($removeAttachmentIds)) $removeAttachmentIds = [];
+            $removeParam = $request->request->get('removeAttachmentIds');
+            $removeAttachmentIds = is_array($removeParam) ? $removeParam : ($removeParam ? [$removeParam] : []);
         }
 
         if (array_key_exists('submissionText', $data)) {
@@ -198,6 +203,11 @@ class SubmissionController extends AbstractController
 
         if (array_key_exists('githubRepoUrl', $data)) {
             $githubUrl = $data['githubRepoUrl'];
+
+            if ($assignment->isRequireGithubRepo() && empty($githubUrl)) {
+                return $this->json(['error' => 'This assignment requires a GitHub repository URL.'], 400);
+            }
+
             if ($githubUrl && !preg_match('/^https?:\/\/github\.com\/[a-zA-Z0-9-]+\/[a-zA-Z0-9-._]+.*$/', $githubUrl)) {
                 return $this->json(['error' => 'Invalid GitHub URL format'], 400);
             }
@@ -227,8 +237,8 @@ class SubmissionController extends AbstractController
         }
 
         // Process new attachments
-        $files = $request->files->all('files') ?? [];
-        if (!is_array($files)) $files = [$files];
+        $filesParam = $request->files->get('files');
+        $files = is_array($filesParam) ? $filesParam : ($filesParam ? [$filesParam] : []);
         
         $student = $this->userRepository->find((int)$userId);
         foreach ($files as $file) {

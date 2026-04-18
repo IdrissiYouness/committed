@@ -18,13 +18,31 @@ const courseSchema = z.object({
   isOpen: z.boolean().default(true),
 });
 
+import useBreadcrumbStore from '../../store/breadcrumbStore';
+
 export default function CourseFormPage() {
   const { id } = useParams();
+  const setBreadcrumbLabel = useBreadcrumbStore(state => state.setLabel);
+
+  useEffect(() => {
+    if (id) {
+      courseService.getById(id)
+        .then(course => {
+          if (course?.courseName) {
+            setBreadcrumbLabel(id, course.courseName);
+          }
+        })
+        .catch(console.error);
+    }
+  }, [id, setBreadcrumbLabel]);
   const navigate = useNavigate();
   const isEditing = Boolean(id);
   
   const { register, handleSubmit, formState: { errors }, reset } = useForm({
-    resolver: zodResolver(courseSchema)
+    resolver: zodResolver(courseSchema),
+    defaultValues: {
+      isOpen: true,
+    },
   });
 
   const [isLoading, setIsLoading] = useState(false);

@@ -54,7 +54,18 @@ public class SubmissionClient {
                                 return file.getOriginalFilename();
                             }
                         };
-                        body.add("files[]", resource);
+                        HttpHeaders partHeaders = new HttpHeaders();
+                        String partFilename = file.getOriginalFilename() != null
+                                ? file.getOriginalFilename()
+                                : "submission-file";
+                        String contentType = file.getContentType() != null
+                                ? file.getContentType()
+                                : MediaType.APPLICATION_OCTET_STREAM_VALUE;
+                        partHeaders.setContentDispositionFormData("files", partFilename);
+                        partHeaders.setContentType(MediaType.parseMediaType(contentType));
+
+                        HttpEntity<ByteArrayResource> filePart = new HttpEntity<>(resource, partHeaders);
+                        body.add("files", filePart);
                     } catch (IOException e) {
                         throw new RuntimeException("Failed to read file attachment", e);
                     }
@@ -107,7 +118,18 @@ public class SubmissionClient {
                                 return file.getOriginalFilename();
                             }
                         };
-                        body.add("files[]", resource);
+                        HttpHeaders partHeaders = new HttpHeaders();
+                        String partFilename = file.getOriginalFilename() != null
+                                ? file.getOriginalFilename()
+                                : "submission-file";
+                        String contentType = file.getContentType() != null
+                                ? file.getContentType()
+                                : MediaType.APPLICATION_OCTET_STREAM_VALUE;
+                        partHeaders.setContentDispositionFormData("files", partFilename);
+                        partHeaders.setContentType(MediaType.parseMediaType(contentType));
+
+                        HttpEntity<ByteArrayResource> filePart = new HttpEntity<>(resource, partHeaders);
+                        body.add("files", filePart);
                     } catch (IOException e) {
                         throw new RuntimeException("Failed to read file attachment", e);
                     }

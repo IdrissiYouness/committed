@@ -28,14 +28,19 @@ import gradeService from '../../services/gradeService';
 import courseService from '../../services/courseService';
 import { ROUTES } from '../../utils/constants';
 import { useAuthStore } from '../../store/authStore';
-
+import useBreadcrumbStore from '../../store/breadcrumbStore';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
+import AttachmentButton from '../../components/common/AttachmentButton';
+import ConfirmDialog from '../../components/common/ConfirmDialog';
+import CodeAnalysisPanel from '../../components/features/assignments/CodeAnalysisPanel';
 import AssignmentStatusBadge from '../../components/features/assignments/AssignmentStatusBadge';
 
-const submissionSchema = z
+const getSubmissionSchema = (requireGithubRepo) => z
   .object({
-    githubRepoUrl: z.string().url('Please enter a valid URL').optional().or(z.literal('')),
+    githubRepoUrl: requireGithubRepo
+      ? z.string().url('Please enter a valid URL').min(1, 'GitHub Repository URL is required')
+      : z.string().url('Please enter a valid URL').optional().or(z.literal('')),
     submissionText: z.string().max(5000, 'Submission notes are too long').optional().or(z.literal('')),
     file: z.any().optional(),
   })
@@ -163,15 +168,30 @@ function SummaryCard({ title, value, subtitle, icon: Icon }) {
 }
 
 export default function AssignmentDetailPage() {
-  const { id } = useParams();
+  const { id, courseId } = useParams();
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
+  const setBreadcrumbLabel = useBreadcrumbStore(state => state.setLabel);
 
   const currentUserId = Number(user?.userId);
   const isAdmin = user?.systemRole?.toLowerCase() === 'admin';
 
   const [assignment, setAssignment] = useState(null);
+
+  useEffect(() => {
+    if (assignment?.title) {
+      setBreadcrumbLabel(id, assignment.title);
+    }
+  }, [assignment, id, setBreadcrumbLabel]);
+
   const [course, setCourse] = useState(null);
+
+  useEffect(() => {
+    if (course?.courseName && courseId) {
+      setBreadcrumbLabel(courseId, course.courseName);
+    }
+  }, [course, courseId, setBreadcrumbLabel]);
+
   const [submissions, setSubmissions] = useState([]);
   const [studentSubmission, setStudentSubmission] = useState(null);
   const [grade, setGrade] = useState(null);
@@ -183,6 +203,7 @@ export default function AssignmentDetailPage() {
   const [isSavingSubmission, setIsSavingSubmission] = useState(false);
   const [isSavingGrade, setIsSavingGrade] = useState(false);
   const [isDeletingAssignment, setIsDeletingAssignment] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [error, setError] = useState(null);
 
   const [activeSubmissionId, setActiveSubmissionId] = useState(null);
@@ -193,7 +214,9 @@ export default function AssignmentDetailPage() {
     reset,
     formState: { errors },
   } = useForm({
-    resolver: zodResolver(submissionSchema),
+    resolver: async (data, context, options) => {
+      return zodResolver(getSubmissionSchema(assignment?.requireGithubRepo))(data, context, options);
+    },
     defaultValues: { githubRepoUrl: '', submissionText: '' },
   });
 
@@ -307,6 +330,14 @@ export default function AssignmentDetailPage() {
     fetchData();
   }, [fetchData]);
 
+  // Poll every 10 s while analysis is in progress so the student sees live status
+  useEffect(() => {
+    const status = studentSubmission?.codeAnalysis?.status;
+    if (status !== 'pending' && status !== 'analyzing') return;
+    const intervalId = setInterval(fetchData, 10_000);
+    return () => clearInterval(intervalId);
+  }, [studentSubmission?.codeAnalysis?.status, fetchData]);
+
   useEffect(() => {
     if (!activeSubmissionId) return;
     const stillExists = submissions.some((submission) => submission.submissionId === activeSubmissionId);
@@ -316,9 +347,9 @@ export default function AssignmentDetailPage() {
     }
   }, [submissions, activeSubmissionId, resetGradeForm]);
 
-  const handleDeleteAssignment = async () => {
-    if (!window.confirm('Are you sure you want to delete this assignment?')) return;
+  const handleDeleteAssignment = () => setDeleteConfirmOpen(true);
 
+  const handleConfirmDeleteAssignment = async () => {
     setIsDeletingAssignment(true);
     try {
       await assignmentService.delete(id);
@@ -327,8 +358,10 @@ export default function AssignmentDetailPage() {
     } catch (requestError) {
       toast.error(requestError?.message || 'Failed to delete assignment.');
       setIsDeletingAssignment(false);
+      setDeleteConfirmOpen(false);
     }
   };
+
 
   const onSubmit = async (data) => {
     if (isLateSubmissionBlocked) {
@@ -613,12 +646,12 @@ export default function AssignmentDetailPage() {
                 </h3>
                 <ul className="space-y-2">
                   {assignment.attachments.map((file, idx) => (
-                    <li
-                      key={file.attachmentId || file.id || idx}
-                      className="flex items-center gap-2 p-3 rounded-lg border border-neutral-200 text-sm"
-                    >
-                      <FileText className="h-4 w-4 text-neutral-500" />
-                      <span className="text-neutral-700">{file.fileName || `Attachment #${idx + 1}`}</span>
+                    <li key={file.attachmentId || file.id || idx}>
+                      <AttachmentButton
+                        url={`/api/assignments/${id}/attachments/${file.attachmentId || file.id}`}
+                        fileName={file.fileName || `assignment-attachment-${idx + 1}`}
+                        fileSize={file.fileSize}
+                      />
                     </li>
                   ))}
                 </ul>
@@ -775,17 +808,17 @@ export default function AssignmentDetailPage() {
 
                           {activeSubmission.attachments?.length > 0 && (
                             <div className="rounded-lg border border-neutral-200 bg-white p-3">
-                              <p className="text-xs uppercase tracking-wide text-neutral-500 font-semibold mb-1">
+                              <p className="text-xs uppercase tracking-wide text-neutral-500 font-semibold mb-2">
                                 Attachments
                               </p>
-                              <ul className="space-y-1">
+                              <ul className="space-y-1.5">
                                 {activeSubmission.attachments.map((file, idx) => (
-                                  <li
-                                    key={file.attachmentId || file.id || idx}
-                                    className="text-sm text-neutral-700 inline-flex items-center gap-1.5"
-                                  >
-                                    <FileText className="h-3.5 w-3.5 text-neutral-400" />
-                                    {file.fileName || `File ${idx + 1}`}
+                                  <li key={file.attachmentId || file.id || idx}>
+                                    <AttachmentButton
+                                      url={`/api/submissions/${activeSubmission.submissionId}/attachments/${file.attachmentId || file.id}`}
+                                      fileName={file.fileName || `submission-attachment-${idx + 1}`}
+                                      fileSize={file.fileSize}
+                                    />
                                   </li>
                                 ))}
                               </ul>
@@ -937,15 +970,15 @@ export default function AssignmentDetailPage() {
 
                     {studentSubmission.attachments?.length > 0 && (
                       <div className="text-sm">
-                        <span className="block text-neutral-500 mb-1">Files:</span>
-                        <ul className="space-y-2">
+                        <span className="block text-neutral-500 mb-2">Files:</span>
+                        <ul className="space-y-1.5">
                           {studentSubmission.attachments.map((file, idx) => (
-                            <li
-                              key={file.attachmentId || file.id || idx}
-                              className="flex items-center gap-2 text-neutral-700"
-                            >
-                              <FileText className="h-4 w-4 text-neutral-400" />
-                              <span className="truncate">{file.fileName || 'Attached file'}</span>
+                            <li key={file.attachmentId || file.id || idx}>
+                              <AttachmentButton
+                                url={`/api/submissions/${studentSubmission.submissionId}/attachments/${file.attachmentId || file.id}`}
+                                fileName={file.fileName || `submission-attachment-${idx + 1}`}
+                                fileSize={file.fileSize}
+                              />
                             </li>
                           ))}
                         </ul>
@@ -1027,10 +1060,29 @@ export default function AssignmentDetailPage() {
                   </form>
                 )}
               </section>
+
+              {/* Code analysis results — only visible when student submitted with a GitHub URL */}
+              {studentSubmission?.githubRepoUrl && (
+                <CodeAnalysisPanel
+                  codeAnalysis={studentSubmission?.codeAnalysis}
+                  showRubric={false}
+                />
+              )}
             </>
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        title="Delete assignment?"
+        description="All submissions and grades for this assignment will be permanently removed. This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        isLoading={isDeletingAssignment}
+        onConfirm={handleConfirmDeleteAssignment}
+        onClose={() => !isDeletingAssignment && setDeleteConfirmOpen(false)}
+      />
     </div>
   );
 }
