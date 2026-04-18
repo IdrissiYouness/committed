@@ -21,6 +21,13 @@ class FileIssue(BaseModel):
     severity: Literal["high", "medium", "low"] = "medium"
     message: str = ""
 
+    @field_validator("severity", mode="before")
+    @classmethod
+    def normalize_severity(cls, v):
+        if v == "critical":
+            return "high"
+        return v
+
 
 class FileAnalysis(BaseModel):
     """Per-file analysis result."""

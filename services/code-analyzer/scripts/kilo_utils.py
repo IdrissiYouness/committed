@@ -28,7 +28,9 @@ def extract_json(output: str, anchor_key: str) -> dict:
         RuntimeError: If no valid JSON object containing *anchor_key* can be
             extracted from *output*.
     """
-    cleaned = _strip_markdown_fences(output)
+    cleaned = _strip_ansi(output)
+    cleaned = _strip_markdown_fences(cleaned)
+    cleaned = _sanitize_json_strings(cleaned)
     decoder = json.JSONDecoder()
 
     for i, char in enumerate(cleaned):
@@ -43,8 +45,37 @@ def extract_json(output: str, anchor_key: str) -> dict:
 
     raise RuntimeError(
         f"Could not extract valid JSON (anchor key: {anchor_key!r}) from kilo output:\n"
-        f"{output[:500]}"
+        f"{output[:2000]}"
     )
+
+
+def _strip_ansi(text: str) -> str:
+    """Remove ANSI escape sequences (colors, cursor movement) from text."""
+    return re.sub(r"\x1b\[[0-9;]*[A-Za-z]|\x1b[@-_][0-9;]*[A-Za-z]?", "", text)
+
+
+def _sanitize_json_strings(text: str) -> str:
+    """Replace literal newlines/carriage-returns inside JSON string values with escape sequences."""
+    result = []
+    in_string = False
+    escape = False
+    for char in text:
+        if escape:
+            result.append(char)
+            escape = False
+        elif char == "\\":
+            result.append(char)
+            escape = True
+        elif char == '"':
+            result.append(char)
+            in_string = not in_string
+        elif in_string and char == "\n":
+            result.append("\\n")
+        elif in_string and char == "\r":
+            result.append("\\r")
+        else:
+            result.append(char)
+    return "".join(result)
 
 
 def _strip_markdown_fences(text: str) -> str:

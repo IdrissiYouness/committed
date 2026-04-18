@@ -281,6 +281,7 @@ You MUST output ONLY valid JSON — no markdown, no code blocks, no extra text b
 - `feedback` should be 3-5 sentences, personalized to estimated student level
 - `encouragement` should be 1-2 sentences, warm and motivating, level-appropriate
 - `per_file`: include at most 8 **application source files** ranked by importance. Skip: build/config files, lock files, FXML/XML/YAML/JSON resources, test utilities, vendor/node_modules
+  - `issues[].severity`: must be exactly one of `"high"`, `"medium"`, or `"low"` — never `"critical"` or any other value
 - `cyclomatic_complexity`: estimate by counting branches (if/else/for/while/switch cases) divided by function count; 1.0 is perfectly simple, >10 is very complex
 - `duplication_pct`: estimate percentage of lines that appear to be copy-pasted or near-duplicated
 - `dependencies`: read ONLY build-system dependency declarations. List only **named external packages**. Do NOT list stdlib modules or internal project classes
