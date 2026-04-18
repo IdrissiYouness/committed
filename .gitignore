@@ -58,3 +58,6 @@ obj/
 node_modules/
 dist/
 .next/
+
+# claude
+.claude

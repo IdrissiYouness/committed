@@ -78,9 +78,12 @@ services:
             - committed-network
         restart: unless-stopped
 
-    # Code Analyzer Service (Python Flask)
+    # Code Analyzer Service (Python Flask + Kilo Code CLI + Typst)
     # Note: This service does NOT connect to database directly.
     # Gateway sends all necessary data via HTTP requests.
+    #
+    # Requires KILO_AUTH_JSON_B64 in docker/.env (base64-encoded auth.json).
+    # See docs/QUICKSTART.md Step 0 for how to generate it.
     code-analyzer:
         build:
             context: ../services/code-analyzer
@@ -89,12 +92,23 @@ services:
         ports:
             - "${ANALYZER_PORT}:5000"
         environment:
-            - OPENAI_API_KEY=${OPENAI_API_KEY}
-            - TEMP_CLONE_DIR=${TEMP_CLONE_DIR}
+            - TEMP_DIR=${TEMP_CLONE_DIR:-/tmp/code-analysis}
             - NOTIFICATION_SERVICE_URL=http://notifications:5001
             - GATEWAY_SERVICE_URL=http://gateway:8080
+            - AGENT_CLI=kilo
+            - AGENT_RUNNER=kilo
+            # Base64-encoded Kilo Code auth.json (GitHub Copilot OAuth tokens).
+            # Generate with: base64 -w 0 ~/.local/share/kilo/auth.json
+            - KILO_AUTH_JSON_B64=${KILO_AUTH_JSON_B64}
         volumes:
             - analyzer-temp:/tmp/code-analysis
+            - analyzer-reports:/tmp/reports
+        healthcheck:
+            test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 15s
         networks:
             - committed-network
         restart: unless-stopped
@@ -138,6 +152,7 @@ services:
 
 volumes:
     analyzer-temp:
+    analyzer-reports:
     postgres-data:
 
 networks:

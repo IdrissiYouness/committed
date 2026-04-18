@@ -123,85 +123,74 @@ curl http://localhost:8000/health
 
 ## Code Analyzer Service (Python Flask) - VSCode
 
-### Opening the Project
+The Code Analyzer runs entirely inside Docker — it bundles the Kilo Code CLI, Typst PDF compiler, and all Python dependencies. No local Python or Node.js setup is needed.
 
-1. Open **VSCode**
-2. Click **File → Open Folder**
-3. Navigate to `committed/services/code-analyzer`
-4. Click **Select Folder**
+### Running via Docker (recommended)
 
-### Installing Python Extension
-
-1. Go to Extensions (`Ctrl+Shift+X`)
-2. Search for "Python"
-3. Install the **Python** extension by Microsoft
-
-### Setting Up Virtual Environment
-
-Open the terminal (`Ctrl+``) and run:
+Ensure `KILO_AUTH_JSON_B64` is set in `docker/.env` (see [QUICKSTART.md — Step 0](QUICKSTART.md)), then:
 
 ```bash
-# Create virtual environment
-python -m venv venv
-
-# Activate it
-source venv/bin/activate  # Linux/Mac
-# or
-.\venv\Scripts\activate   # Windows
-
-# Install dependencies
-pip install -r requirements.txt
+cd docker
+docker compose up code-analyzer --no-deps
 ```
 
-### Configuring VSCode
+To skip AI analysis during development (no auth token needed):
 
-Create `.vscode/settings.json`:
-
-```json
-{
-    "python.defaultInterpreterPath": "./venv/bin/python",
-    "python.linting.enabled": true,
-    "python.linting.pylintEnabled": true
-}
+```bash
+# In docker/.env, set:
+AGENT_RUNNER=mock
 ```
-
-Create `.vscode/launch.json`:
-
-```json
-{
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": "Flask",
-            "type": "python",
-            "request": "launch",
-            "module": "flask",
-            "env": {
-                "FLASK_APP": "app.py",
-                "FLASK_DEBUG": "1",
-                "GATEWAY_SERVICE_URL": "http://localhost:8080",
-                "NOTIFICATION_SERVICE_URL": "http://localhost:5001"
-            },
-            "args": ["run", "--host=0.0.0.0", "--port=5000"],
-            "jinja": true
-        }
-    ]
-}
-```
-
-### Running the Service
-
-1. Press `F5` to start debugging
-2. Or run from terminal: `python app.py`
-3. The service will start on port 5000
 
 ### Testing
 
 ```bash
+# Health check
 curl http://localhost:5000/health
+
+# Trigger a mock analysis
+curl -s -X POST http://localhost:5000/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"submissionId": 1, "repoUrl": "https://github.com/gothinkster/realworld", "studentId": 1}' \
+  | python3 -m json.tool
+
+# Fetch generated PDF report
+curl -o report.pdf http://localhost:5000/reports/1.pdf
 ```
 
-**Note**: The Code Analyzer service does NOT connect to the database directly. It receives all necessary data from the Gateway service via HTTP requests.
+### Local Development (without Docker)
+
+If you need to run the service outside Docker (e.g. to step through Python code):
+
+```bash
+cd services/code-analyzer
+
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Copy and fill in environment variables
+cp .env.example .env
+# Set AGENT_RUNNER=mock to avoid needing the Kilo CLI locally
+
+# Run
+python app.py
+```
+
+> **Note**: With `AGENT_RUNNER=kilo` locally, you also need the Kilo CLI installed (`npm install -g @kilocode/cli`) and authenticated (`kilo auth login`).
+
+### Rebuilding the image
+
+After changing `requirements.txt`, the `Dockerfile`, or any `.kilo/` agent config:
+
+```bash
+cd docker
+docker compose build code-analyzer
+```
+
+**Note**: The Code Analyzer does NOT connect to the database directly. It receives all necessary data from the Gateway service via HTTP requests.
 
 ---
 

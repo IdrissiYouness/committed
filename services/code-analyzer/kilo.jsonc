@@ -1,0 +1,15 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  "model": "github-copilot/gpt-5-mini",
+  "permission": {
+    "read": "allow",
+    "glob": "allow",
+    "grep": "allow",
+    "list": "allow",
+    "external_directory": "allow",
+    "edit": "allow",
+    "bash": "allow",
+    "skill": "allow",
+    "task": "allow"
+  }
+}

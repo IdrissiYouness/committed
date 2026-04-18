@@ -27,9 +27,9 @@ Microservices architecture with:
 1. Set up environment:
 
 ```bash
-cp .env.example .env
-cp .env docker/
-# Edit .env with your configuration
+cp docker/.env.example docker/.env
+# Edit docker/.env — in particular set KILO_AUTH_JSON_B64
+# (see docs/QUICKSTART.md for how to generate it)
 ```
 
 2. Start all services:

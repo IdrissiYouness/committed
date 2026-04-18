@@ -19,6 +19,45 @@ Before starting, ensure you have:
 
 ---
 
+## Step 0: Configure Environment Variables
+
+The entire platform is configured via a single file: `docker/.env`.
+
+```bash
+cp docker/.env.example docker/.env
+```
+
+Open `docker/.env` and fill in the values. Most defaults work out of the box, but **`KILO_AUTH_JSON_B64` is required** for the Code Analyzer service.
+
+### Getting KILO_AUTH_JSON_B64
+
+The Code Analyzer uses [Kilo Code](https://kilo.ai) with GitHub Copilot to analyze student repositories. Authentication is passed as a base64-encoded token — no tools need to be installed on your machine.
+
+**Get the value from your team's password manager** and paste it into `docker/.env`:
+
+```
+KILO_AUTH_JSON_B64=<paste value here>
+```
+
+**If you need to generate it yourself** (e.g. you are setting up the project for the first time):
+
+```bash
+# 1. Install Kilo CLI temporarily
+npm install -g @kilocode/cli
+
+# 2. Log in with GitHub Copilot (opens browser for OAuth)
+kilo auth login
+
+# 3. Generate the base64 value and copy it
+base64 -w 0 ~/.local/share/kilo/auth.json
+```
+
+Paste the output into `KILO_AUTH_JSON_B64` in `docker/.env`, then share the value with your team via a password manager so they don't need to repeat this step.
+
+> **Note**: If you just want to run the platform without AI analysis, set `AGENT_RUNNER=mock` in `docker/.env` — the analyzer will return deterministic stub results and `KILO_AUTH_JSON_B64` can be left empty.
+
+---
+
 ## Step 1: Start the Database
 
 Navigate to the docker directory and start only the PostgreSQL database first:
