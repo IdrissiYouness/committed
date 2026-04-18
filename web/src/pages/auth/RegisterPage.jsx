@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
 import { GitCommit, Zap, GraduationCap, Users, ShieldCheck } from 'lucide-react';
 
 import RegisterForm from '../../components/features/auth/RegisterForm';
@@ -36,26 +35,6 @@ export default function RegisterPage() {
 
   return (
     <>
-      {/* Toast container */}
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 4000,
-          style: {
-            fontFamily: 'Nunito, system-ui, sans-serif',
-            fontSize: '0.9rem',
-            borderRadius: '0.75rem',
-            boxShadow: '0 8px 32px rgba(99, 132, 173, 0.16)',
-          },
-          success: {
-            iconTheme: { primary: '#0d9488', secondary: '#fff' },
-          },
-          error: {
-            iconTheme: { primary: '#dc2626', secondary: '#fff' },
-          },
-        }}
-      />
-
       {/* Page shell */}
       <div className="min-h-screen bg-gradient-to-bl from-neutral-100 via-secondary-50 to-primary-50 flex items-center justify-center p-4 sm:p-6 lg:p-8">
 

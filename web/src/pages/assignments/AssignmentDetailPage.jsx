@@ -33,6 +33,7 @@ import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import AttachmentButton from '../../components/common/AttachmentButton';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
+import CodeAnalysisPanel from '../../components/features/assignments/CodeAnalysisPanel';
 import AssignmentStatusBadge from '../../components/features/assignments/AssignmentStatusBadge';
 
 const getSubmissionSchema = (requireGithubRepo) => z
@@ -328,6 +329,14 @@ export default function AssignmentDetailPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Poll every 10 s while analysis is in progress so the student sees live status
+  useEffect(() => {
+    const status = studentSubmission?.codeAnalysis?.status;
+    if (status !== 'pending' && status !== 'analyzing') return;
+    const intervalId = setInterval(fetchData, 10_000);
+    return () => clearInterval(intervalId);
+  }, [studentSubmission?.codeAnalysis?.status, fetchData]);
 
   useEffect(() => {
     if (!activeSubmissionId) return;
@@ -1051,6 +1060,14 @@ export default function AssignmentDetailPage() {
                   </form>
                 )}
               </section>
+
+              {/* Code analysis results — only visible when student submitted with a GitHub URL */}
+              {studentSubmission?.githubRepoUrl && (
+                <CodeAnalysisPanel
+                  codeAnalysis={studentSubmission?.codeAnalysis}
+                  showRubric={false}
+                />
+              )}
             </>
           )}
         </div>

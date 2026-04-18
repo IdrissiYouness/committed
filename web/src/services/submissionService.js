@@ -82,6 +82,14 @@ const submissionService = {
     const requestData = toFormData(data ?? {});
     return api.put(API_ENDPOINTS.SUBMISSIONS.DETAIL(id), requestData, multipartConfig);
   },
+
+  getAnalysis: async (submissionId) => {
+    return api.get(API_ENDPOINTS.SUBMISSIONS.ANALYSIS(submissionId));
+  },
+
+  triggerAnalysis: async (submissionId) => {
+    return api.post(API_ENDPOINTS.SUBMISSIONS.TRIGGER_ANALYSIS(submissionId));
+  },
 };
 
 export default submissionService;

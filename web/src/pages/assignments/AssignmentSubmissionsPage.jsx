@@ -33,6 +33,7 @@ import Badge from '../../components/common/Badge';
 import Pagination from '../../components/common/Pagination';
 import AttachmentButton from '../../components/common/AttachmentButton';
 import AssignmentStatusBadge from '../../components/features/assignments/AssignmentStatusBadge';
+import CodeAnalysisPanel from '../../components/features/assignments/CodeAnalysisPanel';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 30];
 
@@ -385,6 +386,14 @@ export default function AssignmentSubmissionsPage() {
   useEffect(() => {
     fetchWorkspaceData();
   }, [fetchWorkspaceData]);
+
+  // Poll every 10 s while the selected submission's analysis is still running
+  useEffect(() => {
+    const status = selectedSubmission?.codeAnalysis?.status;
+    if (status !== 'pending' && status !== 'analyzing') return;
+    const intervalId = setInterval(fetchWorkspaceData, 10_000);
+    return () => clearInterval(intervalId);
+  }, [selectedSubmission?.codeAnalysis?.status, fetchWorkspaceData]);
 
   useEffect(() => {
     if (!selectedSubmission) return;
@@ -1145,6 +1154,13 @@ export default function AssignmentSubmissionsPage() {
                   <p className="text-xs text-neutral-400 italic">No files attached to this submission.</p>
                 )}
               </div>
+
+              {/* Code analysis results */}
+              <CodeAnalysisPanel
+                codeAnalysis={selectedSubmission?.codeAnalysis}
+                showRubric={true}
+                rubricItems={selectedRubric}
+              />
 
               {/* Grading form */}
               <div className="rounded-xl border border-neutral-200 p-3 space-y-3">
