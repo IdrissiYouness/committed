@@ -1,5 +1,6 @@
 package com.committed.gateway.client;
 
+import com.committed.gateway.dto.CodeAnalysisResponse;
 import com.committed.gateway.dto.PagedResponse;
 import com.committed.gateway.dto.SubmissionResponse;
 import com.committed.gateway.exception.ResourceNotFoundException;
@@ -32,7 +33,7 @@ public class SubmissionClient {
     @Value("${core.service.url}")
     private String coreServiceUrl;
 
-    public SubmissionResponse createSubmission(Integer assignmentId, Long userId, String userRole, String submissionText, String githubRepoUrl, List<MultipartFile> files) {
+    public SubmissionResponse createSubmission(Integer assignmentId, Long userId, String userRole, String submissionText, String repoUrl, List<MultipartFile> files) {
         String url = coreServiceUrl + "/internal/assignments/" + assignmentId + "/submissions";
 
         HttpHeaders headers = new HttpHeaders();
@@ -42,7 +43,7 @@ public class SubmissionClient {
 
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
         if (submissionText != null) body.add("submissionText", submissionText);
-        if (githubRepoUrl != null) body.add("githubRepoUrl", githubRepoUrl);
+        if (repoUrl != null) body.add("repoUrl", repoUrl);
 
         if (files != null && !files.isEmpty()) {
             for (MultipartFile file : files) {
@@ -90,7 +91,7 @@ public class SubmissionClient {
         }
     }
 
-    public SubmissionResponse updateSubmission(Integer id, Long userId, String userRole, String submissionText, String githubRepoUrl, List<MultipartFile> files, List<Integer> removeAttachmentIds) {
+    public SubmissionResponse updateSubmission(Integer id, Long userId, String userRole, String submissionText, String repoUrl, List<MultipartFile> files, List<Integer> removeAttachmentIds) {
         String url = coreServiceUrl + "/internal/submissions/" + id;
 
         HttpHeaders headers = new HttpHeaders();
@@ -100,7 +101,7 @@ public class SubmissionClient {
 
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
         if (submissionText != null) body.add("submissionText", submissionText);
-        if (githubRepoUrl != null) body.add("githubRepoUrl", githubRepoUrl);
+        if (repoUrl != null) body.add("repoUrl", repoUrl);
 
         if (removeAttachmentIds != null && !removeAttachmentIds.isEmpty()) {
             for (Integer attachmentId : removeAttachmentIds) {
@@ -193,6 +194,20 @@ public class SubmissionClient {
             log.error("Failed to fetch submission: {}", e.getResponseBodyAsString());
             handleCommonExceptions(e);
             throw new RuntimeException("Failed to fetch submission");
+        }
+    }
+
+    public CodeAnalysisResponse getAnalysis(Integer submissionId) {
+        String url = coreServiceUrl + "/internal/submissions/" + submissionId + "/analysis";
+        try {
+            ResponseEntity<CodeAnalysisResponse> response = restTemplate.exchange(
+                    url, HttpMethod.GET, null, CodeAnalysisResponse.class
+            );
+            return response.getBody();
+        } catch (HttpClientErrorException e) {
+            log.error("Failed to fetch analysis for submission {}: {}", submissionId, e.getResponseBodyAsString());
+            handleCommonExceptions(e);
+            throw new RuntimeException("Failed to fetch analysis");
         }
     }
 

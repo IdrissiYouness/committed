@@ -87,9 +87,9 @@ class AssignmentController extends AbstractController
             $assignment->setAllowLateSubmission(filter_var($allowLate, FILTER_VALIDATE_BOOLEAN));
         }
 
-        $requireGithub = $request->request->get('requireGithubRepo');
-        if ($requireGithub !== null) {
-            $assignment->setRequireGithubRepo(filter_var($requireGithub, FILTER_VALIDATE_BOOLEAN));
+        $requireRepoUrl = $request->request->get('requireRepoUrl');
+        if ($requireRepoUrl !== null) {
+            $assignment->setRequireRepoUrl(filter_var($requireRepoUrl, FILTER_VALIDATE_BOOLEAN));
         }
 
         $this->entityManager->persist($assignment);
@@ -232,8 +232,8 @@ class AssignmentController extends AbstractController
             $assignment->setAllowLateSubmission(filter_var($data['allowLateSubmission'], FILTER_VALIDATE_BOOLEAN));
         }
 
-        if (isset($data['requireGithubRepo'])) {
-            $assignment->setRequireGithubRepo(filter_var($data['requireGithubRepo'], FILTER_VALIDATE_BOOLEAN));
+        if (isset($data['requireRepoUrl'])) {
+            $assignment->setRequireRepoUrl(filter_var($data['requireRepoUrl'], FILTER_VALIDATE_BOOLEAN));
         }
 
         $assignment->setUpdatedAt(new \DateTime());
@@ -327,7 +327,7 @@ class AssignmentController extends AbstractController
             'maxPoints' => (float) $assignment->getMaxPoints(),
             'dueDate' => $assignment->getDueDate() ? $assignment->getDueDate()->format(\DateTimeInterface::ATOM) : null,
             'allowLateSubmission' => $assignment->isAllowLateSubmission(),
-            'requireGithubRepo' => $assignment->isRequireGithubRepo(),
+            'requireRepoUrl' => $assignment->isRequireRepoUrl(),
             'createdAt' => $assignment->getCreatedAt()->format(\DateTimeInterface::ATOM),
             'updatedAt' => $assignment->getUpdatedAt()->format(\DateTimeInterface::ATOM),
             'attachments' => array_values($attachments)

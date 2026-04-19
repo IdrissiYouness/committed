@@ -1,3 +1,5 @@
+name: committed
+
 services:
     # PostgreSQL Database (shared by all services)
     postgres-db:

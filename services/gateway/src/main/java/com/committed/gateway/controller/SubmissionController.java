@@ -4,13 +4,14 @@ import com.committed.gateway.client.AssignmentServiceClient;
 import com.committed.gateway.client.CourseServiceClient;
 import com.committed.gateway.client.SubmissionClient;
 import com.committed.gateway.dto.ApiResponse;
+import com.committed.gateway.dto.CodeAnalysisResponse;
 import com.committed.gateway.dto.CourseResponse;
 import com.committed.gateway.dto.PagedResponse;
 import com.committed.gateway.dto.SubmissionResponse;
 import com.committed.gateway.dto.UserSummary;
 import com.committed.gateway.dto.assignment.AssignmentResponse;
 import com.committed.gateway.security.JwtPrincipal;
-import com.committed.gateway.service.MockAIAgentService;
+import com.committed.gateway.service.CodeAnalyzerService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -32,14 +33,14 @@ public class SubmissionController {
     private final SubmissionClient submissionClient;
     private final AssignmentServiceClient assignmentServiceClient;
     private final CourseServiceClient courseServiceClient;
-    private final MockAIAgentService mockAIAgentService;
+    private final CodeAnalyzerService codeAnalyzerService;
 
     @PostMapping(value = "/assignments/{assignmentId}/submissions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('USER')")
     public ResponseEntity<ApiResponse<SubmissionResponse>> createSubmission(
             @PathVariable Integer assignmentId,
             @RequestParam(value = "submissionText", required = false) String submissionText,
-            @RequestParam(value = "githubRepoUrl", required = false) String githubRepoUrl,
+            @RequestParam(value = "repoUrl", required = false) String repoUrl,
             @RequestParam(value = "files", required = false) List<MultipartFile> files,
             Authentication authentication) {
 
@@ -53,12 +54,12 @@ public class SubmissionController {
 
         try {
             SubmissionResponse response = submissionClient.createSubmission(
-                    assignmentId, userId, userDetails.systemRole(), submissionText, githubRepoUrl, files
+                    assignmentId, userId, userDetails.systemRole(), submissionText, repoUrl, files
             );
             
             // Orchestrate AI analysis asynchronously if GitHub URL is provided
-            if (githubRepoUrl != null && !githubRepoUrl.trim().isEmpty()) {
-                mockAIAgentService.triggerAsyncAnalysis(response.getSubmissionId(), githubRepoUrl);
+            if (repoUrl != null && !repoUrl.trim().isEmpty()) {
+                codeAnalyzerService.triggerAsyncAnalysis(response.getSubmissionId(), repoUrl, userId.intValue());
             }
 
             return ResponseEntity.status(HttpStatus.CREATED)
@@ -74,7 +75,7 @@ public class SubmissionController {
     public ResponseEntity<ApiResponse<SubmissionResponse>> updateSubmission(
             @PathVariable Integer id,
             @RequestParam(value = "submissionText", required = false) String submissionText,
-            @RequestParam(value = "githubRepoUrl", required = false) String githubRepoUrl,
+            @RequestParam(value = "repoUrl", required = false) String repoUrl,
             @RequestParam(value = "removeAttachmentIds", required = false) List<Integer> removeAttachmentIds,
             @RequestParam(value = "files", required = false) List<MultipartFile> files,
             Authentication authentication) {
@@ -85,12 +86,12 @@ public class SubmissionController {
 
         // Core handles the ownership check for the update
         SubmissionResponse updated = submissionClient.updateSubmission(
-                id, userId, userDetails.systemRole(), submissionText, githubRepoUrl, files, removeAttachmentIds
+                id, userId, userDetails.systemRole(), submissionText, repoUrl, files, removeAttachmentIds
         );
         
         // Orchestrate AI analysis asynchronously if GitHub URL is updated/provided
-        if (githubRepoUrl != null && !githubRepoUrl.trim().isEmpty()) {
-            mockAIAgentService.triggerAsyncAnalysis(updated.getSubmissionId(), githubRepoUrl);
+        if (repoUrl != null && !repoUrl.trim().isEmpty()) {
+            codeAnalyzerService.triggerAsyncAnalysis(updated.getSubmissionId(), repoUrl, userId.intValue());
         }
 
         return ResponseEntity.ok(ApiResponse.success(updated, "Submission updated successfully"));
@@ -167,6 +168,22 @@ public class SubmissionController {
         }
 
         return ResponseEntity.ok(ApiResponse.success(submission, "Submission retrieved successfully"));
+    }
+
+    @GetMapping("/submissions/{id}/analysis")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN') or hasRole('TEACHER')")
+    public ResponseEntity<ApiResponse<CodeAnalysisResponse>> getSubmissionAnalysis(
+            @PathVariable Integer id,
+            Authentication authentication) {
+
+        JwtPrincipal userDetails = (JwtPrincipal) authentication.getPrincipal();
+        Long userId = Long.parseLong(userDetails.userId());
+
+        // Ownership check reuses getSubmission logic in Core
+        submissionClient.getSubmission(id, userId, userDetails.systemRole());
+
+        CodeAnalysisResponse analysis = submissionClient.getAnalysis(id);
+        return ResponseEntity.ok(ApiResponse.success(analysis, "Analysis retrieved successfully"));
     }
 
     private void verifyEnrolled(Integer courseId, Long userId) {

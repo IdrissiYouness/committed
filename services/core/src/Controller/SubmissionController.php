@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Entity\Grade;
 use App\Entity\Submission;
 use App\Entity\SubmissionAttachment;
 use App\Entity\CodeAnalysis;
@@ -71,17 +72,17 @@ class SubmissionController extends AbstractController
         $submissionText = $request->request->get('submissionText');
         if ($submissionText) $submission->setSubmissionText($submissionText);
 
-        $githubUrl = $request->request->get('githubRepoUrl');
+        $repoUrl = $request->request->get('repoUrl');
 
-        if ($assignment->isRequireGithubRepo() && empty($githubUrl)) {
-            return $this->json(['error' => 'This assignment requires a GitHub repository URL.'], 400);
+        if ($assignment->isRequireRepoUrl() && empty($repoUrl)) {
+            return $this->json(['error' => 'This assignment requires a repository URL.'], 400);
         }
 
-        if ($githubUrl) {
-            if (!preg_match('/^https?:\/\/github\.com\/[a-zA-Z0-9-]+\/[a-zA-Z0-9-._]+.*$/', $githubUrl)) {
-                return $this->json(['error' => 'Invalid GitHub URL format'], 400);
+        if ($repoUrl) {
+            if (!preg_match('/^https?:\/\/(github|gitlab)\.com\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+.*$/', $repoUrl)) {
+                return $this->json(['error' => 'Invalid repository URL. Only GitHub and GitLab URLs are accepted.'], 400);
             }
-            $submission->setGithubRepoUrl($githubUrl === '' ? null : $githubUrl);
+            $submission->setRepoUrl($repoUrl === '' ? null : $repoUrl);
         }
 
         $filesParam = $request->files->get('files');
@@ -176,8 +177,21 @@ class SubmissionController extends AbstractController
             return $this->json(['error' => 'Forbidden'], 403);
         }
 
-        if ($submission->getGrade() || in_array($submission->getStatus(), ['graded', 'returned'])) {
-            return $this->json(['error' => 'Cannot update a submission that has already been graded or returned'], 403);
+        $existingGrade = $submission->getGrade();
+        if ($existingGrade && $existingGrade->isFinalized()) {
+            return $this->json(['error' => 'This submission has been finalized by your instructor and cannot be changed.'], 403);
+        }
+        if ($submission->getResubmissionCount() >= 2) {
+            return $this->json(['error' => 'You have reached the maximum number of resubmissions (2) for this assignment.'], 403);
+        }
+        if (in_array($submission->getStatus(), ['returned'])) {
+            return $this->json(['error' => 'Cannot update a returned submission.'], 403);
+        }
+
+        // If there is a non-finalized AI grade, remove it so the new analysis starts fresh
+        if ($existingGrade && !$existingGrade->isFinalized()) {
+            $submission->setGrade(null);
+            $this->entityManager->remove($existingGrade);
         }
 
         $assignment = $submission->getAssignment();
@@ -201,21 +215,19 @@ class SubmissionController extends AbstractController
             $submission->setSubmissionText($data['submissionText']);
         }
 
-        if (array_key_exists('githubRepoUrl', $data)) {
-            $githubUrl = $data['githubRepoUrl'];
+        if (array_key_exists('repoUrl', $data)) {
+            $repoUrl = $data['repoUrl'];
 
-            if ($assignment->isRequireGithubRepo() && empty($githubUrl)) {
-                return $this->json(['error' => 'This assignment requires a GitHub repository URL.'], 400);
+            if ($assignment->isRequireRepoUrl() && empty($repoUrl)) {
+                return $this->json(['error' => 'This assignment requires a repository URL.'], 400);
             }
 
-            if ($githubUrl && !preg_match('/^https?:\/\/github\.com\/[a-zA-Z0-9-]+\/[a-zA-Z0-9-._]+.*$/', $githubUrl)) {
-                return $this->json(['error' => 'Invalid GitHub URL format'], 400);
+            if ($repoUrl && !preg_match('/^https?:\/\/(github|gitlab)\.com\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+.*$/', $repoUrl)) {
+                return $this->json(['error' => 'Invalid repository URL. Only GitHub and GitLab URLs are accepted.'], 400);
             }
-            if ($submission->getGithubRepoUrl() !== $githubUrl) {
-                $submission->setGithubRepoUrl($githubUrl === '' ? null : $githubUrl);
-                // If URL is removed completely, remove the analysis record natively in Core
-                // Since there is no longer a URL to analyze
-                if (!$githubUrl && $submission->getCodeAnalysis()) {
+            if ($submission->getRepoUrl() !== $repoUrl) {
+                $submission->setRepoUrl($repoUrl === '' ? null : $repoUrl);
+                if (!$repoUrl && $submission->getCodeAnalysis()) {
                     $this->entityManager->remove($submission->getCodeAnalysis());
                     $submission->setCodeAnalysis(null);
                 }
@@ -258,10 +270,29 @@ class SubmissionController extends AbstractController
         }
 
         $submission->setStatus($this->submissionService->determineStatus($assignment, $submittedAt));
+        $submission->setSubmittedAt(\DateTime::createFromImmutable($submittedAt));
+        $submission->setUpdatedAt(new \DateTime());
+        $submission->incrementResubmissionCount();
 
         $this->entityManager->flush();
 
         return $this->json($this->formatSubmission($submission));
+    }
+
+    #[Route('/internal/submissions/{id}/analysis', name: 'internal_get_analysis', methods: ['GET'])]
+    public function getAnalysis(int $id): JsonResponse
+    {
+        $submission = $this->submissionRepository->find($id);
+        if (!$submission) return $this->json(['error' => 'Submission not found'], 404);
+
+        $ca = $submission->getCodeAnalysis();
+        if (!$ca) return $this->json(['status' => 'none', 'metricsData' => null, 'reportPdfUrl' => null]);
+
+        return $this->json([
+            'status'       => $ca->getStatus(),
+            'metricsData'  => $ca->getMetricsData(),
+            'reportPdfUrl' => $ca->getReportPdfUrl(),
+        ]);
     }
 
     #[Route('/internal/submissions/{id}/analysis', name: 'internal_save_analysis', methods: ['POST'])]
@@ -291,9 +322,7 @@ class SubmissionController extends AbstractController
         
         if (($data['status'] ?? '') === 'completed') {
             $analysis->setAnalyzedAt(new \DateTime());
-            // Diagram: UPDATE SUBMISSION (status=analyzed) 
-            // Note: Schema doesn't allow 'analyzed' in submission status check constraint. 
-            // So we just rely on code_analysis status as the single source of truth for the analysis state.
+            $this->maybeCreateAiGrade($submission, $data);
         }
 
         $this->entityManager->persist($analysis);
@@ -301,6 +330,38 @@ class SubmissionController extends AbstractController
         $this->entityManager->flush();
 
         return $this->json($this->formatSubmission($submission));
+    }
+
+    private function maybeCreateAiGrade(Submission $submission, array $data): void
+    {
+        // Skip if a grade already exists
+        if ($submission->getGrade()) return;
+
+        $metricsJson = $data['metricsData'] ?? null;
+        if (!$metricsJson) return;
+
+        $metrics = json_decode($metricsJson, true);
+        $percentage = $metrics['percentage'] ?? null;
+        if ($percentage === null || !is_numeric($percentage)) return;
+
+        $assignment = $submission->getAssignment();
+        $maxPoints = (float) $assignment->getMaxPoints();
+        $pointsEarned = round((float) $percentage / 100.0 * $maxPoints, 2);
+
+        $grade = new Grade();
+        $grade->setSubmission($submission);
+        $grade->setGradedBy($assignment->getCreatedBy());
+        $grade->setPointsEarned((string) $pointsEarned);
+        $grade->setMaxPoints((string) $maxPoints);
+        $grade->setFeedback('AI-suggested grade based on automated code analysis. Pending instructor review.');
+        $grade->setSource('ai');
+        $grade->setIsFinalized(false);
+
+        $submission->setGrade($grade);
+        $submission->setStatus('graded');
+        $submission->setUpdatedAt(new \DateTime());
+
+        $this->entityManager->persist($grade);
     }
 
     private function syncSubmissionStatusFromGrade(Submission $submission): bool
@@ -343,7 +404,8 @@ class SubmissionController extends AbstractController
             'assignmentId' => $submission->getAssignment()->getAssignmentId(),
             'studentId' => $submission->getStudent()->getUserId(),
             'submissionText' => $submission->getSubmissionText(),
-            'githubRepoUrl' => $submission->getGithubRepoUrl(),
+            'repoUrl' => $submission->getRepoUrl(),
+            'resubmissionCount' => $submission->getResubmissionCount(),
             'status' => $submission->getGrade() ? 'graded' : $submission->getStatus(),
             'submittedAt' => $submission->getSubmittedAt()->format(\DateTime::RFC3339),
             'updatedAt' => $submission->getUpdatedAt()->format(\DateTime::RFC3339),

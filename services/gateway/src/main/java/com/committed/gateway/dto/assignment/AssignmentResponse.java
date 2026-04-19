@@ -22,7 +22,7 @@ public class AssignmentResponse {
     private BigDecimal maxPoints;
     private OffsetDateTime dueDate;
     private boolean allowLateSubmission;
-    private boolean requireGithubRepo;
+    private boolean requireRepoUrl;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
     private List<AssignmentAttachmentDto> attachments;

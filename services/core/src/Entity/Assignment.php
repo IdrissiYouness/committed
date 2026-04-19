@@ -43,8 +43,8 @@ class Assignment
     #[ORM\Column(name: 'allow_late_submission', type: Types::BOOLEAN, options: ['default' => false])]
     private bool $allowLateSubmission = false;
 
-    #[ORM\Column(name: 'require_github_repo', type: Types::BOOLEAN, options: ['default' => false])]
-    private bool $requireGithubRepo = false;
+    #[ORM\Column(name: 'require_repo_url', type: Types::BOOLEAN, options: ['default' => false])]
+    private bool $requireRepoUrl = false;
 
     #[ORM\Column(name: 'created_at', type: Types::DATETIME_MUTABLE)]
     private \DateTimeInterface $createdAt;
@@ -144,14 +144,14 @@ class Assignment
         return $this;
     }
 
-    public function isRequireGithubRepo(): bool
+    public function isRequireRepoUrl(): bool
     {
-        return $this->requireGithubRepo;
+        return $this->requireRepoUrl;
     }
 
-    public function setRequireGithubRepo(bool $requireGithubRepo): self
+    public function setRequireRepoUrl(bool $requireRepoUrl): self
     {
-        $this->requireGithubRepo = $requireGithubRepo;
+        $this->requireRepoUrl = $requireRepoUrl;
         return $this;
     }
 

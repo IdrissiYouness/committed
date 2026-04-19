@@ -137,7 +137,7 @@ function createSystemEvents(submission) {
 
 function buildAiSuggestion({ submission, assignmentMax, rubricTotal }) {
   const max = Math.max(1, toNumber(assignmentMax, 100));
-  const hasRepo = !!submission?.githubRepoUrl;
+  const hasRepo = !!submission?.repoUrl;
   const hasNotes = !!submission?.submissionText;
   const analysisStatus = normalizeStatus(submission?.codeAnalysis?.status);
   const baseline = rubricTotal > 0 ? rubricTotal : max * 0.72;
@@ -767,6 +767,29 @@ export default function AssignmentSubmissionsPage() {
     }
   };
 
+  const [isValidatingGrade, setIsValidatingGrade] = useState(false);
+
+  const handleValidateAiGrade = async () => {
+    const gradeId = selectedSubmission?.grade?.gradeId;
+    if (!gradeId) return;
+    setIsValidatingGrade(true);
+    try {
+      const validated = await gradeService.validateAiGrade(gradeId);
+      setSubmissions((prev) =>
+        prev.map((s) =>
+          s.submissionId === selectedSubmission.submissionId
+            ? { ...s, grade: { ...s.grade, isFinalized: validated?.isFinalized ?? true } }
+            : s
+        )
+      );
+      toast.success('AI grade validated and locked.');
+    } catch {
+      toast.error('Failed to validate AI grade.');
+    } finally {
+      setIsValidatingGrade(false);
+    }
+  };
+
   const handleReturnToStudent = () => {
     if (!selectedSubmission) return;
 
@@ -1104,9 +1127,9 @@ export default function AssignmentSubmissionsPage() {
                   />
                 </div>
 
-                {selectedSubmission.githubRepoUrl ? (
+                {selectedSubmission.repoUrl ? (
                   <a
-                    href={selectedSubmission.githubRepoUrl}
+                    href={selectedSubmission.repoUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 text-sm text-primary-600 hover:text-primary-700 break-all"
@@ -1158,7 +1181,7 @@ export default function AssignmentSubmissionsPage() {
               {/* Code analysis results */}
               <CodeAnalysisPanel
                 codeAnalysis={selectedSubmission?.codeAnalysis}
-                showRubric={true}
+                showRubric={false}
                 rubricItems={selectedRubric}
               />
 
@@ -1194,12 +1217,24 @@ export default function AssignmentSubmissionsPage() {
                   />
                 </div>
 
+                {selectedSubmission?.grade?.source === 'ai' && !selectedSubmission?.grade?.isFinalized && (
+                  <Button
+                    variant="primary"
+                    onClick={handleValidateAiGrade}
+                    isLoading={isValidatingGrade}
+                    disabled={isValidatingGrade || isSavingGrade}
+                    className="w-full justify-center"
+                  >
+                    Validate AI Grade
+                  </Button>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <Button
                     variant="secondary"
                     onClick={handleSaveGrade}
                     isLoading={isSavingGrade}
-                    disabled={isSavingGrade}
+                    disabled={isSavingGrade || isValidatingGrade}
                     className="justify-center"
                   >
                     Save Grade
@@ -1212,7 +1247,7 @@ export default function AssignmentSubmissionsPage() {
                       setManualScore(score === null ? '' : String(score));
                       setManualFeedback(selectedSubmission?.grade?.feedback || '');
                     }}
-                    disabled={isSavingGrade}
+                    disabled={isSavingGrade || isValidatingGrade}
                     className="justify-center"
                   >
                     Reset Form

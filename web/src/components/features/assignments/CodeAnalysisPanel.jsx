@@ -1,4 +1,4 @@
-import { AlertTriangle, Code2, FileText, Loader2, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, Clock, Code2, FileText, Loader2, ShieldCheck } from 'lucide-react';
 import AttachmentButton from '../../common/AttachmentButton';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -23,7 +23,7 @@ function getRubricIndicator(rubricId, metrics) {
   if (!metrics) return { color: 'gray', label: 'No data' };
 
   if (rubricId === 'code_quality') {
-    const grade = String(metrics.complexity || '').toUpperCase();
+    const grade = String(metrics.grade || metrics.complexity || '').toUpperCase();
     if (grade === 'A' || grade === 'B') return { color: 'green', label: 'Pass' };
     if (grade === 'C') return { color: 'yellow', label: 'Warn' };
     if (grade) return { color: 'red', label: 'Fail' };
@@ -69,11 +69,24 @@ const LABEL_COLOR = {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function MetricTile({ label, value, subtext }) {
+const GRADE_COLOR = {
+  A: 'text-secondary-600',
+  B: 'text-secondary-500',
+  C: 'text-warning-600',
+  D: 'text-error-500',
+  F: 'text-error-700',
+};
+
+function gradeColor(grade) {
+  const letter = String(grade || '').charAt(0).toUpperCase();
+  return GRADE_COLOR[letter] ?? 'text-neutral-900';
+}
+
+function MetricTile({ label, value, subtext, valueClassName }) {
   return (
     <div className="rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-3 text-center">
       <p className="text-xs font-medium text-neutral-500 mb-1">{label}</p>
-      <p className="text-xl font-bold text-neutral-900 tabular-nums">{value ?? '—'}</p>
+      <p className={`text-xl font-bold tabular-nums ${valueClassName ?? 'text-neutral-900'}`}>{value ?? '—'}</p>
       {subtext && <p className="text-xs text-neutral-400 mt-0.5">{subtext}</p>}
     </div>
   );
@@ -166,21 +179,21 @@ export default function CodeAnalysisPanel({ codeAnalysis, showRubric = false, ru
         <div className="space-y-4">
 
           {/* Metric tiles */}
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <MetricTile
-              label="Complexity"
-              value={metrics?.complexity ?? '—'}
-              subtext="grade"
+              label="Grade"
+              value={metrics?.grade ?? metrics?.complexity ?? '—'}
+              subtext="overall"
+              valueClassName={gradeColor(metrics?.grade ?? metrics?.complexity)}
             />
             <MetricTile
-              label="Bugs"
-              value={metrics?.bugs !== undefined ? String(metrics.bugs) : '—'}
-              subtext="detected"
-            />
-            <MetricTile
-              label="Coverage"
-              value={metrics?.coverage ?? '—'}
-              subtext="test coverage"
+              label="Analyzed in"
+              value={metrics?.analyzedIn ?? '—'}
+              subtext={
+                metrics?.analyzedAt
+                  ? new Date(metrics.analyzedAt).toLocaleDateString()
+                  : undefined
+              }
             />
           </div>
 

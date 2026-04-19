@@ -57,7 +57,7 @@ public class AssignmentController {
             @RequestParam(value = "maxPoints", required = false) BigDecimal maxPoints,
             @RequestParam(value = "dueDate", required = false) OffsetDateTime dueDate,
             @RequestParam(value = "allowLateSubmission", defaultValue = "false") Boolean allowLateSubmission,
-            @RequestParam(value = "requireGithubRepo", defaultValue = "false") Boolean requireGithubRepo,
+            @RequestParam(value = "requireRepoUrl", defaultValue = "false") Boolean requireRepoUrl,
             @RequestParam(value = "files", required = false) List<MultipartFile> files,
             Authentication authentication) {
 
@@ -70,7 +70,7 @@ public class AssignmentController {
 
         AssignmentResponse response = assignmentServiceClient.createAssignment(
                 courseId, userId, title, description, maxPoints, 
-                dueDate, allowLateSubmission, requireGithubRepo, files
+                dueDate, allowLateSubmission, requireRepoUrl, files
         );
 
         // Notify users
@@ -125,7 +125,7 @@ public class AssignmentController {
             @RequestParam(value = "maxPoints", required = false) BigDecimal maxPoints,
             @RequestParam(value = "dueDate", required = false) OffsetDateTime dueDate,
             @RequestParam(value = "allowLateSubmission", required = false) Boolean allowLateSubmission,
-            @RequestParam(value = "requireGithubRepo", required = false) Boolean requireGithubRepo,
+            @RequestParam(value = "requireRepoUrl", required = false) Boolean requireRepoUrl,
             @RequestParam(value = "removeAttachmentIds", required = false) List<Integer> removeAttachmentIds,
             @RequestParam(value = "files", required = false) List<MultipartFile> files,
             Authentication authentication) {
@@ -137,7 +137,7 @@ public class AssignmentController {
         // The Core service ensures the X-User-Id matches the createdBy field
         AssignmentResponse updated = assignmentServiceClient.updateAssignment(
                 id, userId, title, description, maxPoints, dueDate,
-                allowLateSubmission, requireGithubRepo, removeAttachmentIds, files
+                allowLateSubmission, requireRepoUrl, removeAttachmentIds, files
         );
         return ResponseEntity.ok(ApiResponse.success(updated, "Assignment updated successfully"));
     }

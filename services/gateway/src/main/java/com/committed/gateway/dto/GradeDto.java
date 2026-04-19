@@ -19,6 +19,8 @@ public class GradeDto {
     private BigDecimal maxPoints;
     private String feedback;
     private String gradedAt;
+    private String source;
+    private Boolean isFinalized;
     private Integer assignmentId;
     private String assignmentTitle;
     private Integer courseId;

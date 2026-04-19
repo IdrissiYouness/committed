@@ -232,10 +232,10 @@ INSERT INTO comment (comment_id, announcement_id, user_id, parent_comment_id, co
 -- ============================================================================
 
 -- CS101 Assignments
-INSERT INTO assignment (assignment_id, created_by, course_id, title, description, max_points, due_date, require_github_repo) VALUES
+INSERT INTO assignment (assignment_id, created_by, course_id, title, description, max_points, due_date, require_repo_url) VALUES
 (1, 2, 1, 'Hello World and Variables', 'Write a Python program that prints "Hello, World!" and demonstrates the use of variables. Include examples of strings, integers, and floats.', 100, CURRENT_TIMESTAMP + INTERVAL '7 days', TRUE);
 
-INSERT INTO assignment (assignment_id, created_by, course_id, title, description, max_points, due_date, require_github_repo) VALUES
+INSERT INTO assignment (assignment_id, created_by, course_id, title, description, max_points, due_date, require_repo_url) VALUES
 (2, 2, 1, 'Loops and Conditionals', 'Create a program that uses if/else statements and loops. Include a number guessing game.', 100, CURRENT_TIMESTAMP + INTERVAL '14 days', TRUE);
 
 INSERT INTO assignment (assignment_id, created_by, course_id, title, description, max_points, due_date, allow_late_submission) VALUES
@@ -245,22 +245,22 @@ INSERT INTO assignment (assignment_id, created_by, course_id, title, description
 INSERT INTO assignment (assignment_id, created_by, course_id, title, description, max_points, due_date) VALUES
 (4, 3, 3, 'Personal Portfolio Page', 'Create a personal portfolio webpage using HTML and CSS. Include sections for About Me, Skills, and Contact.', 100, CURRENT_TIMESTAMP + INTERVAL '10 days');
 
-INSERT INTO assignment (assignment_id, created_by, course_id, title, description, max_points, due_date, require_github_repo) VALUES
+INSERT INTO assignment (assignment_id, created_by, course_id, title, description, max_points, due_date, require_repo_url) VALUES
 (5, 3, 3, 'Responsive Landing Page', 'Build a responsive landing page for a fictional product. Must work on mobile, tablet, and desktop.', 100, CURRENT_TIMESTAMP + INTERVAL '17 days', TRUE);
 
 -- DB101 Assignments
 INSERT INTO assignment (assignment_id, created_by, course_id, title, description, max_points, due_date) VALUES
 (6, 4, 5, 'SQL Basics Quiz', 'Complete the SQL basics quiz covering SELECT, INSERT, UPDATE, and DELETE statements.', 50, CURRENT_TIMESTAMP + INTERVAL '5 days');
 
-INSERT INTO assignment (assignment_id, created_by, course_id, title, description, max_points, due_date, require_github_repo) VALUES
+INSERT INTO assignment (assignment_id, created_by, course_id, title, description, max_points, due_date, require_repo_url) VALUES
 (7, 4, 5, 'Database Design Project', 'Design a database schema for an e-commerce application. Include ER diagram and SQL scripts.', 150, CURRENT_TIMESTAMP + INTERVAL '28 days', TRUE);
 
 -- CS201 Assignments
-INSERT INTO assignment (assignment_id, created_by, course_id, title, description, max_points, due_date, require_github_repo) VALUES
+INSERT INTO assignment (assignment_id, created_by, course_id, title, description, max_points, due_date, require_repo_url) VALUES
 (8, 2, 2, 'Linked List Implementation', 'Implement a singly linked list with insert, delete, and search operations.', 100, CURRENT_TIMESTAMP + INTERVAL '14 days', TRUE);
 
 -- JAVA101 Assignments
-INSERT INTO assignment (assignment_id, created_by, course_id, title, description, max_points, due_date, require_github_repo) VALUES
+INSERT INTO assignment (assignment_id, created_by, course_id, title, description, max_points, due_date, require_repo_url) VALUES
 (9, 4, 6, 'OOP Basics', 'Create a class hierarchy for a simple banking system with Account, SavingsAccount, and CheckingAccount classes.', 100, CURRENT_TIMESTAMP + INTERVAL '12 days', TRUE);
 
 -- ============================================================================
@@ -268,42 +268,43 @@ INSERT INTO assignment (assignment_id, created_by, course_id, title, description
 -- ============================================================================
 
 -- Submissions for CS101 Assignment 1 (Hello World)
-INSERT INTO submission (submission_id, assignment_id, student_id, submission_text, github_repo_url, status) VALUES
-(1, 1, 5, 'Completed the Hello World assignment. My code prints the greeting and demonstrates all variable types.', 'https://github.com/alice-martin/cs101-hw1', 'submitted');
+-- resubmission_count: how many times updated after initial submit (0 = never resubmitted)
+INSERT INTO submission (submission_id, assignment_id, student_id, submission_text, repo_url, resubmission_count, status) VALUES
+(1, 1, 5, 'Completed the Hello World assignment. My code prints the greeting and demonstrates all variable types.', 'https://github.com/alice-martin/cs101-hw1', 0, 'submitted');
 
-INSERT INTO submission (submission_id, assignment_id, student_id, submission_text, github_repo_url, status) VALUES
-(2, 1, 6, 'Here is my submission for the first assignment.', 'https://github.com/bob-wilson/python-basics', 'submitted');
+INSERT INTO submission (submission_id, assignment_id, student_id, submission_text, repo_url, resubmission_count, status) VALUES
+(2, 1, 6, 'Here is my submission for the first assignment.', 'https://github.com/bob-wilson/python-basics', 1, 'submitted');
 
-INSERT INTO submission (submission_id, assignment_id, student_id, submission_text, github_repo_url, status) VALUES
-(3, 1, 8, 'Assignment completed! I also added some extra examples.', 'https://github.com/diana-ross/cs101-assignments', 'graded');
+INSERT INTO submission (submission_id, assignment_id, student_id, submission_text, repo_url, resubmission_count, status) VALUES
+(3, 1, 8, 'Assignment completed! I also added some extra examples.', 'https://github.com/diana-ross/cs101-assignments', 0, 'graded');
 
-INSERT INTO submission (submission_id, assignment_id, student_id, github_repo_url, status) VALUES
-(4, 1, 10, 'https://github.com/fiona-chen/cs101', 'submitted');
+INSERT INTO submission (submission_id, assignment_id, student_id, repo_url, resubmission_count, status) VALUES
+(4, 1, 10, 'https://github.com/fiona-chen/cs101', 2, 'submitted');
 
-INSERT INTO submission (submission_id, assignment_id, student_id, github_repo_url, status) VALUES
-(5, 1, 11, 'https://github.com/george-kim/hello-python', 'pending');
+INSERT INTO submission (submission_id, assignment_id, student_id, repo_url, resubmission_count, status) VALUES
+(5, 1, 11, 'https://github.com/george-kim/hello-python', 0, 'pending');
 
 -- Submissions for WEB101 Assignment 1 (Portfolio)
-INSERT INTO submission (submission_id, assignment_id, student_id, submission_text, status) VALUES
-(6, 4, 5, 'My portfolio page is ready! I included all required sections plus a projects gallery.', 'submitted');
+INSERT INTO submission (submission_id, assignment_id, student_id, submission_text, resubmission_count, status) VALUES
+(6, 4, 5, 'My portfolio page is ready! I included all required sections plus a projects gallery.', 0, 'submitted');
 
-INSERT INTO submission (submission_id, assignment_id, student_id, submission_text, status) VALUES
-(7, 4, 7, 'Portfolio completed with responsive design.', 'graded');
+INSERT INTO submission (submission_id, assignment_id, student_id, submission_text, resubmission_count, status) VALUES
+(7, 4, 7, 'Portfolio completed with responsive design.', 0, 'graded');
 
-INSERT INTO submission (submission_id, assignment_id, student_id, submission_text, status) VALUES
-(8, 4, 8, 'Here is my portfolio. I used Flexbox for the layout.', 'submitted');
+INSERT INTO submission (submission_id, assignment_id, student_id, submission_text, resubmission_count, status) VALUES
+(8, 4, 8, 'Here is my portfolio. I used Flexbox for the layout.', 0, 'submitted');
 
 -- ============================================================================
 -- GRADES
 -- ============================================================================
 
--- Grade for Diana's CS101 submission
-INSERT INTO grade (grade_id, submission_id, graded_by, points_earned, max_points, feedback) VALUES
-(1, 3, 2, 95, 100, 'Excellent work Diana! Your code is clean and well-documented. The extra examples show great initiative. Minor deduction for missing docstrings.');
+-- Grade for Diana's CS101 submission — teacher manually graded, finalized
+INSERT INTO grade (grade_id, submission_id, graded_by, points_earned, max_points, feedback, source, is_finalized) VALUES
+(1, 3, 2, 95, 100, 'Excellent work Diana! Your code is clean and well-documented. The extra examples show great initiative. Minor deduction for missing docstrings.', 'manual', TRUE);
 
--- Grade for Charlie's WEB101 submission
-INSERT INTO grade (grade_id, submission_id, graded_by, points_earned, max_points, feedback) VALUES
-(2, 7, 3, 88, 100, 'Good job Charlie! The design is clean and responsive. Consider adding more CSS transitions for a polished feel.');
+-- Grade for Charlie's WEB101 submission — teacher manually graded, finalized
+INSERT INTO grade (grade_id, submission_id, graded_by, points_earned, max_points, feedback, source, is_finalized) VALUES
+(2, 7, 3, 88, 100, 'Good job Charlie! The design is clean and responsive. Consider adding more CSS transitions for a polished feel.', 'manual', TRUE);
 
 -- ============================================================================
 -- RESET IDENTITY SEQUENCES

@@ -98,6 +98,24 @@ public class GradeController {
         return ResponseEntity.ok(ApiResponse.success(grade, "Grade retrieved successfully"));
     }
 
+    @PostMapping("/grades/{gradeId}/validate")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<GradeDto>> validateAiGrade(
+            @PathVariable Integer gradeId,
+            Authentication authentication) {
+
+        log.debug("REST request to validate AI grade: {}", gradeId);
+        JwtPrincipal userDetails = (JwtPrincipal) authentication.getPrincipal();
+
+        if (!"ADMIN".equalsIgnoreCase(userDetails.systemRole()) && !"ROLE_ADMIN".equalsIgnoreCase(userDetails.systemRole())) {
+            GradeDto existingGrade = gradeClient.getGradeById(gradeId, Long.parseLong(userDetails.userId()), "ADMIN");
+            verifyTeacherOwnership(existingGrade.getSubmissionId(), userDetails);
+        }
+
+        GradeDto grade = gradeClient.finalizeGrade(gradeId, Long.parseLong(userDetails.userId()), userDetails.systemRole());
+        return ResponseEntity.ok(ApiResponse.success(grade, "Grade validated and finalized"));
+    }
+
     @GetMapping("/grades/recent")
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<List<GradeDto>>> getRecentGrades(

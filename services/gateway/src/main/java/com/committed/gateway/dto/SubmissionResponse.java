@@ -9,7 +9,8 @@ public class SubmissionResponse {
     private Integer assignmentId;
     private Integer studentId;
     private String submissionText;
-    private String githubRepoUrl;
+    private String repoUrl;
+    private Integer resubmissionCount;
     private String status;
     private String submittedAt;
     private String updatedAt;

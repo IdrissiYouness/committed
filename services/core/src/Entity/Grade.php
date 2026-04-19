@@ -38,6 +38,12 @@ class Grade
     #[ORM\Column(name: 'graded_at', type: Types::DATETIME_MUTABLE, options: ['default' => 'CURRENT_TIMESTAMP'])]
     private \DateTimeInterface $gradedAt;
 
+    #[ORM\Column(name: 'source', type: Types::STRING, length: 20, options: ['default' => 'manual'])]
+    private string $source = 'manual';
+
+    #[ORM\Column(name: 'is_finalized', type: Types::BOOLEAN, options: ['default' => false])]
+    private bool $isFinalized = false;
+
     public function __construct()
     {
         $this->gradedAt = new \DateTime();
@@ -111,6 +117,28 @@ class Grade
     public function setGradedAt(\DateTimeInterface $gradedAt): self
     {
         $this->gradedAt = $gradedAt;
+        return $this;
+    }
+
+    public function getSource(): string
+    {
+        return $this->source;
+    }
+
+    public function setSource(string $source): self
+    {
+        $this->source = $source;
+        return $this;
+    }
+
+    public function isFinalized(): bool
+    {
+        return $this->isFinalized;
+    }
+
+    public function setIsFinalized(bool $isFinalized): self
+    {
+        $this->isFinalized = $isFinalized;
         return $this;
     }
 }
