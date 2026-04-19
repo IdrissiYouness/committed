@@ -54,8 +54,7 @@ public class AnnouncementController {
 
         AnnouncementResponse response = announcementServiceClient.createAnnouncement(courseId, userId, title, content, attachments);
 
-        // Asynchronously notify users
-        notificationService.notifyNewAnnouncement(Long.valueOf(courseId), title);
+        notificationService.notifyAnnouncementCreated(Long.valueOf(courseId), title, content, userId);
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(response, "Announcement created successfully"));

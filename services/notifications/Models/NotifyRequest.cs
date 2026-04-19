@@ -25,7 +25,6 @@ public class NotifyRequest
     public string? GradeSource { get; set; } // "ai" | "manual"
 
     // Analysis fields
-    public string? ReportUrl { get; set; }
     public string? AnalysisScore { get; set; }
     public string? FailureReason { get; set; }
 }

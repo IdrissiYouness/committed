@@ -73,8 +73,8 @@ public class AssignmentController {
                 dueDate, allowLateSubmission, requireRepoUrl, files
         );
 
-        // Notify users
-        notificationService.notifyNewAnnouncement(courseId, "New Assignment: " + title);
+        String dueDateStr = dueDate != null ? dueDate.toString() : null;
+        notificationService.notifyAssignmentCreated(courseId, title, dueDateStr, userId);
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(response, "Assignment created successfully"));

@@ -2,6 +2,7 @@ package com.committed.gateway.controller;
 
 import com.committed.gateway.client.SubmissionClient;
 import com.committed.gateway.dto.internal.AnalysisCallbackRequest;
+import com.committed.gateway.service.NotificationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 public class AnalysisCallbackController {
 
     private final SubmissionClient submissionClient;
+    private final NotificationService notificationService;
     private final ObjectMapper objectMapper;
 
     @PostMapping("/analysis-result")
@@ -28,6 +30,13 @@ public class AnalysisCallbackController {
 
             submissionClient.saveAnalysisResult(submissionId, payload.getStatus(), metricsJson, reportPdfUrl);
             log.info("[{}] analysis result saved to Core", submissionId);
+
+            if ("completed".equals(payload.getStatus())) {
+                int pct = payload.getPercentage() != null ? payload.getPercentage().intValue() : 0;
+                notificationService.notifyAnalysisCompleted(submissionId, pct, reportPdfUrl);
+            } else if ("failed".equals(payload.getStatus())) {
+                notificationService.notifyAnalysisFailed(submissionId, payload.getErrorMessage());
+            }
         } catch (Exception e) {
             log.error("[{}] failed to persist analysis result: {}", submissionId, e.getMessage());
             try {

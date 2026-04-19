@@ -45,7 +45,7 @@ public class GradeController {
 
         GradeDto grade = gradeClient.createGrade(submissionId, Long.parseLong(userDetails.userId()), userDetails.systemRole(), request);
 
-        notificationService.notifyGradeUpdate(submissionId, grade.getPointsEarned());
+        notificationService.notifyGradeCreated(submissionId, grade);
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(grade, "Grade created successfully"));
@@ -68,7 +68,7 @@ public class GradeController {
 
         GradeDto grade = gradeClient.updateGrade(gradeId, Long.parseLong(userDetails.userId()), userDetails.systemRole(), request);
 
-        notificationService.notifyGradeUpdate(grade.getSubmissionId(), grade.getPointsEarned());
+        notificationService.notifyGradeCreated(grade.getSubmissionId(), grade);
 
         return ResponseEntity.ok(ApiResponse.success(grade, "Grade updated successfully"));
     }
@@ -113,6 +113,9 @@ public class GradeController {
         }
 
         GradeDto grade = gradeClient.finalizeGrade(gradeId, Long.parseLong(userDetails.userId()), userDetails.systemRole());
+
+        notificationService.notifyGradeValidated(grade.getSubmissionId(), grade);
+
         return ResponseEntity.ok(ApiResponse.success(grade, "Grade validated and finalized"));
     }
 
