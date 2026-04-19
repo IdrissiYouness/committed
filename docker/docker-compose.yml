@@ -133,6 +133,7 @@ services:
             - Smtp__Password=${SMTP_PASSWORD}
             - Smtp__FromEmail=${FROM_EMAIL}
             - Smtp__FromName=${FROM_NAME}
+            - Platform__Url=${PLATFORM_URL:-http://localhost}
         healthcheck:
             test: ["CMD-SHELL", "curl -f http://localhost:5001/health || exit 1"]
             interval: 30s

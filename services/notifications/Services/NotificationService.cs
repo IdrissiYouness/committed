@@ -7,12 +7,14 @@ public class NotificationService
     private readonly IEmailService _email;
     private readonly ILogger<NotificationService> _logger;
     private readonly string _templatesPath;
+    private readonly string _platformUrl;
 
-    public NotificationService(IEmailService email, ILogger<NotificationService> logger, IWebHostEnvironment env)
+    public NotificationService(IEmailService email, ILogger<NotificationService> logger, IWebHostEnvironment env, IConfiguration config)
     {
         _email = email;
         _logger = logger;
         _templatesPath = Path.Combine(env.ContentRootPath, "Templates");
+        _platformUrl = config["Platform:Url"] ?? "http://localhost";
     }
 
     public async Task ProcessAsync(NotifyRequest req)
@@ -114,7 +116,6 @@ public class NotificationService
             ["{{CourseName}}"]      = r.CourseName ?? "",
             ["{{AssignmentTitle}}"] = r.AssignmentTitle ?? "",
             ["{{AnalysisScore}}"]   = r.AnalysisScore ?? "-",
-            ["{{ReportUrl}}"]       = r.ReportUrl ?? "#",
         });
         return (subject, body);
     }

@@ -1,7 +1,18 @@
 package com.committed.gateway.service;
 
-public interface NotificationService {
-    void notifyNewAnnouncement(Long courseId, String title);
+import com.committed.gateway.dto.GradeDto;
 
-    void notifyGradeUpdate(Integer submissionId, java.math.BigDecimal pointsEarned);
+public interface NotificationService {
+
+    void notifyAnnouncementCreated(Long courseId, String title, String content, Long professorId);
+
+    void notifyAssignmentCreated(Long courseId, String assignmentTitle, String dueDate, Long professorId);
+
+    void notifyGradeCreated(Integer submissionId, GradeDto grade);
+
+    void notifyGradeValidated(Integer submissionId, GradeDto grade);
+
+    void notifyAnalysisCompleted(Integer submissionId, int percentage, String reportUrl);
+
+    void notifyAnalysisFailed(Integer submissionId, String failureReason);
 }
