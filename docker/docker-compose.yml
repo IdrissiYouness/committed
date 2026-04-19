@@ -127,16 +127,18 @@ services:
         ports:
             - "${NOTIFICATION_PORT}:5001"
         environment:
-            - ConnectionStrings__DefaultConnection=Host=postgres-db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
-            - SmtpSettings__Host=${SMTP_HOST}
-            - SmtpSettings__Port=${SMTP_PORT}
-            - SmtpSettings__Username=${SMTP_USER}
-            - SmtpSettings__Password=${SMTP_PASSWORD}
-            - SmtpSettings__FromEmail=${FROM_EMAIL}
-            - SmtpSettings__FromName=${FROM_NAME}
-        depends_on:
-            postgres-db:
-                condition: service_healthy
+            - Smtp__Host=${SMTP_HOST}
+            - Smtp__Port=${SMTP_PORT}
+            - Smtp__Username=${SMTP_USER}
+            - Smtp__Password=${SMTP_PASSWORD}
+            - Smtp__FromEmail=${FROM_EMAIL}
+            - Smtp__FromName=${FROM_NAME}
+        healthcheck:
+            test: ["CMD-SHELL", "curl -f http://localhost:5001/health || exit 1"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 15s
         networks:
             - committed-network
         restart: unless-stopped
