@@ -65,6 +65,8 @@ class GradeController extends AbstractController
         $grade->setPointsEarned((string)$data['pointsEarned']);
         $grade->setMaxPoints((string)$submission->getAssignment()->getMaxPoints());
         $grade->setFeedback($data['feedback'] ?? null);
+        $grade->setSource('manual');
+        $grade->setIsFinalized(true);
 
         $submission->setStatus('graded');
 
@@ -100,7 +102,24 @@ class GradeController extends AbstractController
             $grade->setFeedback($data['feedback']);
         }
 
-        // Ensure status remains graded in case it was accidentally altered elsewhere or needs reinforcement
+        $grade->setSource('manual');
+        $grade->setIsFinalized(true);
+        $grade->getSubmission()->setStatus('graded');
+
+        $this->entityManager->flush();
+
+        return $this->json($this->formatGrade($grade));
+    }
+
+    #[Route('/internal/grades/{gradeId}/finalize', methods: ['POST'], requirements: ['gradeId' => '\d+'])]
+    public function finalizeGrade(int $gradeId): JsonResponse
+    {
+        $grade = $this->gradeRepository->find($gradeId);
+        if (!$grade) {
+            return $this->json(['error' => 'Grade not found'], Response::HTTP_NOT_FOUND);
+        }
+
+        $grade->setIsFinalized(true);
         $grade->getSubmission()->setStatus('graded');
 
         $this->entityManager->flush();
@@ -178,6 +197,8 @@ class GradeController extends AbstractController
             'maxPoints' => $grade->getMaxPoints(),
             'feedback' => $grade->getFeedback(),
             'gradedAt' => $grade->getGradedAt()->format('Y-m-d\TH:i:s\Z'),
+            'source' => $grade->getSource(),
+            'isFinalized' => $grade->isFinalized(),
         ];
     }
 }

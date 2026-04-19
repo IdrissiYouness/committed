@@ -124,6 +124,27 @@ public class GradeClient {
         }
     }
 
+    public GradeDto finalizeGrade(Integer gradeId, Long userId, String userRole) {
+        String url = coreServiceUrl + "/internal/grades/" + gradeId + "/finalize";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-User-Id", String.valueOf(userId));
+        headers.set("X-User-Role", userRole);
+
+        HttpEntity<Void> requestEntity = new HttpEntity<>(headers);
+
+        try {
+            ResponseEntity<GradeDto> response = restTemplate.exchange(
+                    url, HttpMethod.POST, requestEntity, GradeDto.class
+            );
+            return response.getBody();
+        } catch (HttpClientErrorException e) {
+            log.error("Failed to finalize grade {}: {}", gradeId, e.getResponseBodyAsString());
+            handleCommonExceptions(e);
+            throw new RuntimeException("Failed to finalize grade: " + e.getResponseBodyAsString());
+        }
+    }
+
     public java.util.List<GradeDto> getRecentGrades(Long userId, String userRole, int limit) {
         int safeLimit = Math.max(1, Math.min(limit, 50));
         String url = coreServiceUrl + "/internal/grades/recent?limit=" + safeLimit;

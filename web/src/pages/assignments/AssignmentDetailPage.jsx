@@ -36,24 +36,24 @@ import ConfirmDialog from '../../components/common/ConfirmDialog';
 import CodeAnalysisPanel from '../../components/features/assignments/CodeAnalysisPanel';
 import AssignmentStatusBadge from '../../components/features/assignments/AssignmentStatusBadge';
 
-const getSubmissionSchema = (requireGithubRepo) => z
+const getSubmissionSchema = (requireRepoUrl) => z
   .object({
-    githubRepoUrl: requireGithubRepo
-      ? z.string().url('Please enter a valid URL').min(1, 'GitHub Repository URL is required')
+    repoUrl: requireRepoUrl
+      ? z.string().url('Please enter a valid URL').min(1, 'Repository URL is required')
       : z.string().url('Please enter a valid URL').optional().or(z.literal('')),
     submissionText: z.string().max(5000, 'Submission notes are too long').optional().or(z.literal('')),
     file: z.any().optional(),
   })
   .refine(
     (data) => {
-      const hasUrl = data.githubRepoUrl && data.githubRepoUrl.trim().length > 0;
+      const hasUrl = data.repoUrl && data.repoUrl.trim().length > 0;
       const hasText = data.submissionText && data.submissionText.trim().length > 0;
       const hasFile = data.file && data.file.length > 0;
       return hasUrl || hasText || hasFile;
     },
     {
-      message: 'Add a GitHub URL, submission notes, or a file before submitting.',
-      path: ['githubRepoUrl'],
+      message: 'Add a repository URL, submission notes, or a file before submitting.',
+      path: ['repoUrl'],
     }
   );
 
@@ -215,9 +215,9 @@ export default function AssignmentDetailPage() {
     formState: { errors },
   } = useForm({
     resolver: async (data, context, options) => {
-      return zodResolver(getSubmissionSchema(assignment?.requireGithubRepo))(data, context, options);
+      return zodResolver(getSubmissionSchema(assignment?.requireRepoUrl))(data, context, options);
     },
-    defaultValues: { githubRepoUrl: '', submissionText: '' },
+    defaultValues: { repoUrl: '', submissionText: '' },
   });
 
   const {
@@ -315,7 +315,7 @@ export default function AssignmentDetailPage() {
         }
 
         reset({
-          githubRepoUrl: latestOwnSubmission?.githubRepoUrl || '',
+          repoUrl: latestOwnSubmission?.repoUrl || '',
           submissionText: latestOwnSubmission?.submissionText || '',
         });
       }
@@ -330,13 +330,23 @@ export default function AssignmentDetailPage() {
     fetchData();
   }, [fetchData]);
 
-  // Poll every 10 s while analysis is in progress so the student sees live status
+  // Lightweight poll: only refresh the code analysis block while it's in progress
   useEffect(() => {
     const status = studentSubmission?.codeAnalysis?.status;
-    if (status !== 'pending' && status !== 'analyzing') return;
-    const intervalId = setInterval(fetchData, 10_000);
+    const submissionId = studentSubmission?.submissionId;
+    if ((status !== 'pending' && status !== 'analyzing') || !submissionId) return;
+
+    const intervalId = setInterval(async () => {
+      try {
+        const analysis = await submissionService.getAnalysis(submissionId);
+        setStudentSubmission((prev) => prev ? { ...prev, codeAnalysis: analysis } : prev);
+      } catch {
+        // silently ignore transient errors — full fetchData still works on mount
+      }
+    }, 8_000);
+
     return () => clearInterval(intervalId);
-  }, [studentSubmission?.codeAnalysis?.status, fetchData]);
+  }, [studentSubmission?.codeAnalysis?.status, studentSubmission?.submissionId]);
 
   useEffect(() => {
     if (!activeSubmissionId) return;
@@ -369,19 +379,19 @@ export default function AssignmentDetailPage() {
       return;
     }
 
-    if (assignment?.requireGithubRepo && !data.githubRepoUrl?.trim()) {
-      toast.error('This assignment requires a GitHub repository URL.');
+    if (assignment?.requireRepoUrl && !data.repoUrl?.trim()) {
+      toast.error('This assignment requires a repository URL (GitHub or GitLab).');
       return;
     }
 
     setIsSavingSubmission(true);
     try {
-      const cleanedGithubUrl = data.githubRepoUrl?.trim() || '';
+      const cleanedRepoUrl = data.repoUrl?.trim() || '';
       const cleanedSubmissionText = data.submissionText?.trim() || '';
       const hasFile = data.file && data.file.length > 0;
 
       const formData = new FormData();
-      if (cleanedGithubUrl) formData.append('githubRepoUrl', cleanedGithubUrl);
+      if (cleanedRepoUrl) formData.append('repoUrl', cleanedRepoUrl);
       if (cleanedSubmissionText) formData.append('submissionText', cleanedSubmissionText);
       if (hasFile) {
         formData.append('file', data.file[0]);
@@ -408,7 +418,7 @@ export default function AssignmentDetailPage() {
       }
 
       setIsEditingSubmission(false);
-      reset({ githubRepoUrl: '', submissionText: '' });
+      reset({ repoUrl: '', submissionText: '' });
       await fetchData();
     } catch (requestError) {
       if (requestError?.status === 409) {
@@ -629,9 +639,9 @@ export default function AssignmentDetailPage() {
             <div className="mt-6 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
               <p className="text-sm text-neutral-700">
                 <strong>Submission requirements:</strong>{' '}
-                {assignment.requireGithubRepo
-                  ? 'GitHub repository URL is required.'
-                  : 'GitHub repository URL is optional.'}
+                {assignment.requireRepoUrl
+                  ? 'Repository URL is required (GitHub or GitLab).'
+                  : 'Repository URL is optional (GitHub or GitLab).'}
               </p>
               <p className="mt-1 text-sm text-neutral-600">
                 <strong>Late policy:</strong> {latePolicyText}
@@ -724,9 +734,9 @@ export default function AssignmentDetailPage() {
                                   Submitted {formatDateTime(submission.submittedAt || submission.updatedAt)}
                                 </p>
 
-                                {submission.githubRepoUrl && (
+                                {submission.repoUrl && (
                                   <a
-                                    href={submission.githubRepoUrl}
+                                    href={submission.repoUrl}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 break-all"
@@ -782,9 +792,9 @@ export default function AssignmentDetailPage() {
                         </div>
 
                         <div className="mt-3 space-y-2 text-sm">
-                          {activeSubmission.githubRepoUrl && (
+                          {activeSubmission.repoUrl && (
                             <a
-                              href={activeSubmission.githubRepoUrl}
+                              href={activeSubmission.repoUrl}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center gap-1.5 text-primary-700 hover:text-primary-800 break-all"
@@ -946,17 +956,17 @@ export default function AssignmentDetailPage() {
                       Submitted on {formatDateTime(studentSubmission.submittedAt || studentSubmission.updatedAt)}
                     </div>
 
-                    {studentSubmission.githubRepoUrl && (
+                    {studentSubmission.repoUrl && (
                       <div className="text-sm">
-                        <span className="block text-neutral-500 mb-1">GitHub Repository:</span>
+                        <span className="block text-neutral-500 mb-1">Repository:</span>
                         <a
-                          href={studentSubmission.githubRepoUrl}
+                          href={studentSubmission.repoUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-primary-600 hover:text-primary-700 inline-flex items-center gap-2 break-all"
                         >
                           <Github className="h-4 w-4 shrink-0" />
-                          {studentSubmission.githubRepoUrl}
+                          {studentSubmission.repoUrl}
                         </a>
                       </div>
                     )}
@@ -998,11 +1008,11 @@ export default function AssignmentDetailPage() {
                 ) : (
                   <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
                     <Input
-                      label={assignment?.requireGithubRepo ? 'GitHub Repository URL (Required)' : 'GitHub Repository URL'}
-                      id="githubRepoUrl"
-                      placeholder="https://github.com/username/repo"
-                      error={errors.githubRepoUrl?.message}
-                      {...register('githubRepoUrl')}
+                      label={assignment?.requireRepoUrl ? 'Repository URL (Required)' : 'Repository URL'}
+                      id="repoUrl"
+                      placeholder="https://github.com/username/repo or https://gitlab.com/username/repo"
+                      error={errors.repoUrl?.message}
+                      {...register('repoUrl')}
                     />
 
                     <div>
@@ -1040,7 +1050,7 @@ export default function AssignmentDetailPage() {
                           onClick={() => {
                             setIsEditingSubmission(false);
                             reset({
-                              githubRepoUrl: studentSubmission?.githubRepoUrl || '',
+                              repoUrl: studentSubmission?.repoUrl || '',
                               submissionText: studentSubmission?.submissionText || '',
                             });
                           }}
@@ -1062,7 +1072,7 @@ export default function AssignmentDetailPage() {
               </section>
 
               {/* Code analysis results — only visible when student submitted with a GitHub URL */}
-              {studentSubmission?.githubRepoUrl && (
+              {studentSubmission?.repoUrl && (
                 <CodeAnalysisPanel
                   codeAnalysis={studentSubmission?.codeAnalysis}
                   showRubric={false}

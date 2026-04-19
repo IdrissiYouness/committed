@@ -29,7 +29,7 @@ public class AssignmentRequest {
 
     private Boolean allowLateSubmission;
 
-    private Boolean requireGithubRepo;
+    private Boolean requireRepoUrl;
 
     private List<AssignmentAttachmentDto> attachments;
 }

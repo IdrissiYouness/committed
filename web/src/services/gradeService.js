@@ -47,6 +47,10 @@ const gradeService = {
   getRecent: async () => {
     return api.get(API_ENDPOINTS.GRADES.RECENT);
   },
+
+  validateAiGrade: async (gradeId) => {
+    return api.post(API_ENDPOINTS.GRADES.VALIDATE(gradeId));
+  },
 };
 
 export default gradeService;

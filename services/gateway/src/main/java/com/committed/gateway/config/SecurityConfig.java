@@ -61,6 +61,7 @@ public class SecurityConfig {
                 .requestMatchers("/actuator/**").permitAll()
                 .requestMatchers("/test-chain").permitAll()
                 .requestMatchers("/docs").permitAll()
+                .requestMatchers("/internal/**").permitAll()
 
                 // Swagger/OpenAPI (if added later)
                 // TO-DO : will be modified based on api doc format and provider

@@ -62,9 +62,10 @@ export const API_ENDPOINTS = {
   },
 
   GRADES: {
-    LIST:   '/api/grades',
-    RECENT: '/api/grades/recent',         // GRADE-001
+    LIST:     '/api/grades',
+    RECENT:   '/api/grades/recent',
     DETAIL:   (id) => `/api/grades/${id}`,
+    VALIDATE: (id) => `/api/grades/${id}/validate`,
   },
 
   ADMIN: {

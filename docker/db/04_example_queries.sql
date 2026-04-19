@@ -180,7 +180,7 @@ ORDER BY comment_count DESC;
 
 -- Get all assignments for a course
 SELECT assignment_id, title, description, max_points, due_date,
-       allow_late_submission, require_github_repo
+       allow_late_submission, require_repo_url
 FROM assignment
 WHERE course_id = 1
 ORDER BY due_date;
@@ -215,7 +215,7 @@ ORDER BY a.due_date;
 -- ============================================================================
 
 -- Get all submissions for an assignment
-SELECT s.submission_id, s.status, s.submitted_at, s.github_repo_url,
+SELECT s.submission_id, s.status, s.submitted_at, s.repo_url,
        u.full_name AS student_name
 FROM submission s
 JOIN users u ON s.student_id = u.user_id

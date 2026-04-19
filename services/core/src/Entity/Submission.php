@@ -32,8 +32,11 @@ class Submission
     #[ORM\Column(name: 'submission_text', type: Types::TEXT, nullable: true)]
     private ?string $submissionText = null;
 
-    #[ORM\Column(name: 'github_repo_url', type: Types::STRING, length: 500, nullable: true)]
-    private ?string $githubRepoUrl = null;
+    #[ORM\Column(name: 'repo_url', type: Types::STRING, length: 500, nullable: true)]
+    private ?string $repoUrl = null;
+
+    #[ORM\Column(name: 'resubmission_count', type: Types::INTEGER, options: ['default' => 0])]
+    private int $resubmissionCount = 0;
 
     #[ORM\Column(name: 'status', type: Types::STRING, length: 50, options: ['default' => 'pending'])]
     private string $status = 'pending';
@@ -98,14 +101,25 @@ class Submission
         return $this;
     }
 
-    public function getGithubRepoUrl(): ?string
+    public function getRepoUrl(): ?string
     {
-        return $this->githubRepoUrl;
+        return $this->repoUrl;
     }
 
-    public function setGithubRepoUrl(?string $githubRepoUrl): self
+    public function setRepoUrl(?string $repoUrl): self
     {
-        $this->githubRepoUrl = $githubRepoUrl;
+        $this->repoUrl = $repoUrl;
+        return $this;
+    }
+
+    public function getResubmissionCount(): int
+    {
+        return $this->resubmissionCount;
+    }
+
+    public function incrementResubmissionCount(): self
+    {
+        $this->resubmissionCount++;
         return $this;
     }
 

@@ -35,7 +35,7 @@ public class AssignmentServiceClient {
 
     public AssignmentResponse createAssignment(Long courseId, Long userId, String title, String description, 
                                                BigDecimal maxPoints, OffsetDateTime dueDate, 
-                                               Boolean allowLateSubmission, Boolean requireGithubRepo, 
+                                               Boolean allowLateSubmission, Boolean requireRepoUrl, 
                                                List<MultipartFile> attachments) {
         String url = coreServiceUrl + "/internal/courses/" + courseId + "/assignments";
 
@@ -50,7 +50,7 @@ public class AssignmentServiceClient {
         if (maxPoints != null) body.add("maxPoints", maxPoints.toString());
         if (dueDate != null) body.add("dueDate", dueDate.toString());
         if (allowLateSubmission != null) body.add("allowLateSubmission", allowLateSubmission.toString());
-        if (requireGithubRepo != null) body.add("requireGithubRepo", requireGithubRepo.toString());
+        if (requireRepoUrl != null) body.add("requireRepoUrl", requireRepoUrl.toString());
 
         if (attachments != null && !attachments.isEmpty()) {
             for (MultipartFile file : attachments) {
@@ -145,7 +145,7 @@ public class AssignmentServiceClient {
     public AssignmentResponse updateAssignment(
             Long id, Long userId, String title, String description,
             BigDecimal maxPoints, OffsetDateTime dueDate,
-            Boolean allowLateSubmission, Boolean requireGithubRepo,
+            Boolean allowLateSubmission, Boolean requireRepoUrl,
             List<Integer> removeAttachmentIds, List<MultipartFile> files) {
         String url = coreServiceUrl + "/internal/assignments/" + id;
 
@@ -159,7 +159,7 @@ public class AssignmentServiceClient {
         if (maxPoints != null) body.add("maxPoints", maxPoints.toString());
         if (dueDate != null) body.add("dueDate", dueDate.toString());
         if (allowLateSubmission != null) body.add("allowLateSubmission", allowLateSubmission.toString());
-        if (requireGithubRepo != null) body.add("requireGithubRepo", requireGithubRepo.toString());
+        if (requireRepoUrl != null) body.add("requireRepoUrl", requireRepoUrl.toString());
 
         if (removeAttachmentIds != null && !removeAttachmentIds.isEmpty()) {
             for (Integer attachmentId : removeAttachmentIds) {

@@ -16,7 +16,7 @@ export default function AssignmentFormPage() {
   const { register, handleSubmit, reset, formState: { errors } } = useForm({
     defaultValues: {
       allowLateSubmission: false,
-      requireGithubRepo: false,
+      requireRepoUrl: false,
     },
   });
   
@@ -60,7 +60,7 @@ export default function AssignmentFormPage() {
       formData.append('dueDate', new Date(data.dueDate).toISOString());
       formData.append('maxPoints', data.maxPoints);
       formData.append('allowLateSubmission', data.allowLateSubmission === true || data.allowLateSubmission === 'true' ? 'true' : 'false');
-      formData.append('requireGithubRepo', data.requireGithubRepo === true || data.requireGithubRepo === 'true' ? 'true' : 'false');
+      formData.append('requireRepoUrl', data.requireRepoUrl === true || data.requireRepoUrl === 'true' ? 'true' : 'false');
 
       if (data.file && data.file[0]) {
         formData.append('files', data.file[0]);
@@ -156,13 +156,13 @@ export default function AssignmentFormPage() {
           <label className="inline-flex items-center gap-2 text-sm font-medium text-neutral-700">
             <input
               type="checkbox"
-              {...register('requireGithubRepo')}
+              {...register('requireRepoUrl')}
               className="h-4 w-4 rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
             />
-            Require GitHub Repository
+            Require Repository URL
           </label>
           <p className="mt-1 text-xs text-neutral-500">
-            If enabled, students must provide a valid GitHub repository URL when submitting.
+            If enabled, students must provide a valid GitHub or GitLab repository URL when submitting.
           </p>
         </div>
 

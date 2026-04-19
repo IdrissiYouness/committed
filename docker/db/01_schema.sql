@@ -162,7 +162,7 @@ CREATE TABLE assignment (
     max_points NUMERIC(6,2) DEFAULT 100.00 NOT NULL,
     due_date TIMESTAMP,
     allow_late_submission BOOLEAN DEFAULT FALSE NOT NULL,
-    require_github_repo BOOLEAN DEFAULT FALSE NOT NULL,
+    require_repo_url BOOLEAN DEFAULT FALSE NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT fk_assignment_user FOREIGN KEY (created_by)
@@ -189,7 +189,8 @@ CREATE TABLE submission (
     assignment_id INTEGER NOT NULL,
     student_id INTEGER NOT NULL,
     submission_text TEXT,
-    github_repo_url VARCHAR(500),
+    repo_url VARCHAR(500),
+    resubmission_count INTEGER DEFAULT 0 NOT NULL,
     status VARCHAR(50) DEFAULT 'pending' NOT NULL
         CHECK (status IN ('pending', 'submitted', 'graded', 'late', 'returned')),
     submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -222,6 +223,8 @@ CREATE TABLE grade (
     max_points NUMERIC(6,2) NOT NULL,
     feedback TEXT,
     graded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    source VARCHAR(20) DEFAULT 'manual' NOT NULL,
+    is_finalized BOOLEAN DEFAULT FALSE NOT NULL,
     CONSTRAINT fk_grade_submission FOREIGN KEY (submission_id)
         REFERENCES submission(submission_id) ON DELETE CASCADE,
     CONSTRAINT fk_grade_grader FOREIGN KEY (graded_by)

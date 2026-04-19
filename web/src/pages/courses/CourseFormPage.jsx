@@ -8,6 +8,11 @@ import courseService from '../../services/courseService';
 import Button from '../../components/common/Button';
 import { ROUTES } from '../../utils/constants';
 
+const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+function generateCourseCode() {
+  return Array.from({ length: 6 }, () => CHARS[Math.floor(Math.random() * CHARS.length)]).join('');
+}
+
 const courseSchema = z.object({
   courseCode: z.string().min(1, 'Course code is required'),
   courseName: z.string().min(1, 'Course name is required'),
@@ -38,9 +43,10 @@ export default function CourseFormPage() {
   const navigate = useNavigate();
   const isEditing = Boolean(id);
   
-  const { register, handleSubmit, formState: { errors }, reset } = useForm({
+  const { register, handleSubmit, formState: { errors }, reset, setValue, getValues } = useForm({
     resolver: zodResolver(courseSchema),
     defaultValues: {
+      courseCode: !id ? generateCourseCode() : '',
       isOpen: true,
     },
   });
@@ -101,11 +107,14 @@ export default function CourseFormPage() {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-neutral-700">Course Code</label>
-            <input 
-              {...register('courseCode')} 
-              className="mt-1 block w-full rounded-md border-neutral-300 shadow-sm focus:border-primary-500 focus:ring-primary-500" 
-              placeholder="CS101"
+            <label className="block text-sm font-medium text-neutral-700">
+              Course Code
+              {!isEditing && <span className="ml-2 text-xs text-neutral-400 font-normal">Auto-generated</span>}
+            </label>
+            <input
+              {...register('courseCode')}
+              readOnly
+              className="mt-1 block w-full rounded-md border-neutral-300 bg-neutral-50 shadow-sm text-neutral-500 cursor-default select-all font-mono tracking-widest"
             />
             {errors.courseCode && <p className="text-red-500 text-sm mt-1">{errors.courseCode.message}</p>}
           </div>
