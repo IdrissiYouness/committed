@@ -3,6 +3,9 @@
 .env.local
 .env.*.local
 
+# Local .NET overrides (may contain real credentials)
+appsettings.Development.json
+
 # IDE
 .idea/
 .vscode/

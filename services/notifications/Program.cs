@@ -1,13 +1,21 @@
+using Notifications.BackgroundWorkers;
+using Notifications.Configuration;
+using Notifications.Services;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
+
+builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("Smtp"));
+
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<NotificationService>();
+
+builder.Services.AddSingleton<NotificationQueue>();
+builder.Services.AddHostedService<NotificationWorker>();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
