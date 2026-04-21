@@ -417,6 +417,94 @@ public class CoreServiceClient {
     }
 
     /**
+     * Fetch a user by ID from Core — used by TokenController during refresh.
+     * Does NOT return passwordHash.
+     *
+     * @throws UserNotFoundException       if Core returns 404
+     * @throws ServiceUnavailableException if Core is unreachable
+     */
+    public UserDetailsResponse getUserById(Long userId) {
+        String url = coreServiceUrl + "/api/users/" + userId + "/details";
+
+        log.info("Calling Core service to get user by id: userId={}", userId);
+
+        try {
+            HttpEntity<Void> entity = new HttpEntity<>(jsonHeaders());
+
+            ResponseEntity<UserDetailsResponse> response = restTemplate.exchange(
+                url,
+                HttpMethod.GET,
+                entity,
+                UserDetailsResponse.class
+            );
+
+            log.info("User fetched from Core: userId={}", userId);
+            return response.getBody();
+
+        } catch (HttpClientErrorException.NotFound ex) {
+            log.warn("User not found in Core: userId={}", userId);
+            throw new UserNotFoundException(userId);
+
+        } catch (HttpClientErrorException ex) {
+            log.error("Client error calling Core get-user-by-id: status={}", ex.getStatusCode());
+            throw new ServiceUnavailableException("Core", ex);
+
+        } catch (ResourceAccessException ex) {
+            log.error("Cannot connect to Core service: {}", ex.getMessage());
+            throw new ServiceUnavailableException("Core", ex);
+
+        } catch (Exception ex) {
+            log.error("Unexpected error calling Core get-user-by-id: {}", ex.getMessage(), ex);
+            throw new ServiceUnavailableException("Core", ex);
+        }
+    }
+
+    /**
+     * Increment a user's token_version in Core, then return the new version.
+     * Called after password change or admin deactivation to invalidate all existing sessions.
+     *
+     * @throws UserNotFoundException       if Core returns 404
+     * @throws ServiceUnavailableException if Core is unreachable
+     */
+    public int incrementTokenVersion(Long userId) {
+        String url = coreServiceUrl + "/api/users/" + userId + "/token-version";
+
+        log.info("Calling Core to increment token version for userId={}", userId);
+
+        try {
+            HttpEntity<Void> entity = new HttpEntity<>(jsonHeaders());
+
+            ResponseEntity<java.util.Map> response = restTemplate.exchange(
+                url,
+                HttpMethod.PUT,
+                entity,
+                java.util.Map.class
+            );
+
+            Object newVersion = response.getBody() != null ? response.getBody().get("tokenVersion") : null;
+            int version = newVersion instanceof Number ? ((Number) newVersion).intValue() : 1;
+            log.info("Token version incremented for userId={} → {}", userId, version);
+            return version;
+
+        } catch (HttpClientErrorException.NotFound ex) {
+            log.warn("User not found in Core during token version increment: userId={}", userId);
+            throw new UserNotFoundException(userId);
+
+        } catch (HttpClientErrorException ex) {
+            log.error("Client error calling Core increment-token-version: status={}", ex.getStatusCode());
+            throw new ServiceUnavailableException("Core", ex);
+
+        } catch (ResourceAccessException ex) {
+            log.error("Cannot connect to Core service: {}", ex.getMessage());
+            throw new ServiceUnavailableException("Core", ex);
+
+        } catch (Exception ex) {
+            log.error("Unexpected error calling Core increment-token-version: {}", ex.getMessage(), ex);
+            throw new ServiceUnavailableException("Core", ex);
+        }
+    }
+
+    /**
      * Replace a user's password hash in Core.
      * Gateway has already verified the old password and BCrypt-hashed the new one.
      * Called by Gateway on POST /api/users/profile/change-password.

@@ -43,7 +43,8 @@ import java.util.stream.Collectors;
 @Slf4j
 public class AdminService {
 
-    private final CoreServiceClient coreServiceClient;
+    private final CoreServiceClient     coreServiceClient;
+    private final TokenBlacklistService blacklistService;
 
     // -------------------------------------------------------------------------
     // List Users
@@ -205,6 +206,16 @@ public class AdminService {
         log.info("ADMIN_ACTION adminId={} action=DEACTIVATE_USER targetId={}", adminId, targetId);
 
         AdminUserResponse deactivated = coreServiceClient.adminDeactivateUser(adminId, targetId);
+
+        // Immediately invalidate all existing sessions for the deactivated user
+        try {
+            int newVersion = coreServiceClient.incrementTokenVersion(targetId);
+            blacklistService.setTokenVersion(String.valueOf(targetId), newVersion);
+            log.info("Token version bumped to {} for deactivated userId={}", newVersion, targetId);
+        } catch (Exception e) {
+            log.error("Failed to bump token version after deactivating userId={}: {}", targetId, e.getMessage());
+        }
+
 
         log.info("ADMIN_ACTION adminId={} action=DEACTIVATE_USER targetId={} — success", adminId, targetId);
 

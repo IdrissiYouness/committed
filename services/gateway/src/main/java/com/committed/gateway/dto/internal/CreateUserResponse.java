@@ -21,10 +21,11 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class CreateUserResponse {
 
-    private Long userId;
-    private String email;
-    private String fullName;
-    private String systemRole;
+    private Long    userId;
+    private String  email;
+    private String  fullName;
+    private String  systemRole;
     private Boolean isActive;
-    private String createdAt;
+    private String  createdAt;
+    private Integer tokenVersion;
 }

@@ -124,6 +124,8 @@ function EditProfileForm({ user, onCancel, onSuccess }) {
 // ─── Change Password Form ─────────────────────────────────────────────────────
 
 function ChangePasswordForm({ onCancel }) {
+  const updateTokens = useAuthStore((s) => s.updateTokens);
+
   const {
     register,
     handleSubmit,
@@ -136,7 +138,11 @@ function ChangePasswordForm({ onCancel }) {
 
   const onSubmit = async ({ currentPassword, newPassword }) => {
     try {
-      await api.post(API_ENDPOINTS.USERS.CHANGE_PASSWORD, { currentPassword, newPassword });
+      const result = await api.post(API_ENDPOINTS.USERS.CHANGE_PASSWORD, { currentPassword, newPassword });
+      // Backend bumps token version — swap in the new tokens so this session stays valid
+      if (result?.accessToken && result?.refreshToken) {
+        updateTokens(result.accessToken, result.refreshToken);
+      }
       toast.success('Password changed successfully!');
       reset();
       onCancel();

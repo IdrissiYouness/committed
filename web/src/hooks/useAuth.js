@@ -94,11 +94,11 @@ export function useAuth() {
 
   /**
    * Log out the current user.
-   * Clears all persisted credentials and redirects to /login.
+   * Calls the server to blacklist tokens, clears all persisted credentials,
+   * then redirects to /login.
    */
-  const handleLogout = () => {
-    authService.logout();
-    storeLogout();
+  const handleLogout = async () => {
+    await storeLogout();
     navigate(ROUTES.LOGIN, { replace: true });
   };
 

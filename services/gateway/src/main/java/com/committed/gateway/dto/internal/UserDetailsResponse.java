@@ -23,4 +23,5 @@ public class UserDetailsResponse {
     private String  systemRole;
     private Boolean isActive;
     private String  createdAt;
+    private Integer tokenVersion;
 }

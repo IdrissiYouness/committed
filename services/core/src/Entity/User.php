@@ -33,6 +33,9 @@ class User
     #[ORM\Column(name: 'is_active', type: Types::BOOLEAN)]
     private bool $isActive = true;
 
+    #[ORM\Column(name: 'token_version', type: Types::INTEGER)]
+    private int $tokenVersion = 1;
+
     #[ORM\Column(name: 'created_at', type: Types::DATETIME_MUTABLE)]
     private \DateTime $createdAt;
 
@@ -116,6 +119,23 @@ class User
         return $this->isActive;
     }
 
+    public function getTokenVersion(): int
+    {
+        return $this->tokenVersion;
+    }
+
+    public function setTokenVersion(int $tokenVersion): self
+    {
+        $this->tokenVersion = $tokenVersion;
+        return $this;
+    }
+
+    public function incrementTokenVersion(): self
+    {
+        $this->tokenVersion++;
+        return $this;
+    }
+
     public function getCreatedAt(): \DateTime
     {
         return $this->createdAt;
@@ -141,12 +161,13 @@ class User
     public function toArray(): array
     {
         return [
-            'userId' => $this->userId,
-            'email' => $this->email,
-            'fullName' => $this->fullName,
-            'systemRole' => $this->systemRole,
-            'isActive' => $this->isActive,
-            'createdAt' => $this->createdAt->format(\DateTime::ATOM),
+            'userId'       => $this->userId,
+            'email'        => $this->email,
+            'fullName'     => $this->fullName,
+            'systemRole'   => $this->systemRole,
+            'isActive'     => $this->isActive,
+            'tokenVersion' => $this->tokenVersion,
+            'createdAt'    => $this->createdAt->format(\DateTime::ATOM),
         ];
     }
 }

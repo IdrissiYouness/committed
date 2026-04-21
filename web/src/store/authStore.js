@@ -81,7 +81,7 @@ const rehydrate = () => {
 
 // ─── Store ────────────────────────────────────────────────────────────────────
 
-export const useAuthStore = create((set) => ({
+export const useAuthStore = create((set, get) => ({
   // Initial state — re-hydrated from storage
   ...rehydrate(),
 
@@ -100,8 +100,19 @@ export const useAuthStore = create((set) => ({
 
   /**
    * Clear all auth state and remove persisted credentials.
+   * Best-effort server logout (blacklists tokens in Redis); clears client state regardless.
    */
-  logout: () => {
+  logout: async () => {
+    const state = get();
+    if (state.accessToken) {
+      try {
+        // Lazy import avoids circular dependency with api.js
+        const { default: api } = await import('../services/api');
+        await api.post('/api/auth/logout', { refreshToken: state.refreshToken });
+      } catch {
+        // Server logout is best-effort — clear client state regardless
+      }
+    }
     clearPersistedAuth();
     set({ isAuthenticated: false, user: null, accessToken: null, refreshToken: null });
   },
