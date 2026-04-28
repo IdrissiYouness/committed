@@ -5,77 +5,84 @@ info:
     Complete API specification for the Committed educational platform.
 
     ## Architecture Overview
-    All client requests flow through **Nginx** (port 80) which routes `/api/*` to the **Gateway** service.
-    The Gateway authenticates requests via JWT and proxies them to backend services.
+    All client requests flow through **Nginx** (port 80) which routes `/api/*` to the
+    **Gateway** service (Spring Boot). The Gateway authenticates JWT tokens, enforces
+    authorization, and proxies to backend services.
 
-    ## Service Communication Map
     ```
-    Client → Nginx → Gateway → Core (courses, assignments, submissions, users)
-                             → Code Analyzer (code analysis, grading)
-                             → Notifications (email, in-app notifications)
-                      Core → Code Analyzer (trigger analysis)
-              Code Analyzer → Notifications (analysis complete alerts)
+    Client → Nginx(:80) → Gateway(:8080) → Core(:8000)
+                                         → Code Analyzer(:5000)
+                                         → Notifications(:5001)
+                       Code Analyzer → Gateway (POST /internal/analysis-result)
     ```
 
     ## Authentication
-    All endpoints (except `/api/auth/*` and `/api/health`) require a valid JWT Bearer token
-    obtained from the login or register endpoints.
-  version: 1.0.0
+    - Public endpoints: `/auth/register`, `/auth/login`, `/token/refresh`, `/health`, `/core/health`, `/test-chain`
+    - All other endpoints require a `Bearer` JWT token in the `Authorization` header
+    - Access tokens expire in **24 hours**; use `/token/refresh` to renew without re-login
+
+    ## JWT Security
+    Tokens embed `tokenVersion`. Password changes and admin deactivations bump this version,
+    immediately invalidating all previously issued tokens for that user. Logout and token
+    rotation use Redis JTI blacklisting with automatic TTL expiry.
+
+    ## Response Envelope
+    All endpoints return a consistent envelope:
+    ```json
+    { "success": true, "data": {...}, "message": "...", "timestamp": "2026-04-28T12:00:00Z" }
+    ```
+    Errors follow the same shape with `"success": false` and an optional `"details"` map.
+
+    ## Roles
+    - `user` — default role; can enroll in courses, submit assignments
+    - `admin` — platform administrators; access to `/admin/*` endpoints
+    - Course-level roles (student / professor) are stored in the enrollment table
+  version: 2.0.0
   contact:
     name: Committed Team
-  license:
-    name: MIT
 
 servers:
   - url: http://localhost/api
-    description: Development (via Nginx reverse proxy)
+    description: Via Nginx reverse proxy (recommended)
   - url: http://localhost:8080
     description: Gateway direct access
-  - url: http://localhost:8000
-    description: Core service direct access
-  - url: http://localhost:5000
-    description: Code Analyzer direct access
-  - url: http://localhost:5001
-    description: Notifications direct access
 
 tags:
   - name: Health
-    description: Health check and connectivity test endpoints
+    description: Liveness and connectivity checks
   - name: Authentication
-    description: User authentication (Gateway service)
-  - name: Users
-    description: User management (Gateway → Core)
+    description: Register, login, logout
+  - name: Token
+    description: Token refresh and validation
+  - name: Profile
+    description: Authenticated user's own profile and password
+  - name: Admin
+    description: Platform admin — user management (admin role required)
   - name: Courses
-    description: Course management (Gateway → Core)
-  - name: Enrollments
-    description: Course enrollment (Gateway → Core)
+    description: Course CRUD and enrollment
   - name: Assignments
-    description: Assignment management (Gateway → Core)
+    description: Assignment management inside a course
   - name: Submissions
-    description: Code submission management (Gateway → Core)
-  - name: Grades
-    description: Grading and feedback (Gateway → Core)
-  - name: Announcements
-    description: Course announcements and comments (Gateway → Core)
+    description: Student code submissions
   - name: Analysis
-    description: Code analysis (Gateway/Core → Code Analyzer)
-  - name: Notifications
-    description: Notification management (Gateway → Notifications)
-  - name: Internal - Core
-    description: "Internal Core service endpoints (called by Gateway, not exposed publicly)"
-  - name: Internal - Code Analyzer
-    description: "Internal Code Analyzer endpoints (called by Gateway or Core)"
-  - name: Internal - Notifications
-    description: "Internal Notification endpoints (called by Code Analyzer or Core)"
+    description: AI code analysis results
+  - name: Grades
+    description: Grading and feedback
+  - name: Announcements
+    description: Course announcements with file attachments
+  - name: Comments
+    description: Threaded comments on announcements
+  - name: Internal
+    description: Service-to-service endpoints (not exposed to public clients)
 
 # ===========================================================================
-# PATH DEFINITIONS
+# PATHS
 # ===========================================================================
 paths:
 
-  # =========================================================================
-  # HEALTH ENDPOINTS
-  # =========================================================================
+  # -------------------------------------------------------------------------
+  # HEALTH
+  # -------------------------------------------------------------------------
 
   /health:
     get:
@@ -93,25 +100,46 @@ paths:
               example:
                 status: UP
                 service: gateway
-                timestamp: "2026-02-03T13:00:00.000Z"
+                timestamp: "2026-04-28T12:00:00.000Z"
+
+  /core/health:
+    get:
+      tags: [Health]
+      summary: Core service health check (proxied)
+      description: Gateway proxies this to `http://core:8000/health`.
+      operationId: getCoreHealth
+      security: []
+      responses:
+        "200":
+          description: Core service health response
+          content:
+            application/json:
+              example:
+                status: ok
+                database:
+                  connected: true
+                  driver: pdo_pgsql
+                  tables_count: 12
+                users:
+                  total_count: 11
+                timestamp: "2026-04-28T12:00:00Z"
 
   /test-chain:
     get:
       tags: [Health]
-      summary: Test end-to-end service chain connectivity
-      description: "Tests: Gateway → Core → Database connectivity"
+      summary: End-to-end service chain test
+      description: Tests Gateway → Core → Database connectivity.
       operationId: testChain
       security: []
       responses:
         "200":
-          description: Chain test results
+          description: Chain test result
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ChainTestResponse"
               examples:
                 success:
-                  summary: All services connected
                   value:
                     status: success
                     message: End-to-end chain test successful
@@ -119,19 +147,8 @@ paths:
                       gateway: connected
                       core: connected
                       database: connected
-                    timestamp: "2026-02-03T13:00:00.000Z"
-                partial:
-                  summary: Partial connectivity
-                  value:
-                    status: partial
-                    message: Core connected but database check failed
-                    chain:
-                      gateway: connected
-                      core: connected
-                      database: disconnected
-                    timestamp: "2026-02-03T13:00:00.000Z"
+                    timestamp: "2026-04-28T12:00:00.000Z"
                 error:
-                  summary: Service unreachable
                   value:
                     status: error
                     message: "Failed to connect to Core service: Connection refused"
@@ -139,17 +156,63 @@ paths:
                       gateway: connected
                       core: disconnected
                       database: unknown
-                    timestamp: "2026-02-03T13:00:00.000Z"
+                    timestamp: "2026-04-28T12:00:00.000Z"
 
-  # =========================================================================
-  # AUTHENTICATION ENDPOINTS (Gateway)
-  # =========================================================================
+  # -------------------------------------------------------------------------
+  # AUTHENTICATION
+  # -------------------------------------------------------------------------
+
+  /auth/register:
+    post:
+      tags: [Authentication]
+      summary: Register a new user
+      operationId: register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: Registration successful — returns tokens and user info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_AuthResponse"
+              example:
+                success: true
+                data:
+                  accessToken: "eyJhbGciOiJIUzI1NiJ9..."
+                  refreshToken: "eyJhbGciOiJIUzI1NiJ9..."
+                  user:
+                    userId: 12
+                    email: "jane.doe@example.com"
+                    fullName: "Jane Doe"
+                    systemRole: "user"
+                    isActive: true
+                    createdAt: "2026-04-28T12:00:00Z"
+                message: Registration successful
+                timestamp: "2026-04-28T12:00:00Z"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "409":
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                error: Conflict
+                message: Email already registered
+                timestamp: "2026-04-28T12:00:00Z"
 
   /auth/login:
     post:
       tags: [Authentication]
-      summary: User login
-      description: Authenticate a user and receive JWT access and refresh tokens.
+      summary: Login with email and password
       operationId: login
       security: []
       requestBody:
@@ -165,64 +228,55 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponse_AuthResponse"
-              example:
-                success: true
-                data:
-                  accessToken: "eyJhbGciOiJIUzI1NiJ9..."
-                  refreshToken: "eyJhbGciOiJIUzI1NiJ9..."
-                  user:
-                    userId: 1
-                    email: "student@committed.com"
-                    fullName: "Jane Doe"
-                    systemRole: "user"
-                    isActive: true
-                    createdAt: "2026-02-01T10:00:00Z"
-                message: Login successful
-                timestamp: "2026-02-03T13:00:00Z"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
         "400":
           $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
-  /auth/register:
+  /auth/logout:
     post:
       tags: [Authentication]
-      summary: User registration
-      description: Register a new user account.
-      operationId: register
-      security: []
+      summary: Logout — blacklist tokens
+      description: |
+        Blacklists the current access token (extracted from the `Authorization` header).
+        Optionally blacklists the refresh token too if provided in the request body.
+        Both tokens are stored in Redis with TTLs matching their remaining lifetime.
+      operationId: logout
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/RegisterRequest"
+              $ref: "#/components/schemas/LogoutRequest"
+            example:
+              refreshToken: "eyJhbGciOiJIUzI1NiJ9..."
       responses:
-        "201":
-          description: Registration successful
+        "200":
+          description: Logout successful
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponse_AuthResponse"
-        "400":
-          $ref: "#/components/responses/ValidationError"
-        "409":
-          description: Email already registered
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiResponse_Null"
               example:
-                success: false
-                error: Conflict
-                message: Email already registered
-                timestamp: "2026-02-03T13:00:00Z"
+                success: true
+                data: null
+                message: Logged out successfully
+                timestamp: "2026-04-28T12:00:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
-  /auth/refresh:
+  # -------------------------------------------------------------------------
+  # TOKEN
+  # -------------------------------------------------------------------------
+
+  /token/refresh:
     post:
-      tags: [Authentication]
+      tags: [Token]
       summary: Refresh access token
-      description: Use a valid refresh token to obtain a new access token.
+      description: |
+        Exchange a valid refresh token for a new access + refresh token pair.
+        The old refresh token is blacklisted (rotation). The new refresh token
+        must be stored by the client.
       operationId: refreshToken
       security: []
       requestBody:
@@ -230,10 +284,10 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/RefreshTokenRequest"
+              $ref: "#/components/schemas/TokenRefreshRequest"
       responses:
         "200":
-          description: Token refreshed
+          description: New token pair issued
           content:
             application/json:
               schema:
@@ -241,19 +295,45 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  # =========================================================================
-  # USER ENDPOINTS (Gateway → Core)
-  # =========================================================================
-
-  /users/me:
+  /token/validate:
     get:
-      tags: [Users]
-      summary: Get current user profile
-      description: Returns the profile of the currently authenticated user.
-      operationId: getCurrentUser
+      tags: [Token]
+      summary: Validate current access token
+      description: Returns the JWT claims extracted from the current bearer token.
+      operationId: validateToken
       responses:
         "200":
-          description: User profile retrieved
+          description: Token is valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_TokenClaims"
+              example:
+                success: true
+                data:
+                  userId: 5
+                  email: "student@committed.com"
+                  fullName: "Jane Doe"
+                  systemRole: "user"
+                  tokenVersion: 1
+                  expiresAt: "2026-04-29T12:00:00Z"
+                message: Token is valid
+                timestamp: "2026-04-28T12:00:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # -------------------------------------------------------------------------
+  # PROFILE
+  # -------------------------------------------------------------------------
+
+  /users/profile:
+    get:
+      tags: [Profile]
+      summary: Get own profile
+      operationId: getProfile
+      responses:
+        "200":
+          description: Profile retrieved
           content:
             application/json:
               schema:
@@ -262,43 +342,172 @@ paths:
           $ref: "#/components/responses/Unauthorized"
 
     put:
-      tags: [Users]
-      summary: Update current user profile
-      description: Update the profile of the currently authenticated user.
-      operationId: updateCurrentUser
+      tags: [Profile]
+      summary: Update own profile
+      description: |
+        Update `fullName` and/or `email`. If claims change (email or name),
+        a new access token is automatically re-issued and returned in the response.
+      operationId: updateProfile
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateUserRequest"
+              $ref: "#/components/schemas/UpdateProfileRequest"
       responses:
         "200":
           description: Profile updated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponse_UserResponse"
+                $ref: "#/components/schemas/ApiResponse_AuthResponse"
+              example:
+                success: true
+                data:
+                  accessToken: "eyJhbGciOiJIUzI1NiJ9..."
+                  refreshToken: null
+                  user:
+                    userId: 5
+                    email: "new.email@example.com"
+                    fullName: "Jane Updated"
+                    systemRole: "user"
+                    isActive: true
+                    createdAt: "2026-04-01T10:00:00Z"
+                message: Profile updated
+                timestamp: "2026-04-28T12:00:00Z"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: Email already in use by another account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/profile/change-password:
+    post:
+      tags: [Profile]
+      summary: Change own password
+      description: |
+        Verifies `currentPassword`, hashes the new one, and bumps the user's
+        `tokenVersion` — immediately invalidating all other active sessions.
+      operationId: changePassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+      responses:
+        "200":
+          description: Password changed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_Null"
+              example:
+                success: true
+                data: null
+                message: Password changed successfully. Please log in again.
+                timestamp: "2026-04-28T12:00:00Z"
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /users/{userId}:
+  # -------------------------------------------------------------------------
+  # ADMIN
+  # -------------------------------------------------------------------------
+
+  /admin/users:
     get:
-      tags: [Users]
-      summary: Get user by ID
-      description: Retrieve a user by their ID. Admin access or same user only.
-      operationId: getUserById
+      tags: [Admin]
+      summary: List all users (admin only)
+      description: Paginated and filterable user directory. Requires `admin` system role.
+      operationId: adminListUsers
       parameters:
-        - $ref: "#/components/parameters/UserId"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Zero-based page number
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by email or full name
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [user, admin]
+          description: Filter by system role
+        - name: active
+          in: query
+          schema:
+            type: boolean
+          description: Filter by active status
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [userId, email, fullName, createdAt]
+            default: userId
+        - name: sortDir
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
       responses:
         "200":
-          description: User retrieved
+          description: User list retrieved
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponse_UserResponse"
+                $ref: "#/components/schemas/ApiResponse_PagedAdminUsers"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /admin/users/{userId}:
+    put:
+      tags: [Admin]
+      summary: Update a user (admin only)
+      description: |
+        Partial update of `email`, `fullName`, `systemRole`, `isActive`.
+        Self-guard: admins cannot demote or deactivate themselves.
+        Deactivating a user bumps their `tokenVersion`, invalidating all active sessions.
+      operationId: adminUpdateUser
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminUpdateUserRequest"
+      responses:
+        "200":
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_AdminUserResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -306,29 +515,57 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  # =========================================================================
-  # COURSE ENDPOINTS (Gateway → Core)
-  # =========================================================================
+    delete:
+      tags: [Admin]
+      summary: Deactivate a user (admin only)
+      description: |
+        Soft-deactivates the user (`isActive = false`) and bumps their `tokenVersion`
+        to immediately revoke all sessions.
+        Self-guard: admins cannot deactivate themselves.
+      operationId: adminDeleteUser
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: User deactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_Null"
+              example:
+                success: true
+                data: null
+                message: User deactivated successfully
+                timestamp: "2026-04-28T12:00:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # -------------------------------------------------------------------------
+  # COURSES
+  # -------------------------------------------------------------------------
 
   /courses:
     get:
       tags: [Courses]
-      summary: List all courses
+      summary: List courses
       description: |
-        Retrieve a paginated list of active courses.
-        - **Students** see courses they are enrolled in.
-        - **Professors** see courses they teach.
-        - **Admins** see all courses.
+        Returns active courses scoped by role:
+        - **Students** — courses they are enrolled in
+        - **Professors** — courses they teach
+        - **Admins** — all courses
       operationId: listCourses
       parameters:
         - $ref: "#/components/parameters/PageParam"
         - $ref: "#/components/parameters/LimitParam"
         - name: search
           in: query
-          description: Search by course name or course code
           schema:
             type: string
-            example: "CS101"
+          description: Filter by course name or code
       responses:
         "200":
           description: Courses retrieved
@@ -341,8 +578,8 @@ paths:
 
     post:
       tags: [Courses]
-      summary: Create a new course
-      description: Create a new course. The authenticated user becomes the teacher.
+      summary: Create a course
+      description: The authenticated user becomes the teacher of the created course.
       operationId: createCourse
       requestBody:
         required: true
@@ -363,6 +600,53 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "409":
           description: Course code already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /courses/enroll:
+    post:
+      tags: [Courses]
+      summary: Enroll in a course by course code
+      description: |
+        Enroll the authenticated user as a student using the course's unique code.
+        The course must be open (`isOpen = true`).
+      operationId: enrollInCourse
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrollCourseRequest"
+            example:
+              courseCode: "CS101"
+      responses:
+        "201":
+          description: Enrolled successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_EnrollmentResponse"
+              example:
+                success: true
+                data:
+                  userId: 5
+                  courseId: 1
+                  courseRole: student
+                  enrolledAt: "2026-04-28T12:00:00Z"
+                message: Enrolled successfully
+                timestamp: "2026-04-28T12:00:00Z"
+        "400":
+          description: Already enrolled or course is closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Course code not found
           content:
             application/json:
               schema:
@@ -389,8 +673,7 @@ paths:
 
     put:
       tags: [Courses]
-      summary: Update a course
-      description: Update course details. Only the course teacher or admin can update.
+      summary: Update a course (teacher or admin)
       operationId: updateCourse
       parameters:
         - $ref: "#/components/parameters/CourseId"
@@ -418,8 +701,8 @@ paths:
 
     delete:
       tags: [Courses]
-      summary: Delete a course (soft delete)
-      description: Soft-deletes a course by setting is_active to false. Teacher or admin only.
+      summary: Delete a course (teacher or admin)
+      description: Soft-deletes by setting `is_active = false`.
       operationId: deleteCourse
       parameters:
         - $ref: "#/components/parameters/CourseId"
@@ -430,11 +713,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponse_Null"
-              example:
-                success: true
-                data: null
-                message: Course deleted successfully
-                timestamp: "2026-02-03T13:00:00Z"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -442,50 +720,10 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  # =========================================================================
-  # ENROLLMENT ENDPOINTS (Gateway → Core)
-  # =========================================================================
-
   /courses/{courseId}/enroll:
-    post:
-      tags: [Enrollments]
-      summary: Enroll in a course
-      description: Enroll the authenticated user as a student in the specified course.
-      operationId: enrollInCourse
-      parameters:
-        - $ref: "#/components/parameters/CourseId"
-      responses:
-        "201":
-          description: Enrolled successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiResponse_EnrollmentResponse"
-              example:
-                success: true
-                data:
-                  userId: 5
-                  courseId: 1
-                  courseRole: student
-                  enrolledAt: "2026-02-03T13:00:00Z"
-                message: Enrolled successfully
-                timestamp: "2026-02-03T13:00:00Z"
-        "400":
-          description: Already enrolled
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-
-  /courses/{courseId}/unenroll:
     delete:
-      tags: [Enrollments]
+      tags: [Courses]
       summary: Unenroll from a course
-      description: Remove the authenticated user's enrollment from the course.
       operationId: unenrollFromCourse
       parameters:
         - $ref: "#/components/parameters/CourseId"
@@ -503,9 +741,8 @@ paths:
 
   /courses/{courseId}/students:
     get:
-      tags: [Enrollments]
-      summary: List students in a course
-      description: Get all enrolled students for a course. Teacher or admin only.
+      tags: [Courses]
+      summary: List enrolled students (teacher or admin)
       operationId: listCourseStudents
       parameters:
         - $ref: "#/components/parameters/CourseId"
@@ -517,7 +754,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponse_PaginatedEnrollments"
+                $ref: "#/components/schemas/ApiResponse_PaginatedStudents"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -525,15 +762,45 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  # =========================================================================
-  # ASSIGNMENT ENDPOINTS (Gateway → Core)
-  # =========================================================================
+  /courses/{courseId}/stats:
+    get:
+      tags: [Courses]
+      summary: Get course statistics (teacher or admin)
+      operationId: getCourseStats
+      parameters:
+        - $ref: "#/components/parameters/CourseId"
+      responses:
+        "200":
+          description: Course statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_CourseStats"
+              example:
+                success: true
+                data:
+                  totalStudents: 24
+                  averageGrade: 82.5
+                  completionRate: 0.67
+                  recentActivity: "2026-04-27T18:00:00Z"
+                message: Statistics retrieved
+                timestamp: "2026-04-28T12:00:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # -------------------------------------------------------------------------
+  # ASSIGNMENTS
+  # -------------------------------------------------------------------------
 
   /courses/{courseId}/assignments:
     get:
       tags: [Assignments]
       summary: List assignments for a course
-      description: Retrieve all assignments in a course. Must be enrolled or be the teacher.
+      description: Requires enrollment or teacher/admin access.
       operationId: listCourseAssignments
       parameters:
         - $ref: "#/components/parameters/CourseId"
@@ -555,17 +822,20 @@ paths:
 
     post:
       tags: [Assignments]
-      summary: Create an assignment
-      description: Create a new assignment in a course. Teacher only.
+      summary: Create an assignment (teacher only)
+      description: |
+        Multipart form. Send assignment fields as form fields; attach files via
+        the `files` field. Triggers an `assignment.created` email notification
+        to all enrolled students.
       operationId: createAssignment
       parameters:
         - $ref: "#/components/parameters/CourseId"
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
-              $ref: "#/components/schemas/CreateAssignmentRequest"
+              $ref: "#/components/schemas/AssignmentFormRequest"
       responses:
         "201":
           description: Assignment created
@@ -598,22 +868,23 @@ paths:
                 $ref: "#/components/schemas/ApiResponse_AssignmentResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
 
     put:
       tags: [Assignments]
-      summary: Update an assignment
-      description: Update an assignment. Teacher only.
+      summary: Update an assignment (teacher only)
       operationId: updateAssignment
       parameters:
         - $ref: "#/components/parameters/AssignmentId"
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
-              $ref: "#/components/schemas/UpdateAssignmentRequest"
+              $ref: "#/components/schemas/AssignmentFormRequest"
       responses:
         "200":
           description: Assignment updated
@@ -632,8 +903,7 @@ paths:
 
     delete:
       tags: [Assignments]
-      summary: Delete an assignment
-      description: Delete an assignment and all associated submissions. Teacher only.
+      summary: Delete an assignment (teacher only)
       operationId: deleteAssignment
       parameters:
         - $ref: "#/components/parameters/AssignmentId"
@@ -651,28 +921,51 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  # =========================================================================
-  # SUBMISSION ENDPOINTS (Gateway → Core)
-  # =========================================================================
+  /assignments/{assignmentId}/attachments/{attachmentId}:
+    get:
+      tags: [Assignments]
+      summary: Download an assignment attachment
+      operationId: downloadAssignmentAttachment
+      parameters:
+        - $ref: "#/components/parameters/AssignmentId"
+        - $ref: "#/components/parameters/AttachmentId"
+      responses:
+        "200":
+          description: File bytes
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # -------------------------------------------------------------------------
+  # SUBMISSIONS
+  # -------------------------------------------------------------------------
 
   /assignments/{assignmentId}/submissions:
     get:
       tags: [Submissions]
       summary: List submissions for an assignment
       description: |
-        - **Students** see only their own submissions.
-        - **Teachers** see all submissions for the assignment.
-      operationId: listAssignmentSubmissions
+        - **Students** see only their own submissions
+        - **Teachers / Admins** see all submissions
+      operationId: listSubmissions
       parameters:
         - $ref: "#/components/parameters/AssignmentId"
         - $ref: "#/components/parameters/PageParam"
         - $ref: "#/components/parameters/LimitParam"
         - name: status
           in: query
-          description: Filter by submission status
           schema:
             type: string
             enum: [pending, submitted, graded, late, returned]
+          description: Filter by submission status
       responses:
         "200":
           description: Submissions retrieved
@@ -682,26 +975,28 @@ paths:
                 $ref: "#/components/schemas/ApiResponse_PaginatedSubmissions"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
 
     post:
       tags: [Submissions]
-      summary: Create a submission
+      summary: Create a submission (student only)
       description: |
-        Submit code for an assignment. Students only.
-        If `requireGithubRepo` is set on the assignment, `githubRepoUrl` is required.
-        After creation, the submission status is `submitted`.
-        If the assignment has `requireGithubRepo`, analysis is triggered automatically.
+        Multipart form supporting text, optional GitHub repo URL, and optional file attachments.
+        If the assignment has `requireRepoUrl = true`, `repoUrl` is required.
+        If a valid `repoUrl` pointing to GitHub/GitLab is provided, code analysis is
+        triggered asynchronously in the background.
       operationId: createSubmission
       parameters:
         - $ref: "#/components/parameters/AssignmentId"
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
-              $ref: "#/components/schemas/CreateSubmissionRequest"
+              $ref: "#/components/schemas/SubmissionFormRequest"
       responses:
         "201":
           description: Submission created
@@ -722,7 +1017,7 @@ paths:
     get:
       tags: [Submissions]
       summary: Get submission by ID
-      description: Retrieve a specific submission with its analysis status if available.
+      description: Students can only view their own submissions.
       operationId: getSubmissionById
       parameters:
         - $ref: "#/components/parameters/SubmissionId"
@@ -732,7 +1027,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponse_SubmissionDetailResponse"
+                $ref: "#/components/schemas/ApiResponse_SubmissionResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -740,80 +1035,128 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  # =========================================================================
-  # ANALYSIS ENDPOINTS (Gateway → Core → Code Analyzer)
-  # =========================================================================
-
-  /submissions/{submissionId}/analyze:
-    post:
-      tags: [Analysis]
-      summary: Trigger code analysis for a submission
-      description: |
-        Manually trigger code analysis for a submission.
-        The Gateway forwards this to the Core service, which calls the Code Analyzer.
-        The analysis runs asynchronously; poll `/submissions/{id}` or `/submissions/{id}/analysis`
-        to check the status.
-
-        **Flow:** Gateway → Core → Code Analyzer → (async) Notifications
-      operationId: triggerAnalysis
+    put:
+      tags: [Submissions]
+      summary: Update a submission
+      description: Update submission text or repoUrl before grading.
+      operationId: updateSubmission
       parameters:
         - $ref: "#/components/parameters/SubmissionId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/SubmissionFormRequest"
       responses:
-        "202":
-          description: Analysis triggered (processing asynchronously)
+        "200":
+          description: Submission updated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponse_AnalysisTriggerResponse"
-              example:
-                success: true
-                data:
-                  submissionId: 1
-                  analysisId: 42
-                  status: analyzing
-                  message: "Analysis has been queued"
-                message: Analysis triggered successfully
-                timestamp: "2026-02-03T13:00:00Z"
-        "400":
-          description: Submission has no GitHub repo URL
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiResponse_SubmissionResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+
+  /submissions/{submissionId}/attachments/{attachmentId}:
+    get:
+      tags: [Submissions]
+      summary: Download a submission attachment
+      operationId: downloadSubmissionAttachment
+      parameters:
+        - $ref: "#/components/parameters/SubmissionId"
+        - $ref: "#/components/parameters/AttachmentId"
+      responses:
+        "200":
+          description: File bytes
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # -------------------------------------------------------------------------
+  # ANALYSIS
+  # -------------------------------------------------------------------------
 
   /submissions/{submissionId}/analysis:
     get:
       tags: [Analysis]
-      summary: Get analysis results for a submission
-      description: Retrieve the code analysis results and report for a submission.
+      summary: Get code analysis results for a submission
+      description: |
+        Returns the AI code analysis for the submission's GitHub repository.
+        Analysis is triggered automatically on submission creation when a valid
+        `repoUrl` is provided. Poll this endpoint until `status` is `completed` or `failed`.
       operationId: getAnalysisResults
       parameters:
         - $ref: "#/components/parameters/SubmissionId"
       responses:
         "200":
-          description: Analysis results retrieved
+          description: Analysis result (may be pending/analyzing)
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponse_AnalysisResultResponse"
+                $ref: "#/components/schemas/ApiResponse_AnalysisResponse"
+              examples:
+                pending:
+                  summary: Analysis in progress
+                  value:
+                    success: true
+                    data:
+                      analysisId: 42
+                      submissionId: 1
+                      status: analyzing
+                      metricsData: null
+                      reportPdfUrl: null
+                      errorMessage: null
+                    message: Analysis in progress
+                    timestamp: "2026-04-28T12:00:00Z"
+                completed:
+                  summary: Analysis complete
+                  value:
+                    success: true
+                    data:
+                      analysisId: 42
+                      submissionId: 1
+                      status: completed
+                      metricsData:
+                        score: 72.5
+                        category: good
+                        complexity: 45
+                        maintainability: 78
+                        documentation: 60
+                      reportPdfUrl: "/reports/analysis_report_1_20260428_120000.pdf"
+                      errorMessage: null
+                    message: Analysis completed
+                    timestamp: "2026-04-28T12:05:00Z"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
 
-  # =========================================================================
-  # GRADE ENDPOINTS (Gateway → Core)
-  # =========================================================================
+  # -------------------------------------------------------------------------
+  # GRADES
+  # -------------------------------------------------------------------------
 
   /submissions/{submissionId}/grade:
     post:
       tags: [Grades]
-      summary: Grade a submission
-      description: Assign a grade and feedback to a submission. Teacher only.
+      summary: Grade a submission (teacher only)
+      description: |
+        Assigns points and optional feedback. Triggers a `grade.created` email
+        notification to the student. The submission status changes to `graded`.
       operationId: gradeSubmission
       parameters:
         - $ref: "#/components/parameters/SubmissionId"
@@ -822,7 +1165,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateGradeRequest"
+              $ref: "#/components/schemas/GradeRequest"
       responses:
         "201":
           description: Grade assigned
@@ -839,7 +1182,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          description: Submission already graded
+          description: Submission already has a grade
           content:
             application/json:
               schema:
@@ -848,7 +1191,7 @@ paths:
     get:
       tags: [Grades]
       summary: Get grade for a submission
-      description: Retrieve the grade and feedback for a submission.
+      description: Students can only view grades for their own submissions.
       operationId: getGrade
       parameters:
         - $ref: "#/components/parameters/SubmissionId"
@@ -861,22 +1204,25 @@ paths:
                 $ref: "#/components/schemas/ApiResponse_GradeResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /grades/{gradeId}:
     put:
       tags: [Grades]
-      summary: Update a grade
-      description: Update an existing grade. Teacher only.
+      summary: Update a grade (teacher only)
+      description: Update `pointsEarned` and/or `feedback` on an existing grade.
       operationId: updateGrade
       parameters:
-        - $ref: "#/components/parameters/SubmissionId"
+        - $ref: "#/components/parameters/GradeId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateGradeRequest"
+              $ref: "#/components/schemas/GradeRequest"
       responses:
         "200":
           description: Grade updated
@@ -893,16 +1239,56 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  # =========================================================================
-  # ANNOUNCEMENT ENDPOINTS (Gateway → Core)
-  # =========================================================================
+  /grades/{gradeId}/validate:
+    post:
+      tags: [Grades]
+      summary: Finalize an AI-generated grade (teacher only)
+      description: |
+        Marks an AI-generated grade (`source = ai`) as finalized (`isFinalized = true`).
+        Triggers a `grade.validated` email notification to the student.
+      operationId: validateGrade
+      parameters:
+        - $ref: "#/components/parameters/GradeId"
+      responses:
+        "200":
+          description: Grade finalized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_GradeResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /grades/recent:
+    get:
+      tags: [Grades]
+      summary: Get recent grades for the authenticated user
+      description: Returns the most recent grades received (student) or assigned (teacher).
+      operationId: getRecentGrades
+      responses:
+        "200":
+          description: Recent grades
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_GradeList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # -------------------------------------------------------------------------
+  # ANNOUNCEMENTS
+  # -------------------------------------------------------------------------
 
   /courses/{courseId}/announcements:
     get:
       tags: [Announcements]
       summary: List announcements for a course
-      description: Retrieve all announcements in a course. Must be enrolled or teacher.
-      operationId: listCourseAnnouncements
+      description: Requires enrollment, teacher, or admin access.
+      operationId: listAnnouncements
       parameters:
         - $ref: "#/components/parameters/CourseId"
         - $ref: "#/components/parameters/PageParam"
@@ -923,17 +1309,18 @@ paths:
 
     post:
       tags: [Announcements]
-      summary: Create an announcement
-      description: Post a new announcement in a course. Teacher only.
+      summary: Create an announcement (teacher only)
+      description: |
+        Multipart form. Triggers an `announcement.created` email to all enrolled students.
       operationId: createAnnouncement
       parameters:
         - $ref: "#/components/parameters/CourseId"
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
-              $ref: "#/components/schemas/CreateAnnouncementRequest"
+              $ref: "#/components/schemas/AnnouncementFormRequest"
       responses:
         "201":
           description: Announcement created
@@ -950,31 +1337,13 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /announcements/{announcementId}:
-    get:
-      tags: [Announcements]
-      summary: Get announcement by ID
-      operationId: getAnnouncementById
-      parameters:
-        - $ref: "#/components/parameters/AnnouncementId"
-      responses:
-        "200":
-          description: Announcement retrieved
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiResponse_AnnouncementResponse"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-
+  /courses/{courseId}/announcements/{announcementId}:
     put:
       tags: [Announcements]
-      summary: Update an announcement
-      description: Update an announcement. Teacher only.
+      summary: Update an announcement (teacher only)
       operationId: updateAnnouncement
       parameters:
+        - $ref: "#/components/parameters/CourseId"
         - $ref: "#/components/parameters/AnnouncementId"
       requestBody:
         required: true
@@ -989,8 +1358,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponse_AnnouncementResponse"
-        "400":
-          $ref: "#/components/responses/ValidationError"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1000,9 +1367,10 @@ paths:
 
     delete:
       tags: [Announcements]
-      summary: Delete an announcement
+      summary: Delete an announcement (teacher only)
       operationId: deleteAnnouncement
       parameters:
+        - $ref: "#/components/parameters/CourseId"
         - $ref: "#/components/parameters/AnnouncementId"
       responses:
         "200":
@@ -1018,12 +1386,41 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /announcements/{announcementId}/comments:
+  /courses/{courseId}/announcements/{announcementId}/attachments/{attachmentId}:
     get:
       tags: [Announcements]
-      summary: List comments on an announcement
-      operationId: listAnnouncementComments
+      summary: Download an announcement attachment
+      operationId: downloadAnnouncementAttachment
       parameters:
+        - $ref: "#/components/parameters/CourseId"
+        - $ref: "#/components/parameters/AnnouncementId"
+        - $ref: "#/components/parameters/AttachmentId"
+      responses:
+        "200":
+          description: File bytes
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # -------------------------------------------------------------------------
+  # COMMENTS
+  # -------------------------------------------------------------------------
+
+  /courses/{courseId}/announcements/{announcementId}/comments:
+    get:
+      tags: [Comments]
+      summary: List comments on an announcement
+      operationId: listComments
+      parameters:
+        - $ref: "#/components/parameters/CourseId"
         - $ref: "#/components/parameters/AnnouncementId"
         - $ref: "#/components/parameters/PageParam"
         - $ref: "#/components/parameters/LimitParam"
@@ -1036,15 +1433,20 @@ paths:
                 $ref: "#/components/schemas/ApiResponse_PaginatedComments"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
 
     post:
-      tags: [Announcements]
+      tags: [Comments]
       summary: Add a comment to an announcement
-      description: Any enrolled user or teacher can comment.
+      description: |
+        Any enrolled user or teacher can comment. Set `parentCommentId` to reply
+        to an existing comment (nested threads).
       operationId: createComment
       parameters:
+        - $ref: "#/components/parameters/CourseId"
         - $ref: "#/components/parameters/AnnouncementId"
       requestBody:
         required: true
@@ -1063,501 +1465,188 @@ paths:
           $ref: "#/components/responses/ValidationError"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
 
-  # =========================================================================
-  # NOTIFICATION ENDPOINTS (Gateway → Notifications)
-  # =========================================================================
-
-  /notifications:
-    get:
-      tags: [Notifications]
-      summary: Get current user's notifications
-      description: Retrieve paginated notifications for the authenticated user.
-      operationId: getUserNotifications
-      parameters:
-        - $ref: "#/components/parameters/PageParam"
-        - $ref: "#/components/parameters/LimitParam"
-        - name: unread_only
-          in: query
-          description: Filter to show only unread notifications
-          schema:
-            type: boolean
-            default: false
-      responses:
-        "200":
-          description: Notifications retrieved
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiResponse_PaginatedNotifications"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-
-  /notifications/{notificationId}/read:
+  /courses/{courseId}/announcements/{announcementId}/comments/{commentId}:
     put:
-      tags: [Notifications]
-      summary: Mark a notification as read
-      operationId: markNotificationAsRead
-      parameters:
-        - $ref: "#/components/parameters/NotificationId"
-      responses:
-        "200":
-          description: Notification marked as read
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiResponse_Null"
-              example:
-                success: true
-                data: null
-                message: Notification marked as read
-                timestamp: "2026-02-03T13:00:00Z"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-
-  /notifications/read-all:
-    put:
-      tags: [Notifications]
-      summary: Mark all notifications as read
-      operationId: markAllNotificationsAsRead
-      responses:
-        "200":
-          description: All notifications marked as read
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiResponse_Null"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-
-  # =========================================================================
-  # INTERNAL: CORE SERVICE ENDPOINTS (called by Gateway on port 8000)
-  # =========================================================================
-
-  /internal/core/api/users/{userId}:
-    get:
-      tags: [Internal - Core]
-      summary: "[Internal] Get user by ID"
-      description: |
-        **Called by:** Gateway
-        **URL:** `http://core:8000/api/users/{userId}`
-      operationId: internal_core_getUserById
-      security: []
-      parameters:
-        - $ref: "#/components/parameters/UserId"
-      responses:
-        "200":
-          description: User retrieved
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiResponse_UserResponse"
-        "404":
-          $ref: "#/components/responses/NotFound"
-
-  /internal/core/api/courses:
-    get:
-      tags: [Internal - Core]
-      summary: "[Internal] List courses"
-      description: |
-        **Called by:** Gateway
-        **URL:** `http://core:8000/api/courses`
-
-        Accepts `page`, `limit`, `search`, and `user_id` query parameters.
-        When `user_id` is provided, returns only courses the user is enrolled in or teaches.
-      operationId: internal_core_listCourses
-      security: []
-      parameters:
-        - $ref: "#/components/parameters/PageParam"
-        - $ref: "#/components/parameters/LimitParam"
-        - name: search
-          in: query
-          schema:
-            type: string
-        - name: user_id
-          in: query
-          description: Filter courses by user enrollment/teaching
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Courses retrieved
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiResponse_PaginatedCourses"
-
-  /internal/core/api/courses/{courseId}:
-    get:
-      tags: [Internal - Core]
-      summary: "[Internal] Get course by ID"
-      description: |
-        **Called by:** Gateway
-        **URL:** `http://core:8000/api/courses/{courseId}`
-      operationId: internal_core_getCourseById
-      security: []
+      tags: [Comments]
+      summary: Update a comment (author only)
+      operationId: updateComment
       parameters:
         - $ref: "#/components/parameters/CourseId"
-      responses:
-        "200":
-          description: Course retrieved
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiResponse_CourseResponse"
-        "404":
-          $ref: "#/components/responses/NotFound"
-
-  /internal/core/api/submissions/{submissionId}/trigger-analysis:
-    post:
-      tags: [Internal - Core]
-      summary: "[Internal] Core triggers analysis on Code Analyzer"
-      description: |
-        **Called by:** Core (on submission creation or manual trigger)
-        **Core calls:** `POST http://code-analyzer:5000/analyze`
-
-        The Core service reads the submission from the database, then sends the
-        `submissionId`, `repoUrl`, and `studentId` to the Code Analyzer.
-      operationId: internal_core_triggerAnalysis
-      security: []
-      parameters:
-        - $ref: "#/components/parameters/SubmissionId"
-      responses:
-        "202":
-          description: Analysis request forwarded to Code Analyzer
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiResponse_AnalysisTriggerResponse"
-
-  # =========================================================================
-  # INTERNAL: CODE ANALYZER ENDPOINTS (called by Core on port 5000)
-  # =========================================================================
-
-  /internal/analyzer/analyze:
-    post:
-      tags: [Internal - Code Analyzer]
-      summary: "[Internal] Analyze a code submission"
-      description: |
-        **Called by:** Core service
-        **URL:** `POST http://code-analyzer:5000/analyze`
-
-        Performs the full analysis pipeline:
-        1. Clone GitHub repository
-        2. Run code metrics analysis (Kilo Code CLI)
-        3. Classify code quality (excellent/good/average/poor)
-        4. Generate AI feedback via OpenAI
-        5. Generate PDF report
-        6. Send notification via Notifications service
-        7. Update `code_analysis` table in database
-
-        This endpoint may take several minutes to complete.
-      operationId: internal_analyzer_analyze
-      security: []
+        - $ref: "#/components/parameters/AnnouncementId"
+        - $ref: "#/components/parameters/CommentId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/AnalyzeRequest"
+              $ref: "#/components/schemas/UpdateCommentRequest"
+      responses:
+        "200":
+          description: Comment updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_CommentResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags: [Comments]
+      summary: Delete a comment (author or teacher)
+      operationId: deleteComment
+      parameters:
+        - $ref: "#/components/parameters/CourseId"
+        - $ref: "#/components/parameters/AnnouncementId"
+        - $ref: "#/components/parameters/CommentId"
+      responses:
+        "200":
+          description: Comment deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_Null"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # -------------------------------------------------------------------------
+  # INTERNAL (service-to-service only, not exposed publicly)
+  # -------------------------------------------------------------------------
+
+  /internal/analysis-result:
+    post:
+      tags: [Internal]
+      summary: "[Internal] Code Analyzer posts analysis result to Gateway"
+      description: |
+        **Caller:** Code Analyzer service
+        **Receiver:** Gateway (saves result to Core, sends notification)
+
+        Protected by `X-Internal-Secret` header. Not accessible from outside the
+        Docker network.
+      operationId: internalAnalysisResult
+      security: []
+      parameters:
+        - name: X-Internal-Secret
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalysisResultCallback"
             example:
               submissionId: 1
-              repoUrl: "https://github.com/student/assignment-repo"
-              studentId: 5
+              status: completed
+              metricsData:
+                score: 72.5
+                category: good
+              reportPdfUrl: "/reports/analysis_report_1_20260428_120000.pdf"
+              errorMessage: null
       responses:
         "200":
-          description: Analysis completed
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AnalyzeResponse"
-              example:
-                status: success
-                data:
-                  submissionId: 1
-                  status: completed
-                  metrics:
-                    complexity: 45
-                    maintainability: 72
-                    test_coverage: 60
-                    code_smells: 5
-                    documentation: 40
-                  classification:
-                    score: 65.5
-                    category: good
-                    metrics:
-                      complexity: 45
-                      maintainability: 72
-                      test_coverage: 60
-                      code_smells: 5
-                      documentation: 40
-                    timestamp: "2026-02-03T13:05:00.000Z"
-                  feedback:
-                    category: good
-                    feedback: "Your code demonstrates solid fundamentals..."
-                    score: 65.5
-                    timestamp: "2026-02-03T13:05:00.000Z"
-                  reportUrl: "/reports/analysis_report_1_20260203_130500.pdf"
-                  analyzedAt: "2026-02-03T13:05:00.000Z"
-                timestamp: "2026-02-03T13:05:00.000Z"
-        "400":
-          description: Missing required fields
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AnalyzerErrorResponse"
-              example:
-                status: error
-                message: "Missing required fields: submissionId, repoUrl"
-                timestamp: "2026-02-03T13:00:00.000Z"
-        "500":
-          description: Analysis failed
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AnalyzerErrorResponse"
+          description: Result saved
+        "401":
+          description: Invalid internal secret
 
-  /internal/analyzer/status/{submissionId}:
-    get:
-      tags: [Internal - Code Analyzer]
-      summary: "[Internal] Get analysis status"
-      description: |
-        **Called by:** Core service or Gateway
-        **URL:** `GET http://code-analyzer:5000/status/{submissionId}`
-      operationId: internal_analyzer_getStatus
-      security: []
-      parameters:
-        - $ref: "#/components/parameters/SubmissionId"
-      responses:
-        "200":
-          description: Analysis status retrieved
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AnalysisStatusResponse"
-              example:
-                submissionId: 1
-                status: completed
-                timestamp: "2026-02-03T13:05:00.000Z"
-
-  /internal/analyzer/health:
-    get:
-      tags: [Internal - Code Analyzer]
-      summary: "[Internal] Code Analyzer health check"
-      description: |
-        **URL:** `GET http://code-analyzer:5000/health`
-      operationId: internal_analyzer_health
-      security: []
-      responses:
-        "200":
-          description: Service is healthy
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/HealthResponse"
-              example:
-                status: UP
-                service: code-analyzer
-                timestamp: "2026-02-03T13:00:00.000Z"
-
-  # =========================================================================
-  # INTERNAL: NOTIFICATIONS ENDPOINTS (called by Code Analyzer / Core)
-  # =========================================================================
-
-  /internal/notifications/api/notifications:
+  /internal/notify:
     post:
-      tags: [Internal - Notifications]
-      summary: "[Internal] Send a notification"
+      tags: [Internal]
+      summary: "[Internal] Gateway posts notification event to Notifications service"
       description: |
-        **Called by:** Code Analyzer or Core service
-        **URL:** `POST http://notifications:5001/api/notifications`
+        **Caller:** Gateway
+        **Receiver:** Notifications service (`http://notifications:5001/internal/notify`)
 
-        Creates an in-app notification record and optionally sends an email.
-      operationId: internal_notifications_send
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SendNotificationRequest"
-            example:
-              userId: 5
-              type: SUBMISSION_ANALYZED
-              subject: "Your code has been analyzed"
-              message: "Analysis complete for submission #1. Quality score: 65.5/100 (Good)"
-              userEmail: "student@committed.com"
-              sendEmail: true
-      responses:
-        "200":
-          description: Notification sent
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NotificationOperationResponse"
-              example:
-                success: true
-                message: Notification sent successfully
-                notificationId: 42
-        "400":
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NotificationOperationResponse"
-              example:
-                success: false
-                message: "User ID is required"
-                notificationId: null
+        Validates the event type, enqueues the email, and returns 202 immediately.
+        Protected by `X-Internal-Secret` header.
 
-  /internal/notifications/api/notifications/user/{userId}:
-    get:
-      tags: [Internal - Notifications]
-      summary: "[Internal] Get notifications for a user"
-      description: |
-        **Called by:** Gateway (on behalf of authenticated user)
-        **URL:** `GET http://notifications:5001/api/notifications/user/{userId}`
-      operationId: internal_notifications_getByUser
+        **Supported event types:**
+        - `announcement.created`
+        - `assignment.created`
+        - `grade.created`
+        - `grade.validated`
+        - `analysis.completed`
+        - `analysis.failed`
+      operationId: internalNotify
       security: []
       parameters:
-        - $ref: "#/components/parameters/UserId"
-        - $ref: "#/components/parameters/PageParam"
-        - $ref: "#/components/parameters/LimitParam"
-        - name: unread_only
-          in: query
+        - name: X-Internal-Secret
+          in: header
+          required: true
           schema:
-            type: boolean
-            default: false
-      responses:
-        "200":
-          description: Notifications retrieved
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiResponse_PaginatedNotifications"
-
-  /internal/notifications/api/notifications/{notificationId}:
-    get:
-      tags: [Internal - Notifications]
-      summary: "[Internal] Get notification by ID"
-      description: |
-        **Called by:** Gateway
-        **URL:** `GET http://notifications:5001/api/notifications/{notificationId}`
-      operationId: internal_notifications_getById
-      security: []
-      parameters:
-        - $ref: "#/components/parameters/NotificationId"
-      responses:
-        "200":
-          description: Notification retrieved
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NotificationResponse"
-        "404":
-          $ref: "#/components/responses/NotFound"
-
-  /internal/notifications/api/notifications/{notificationId}/read:
-    put:
-      tags: [Internal - Notifications]
-      summary: "[Internal] Mark notification as read"
-      description: |
-        **Called by:** Gateway
-        **URL:** `PUT http://notifications:5001/api/notifications/{notificationId}/read`
-      operationId: internal_notifications_markAsRead
-      security: []
-      parameters:
-        - $ref: "#/components/parameters/NotificationId"
-      responses:
-        "200":
-          description: Notification marked as read
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NotificationOperationResponse"
-        "404":
-          $ref: "#/components/responses/NotFound"
-
-  /internal/notifications/api/email/send:
-    post:
-      tags: [Internal - Notifications]
-      summary: "[Internal] Send an email directly"
-      description: |
-        **Called by:** Core service (for custom emails like enrollment confirmation)
-        **URL:** `POST http://notifications:5001/api/email/send`
-      operationId: internal_notifications_sendEmail
-      security: []
+            type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SendEmailRequest"
+              $ref: "#/components/schemas/NotifyPayload"
+            examples:
+              gradeCreated:
+                summary: Grade notification
+                value:
+                  type: grade.created
+                  recipientEmail: "student@committed.com"
+                  recipientName: "Jane Doe"
+                  courseName: "CS101"
+                  title: "Lab 1: Hello World"
+                  pointsEarned: 85.5
+                  maxPoints: 100
+                  feedback: "Great work!"
+                  source: manual
+              analysisCompleted:
+                summary: Analysis notification
+                value:
+                  type: analysis.completed
+                  recipientEmail: "student@committed.com"
+                  recipientName: "Jane Doe"
+                  courseName: "CS101"
+                  title: "Lab 1: Hello World"
+                  analysisScore: 72.5
       responses:
-        "200":
-          description: Email sent
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NotificationOperationResponse"
+        "202":
+          description: Notification queued
         "400":
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NotificationOperationResponse"
-
-  /internal/notifications/health:
-    get:
-      tags: [Internal - Notifications]
-      summary: "[Internal] Notifications health check"
-      description: |
-        **URL:** `GET http://notifications:5001/health`
-      operationId: internal_notifications_health
-      security: []
-      responses:
-        "200":
-          description: Service is healthy
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/HealthResponse"
-              example:
-                status: UP
-                service: notifications
-                timestamp: "2026-02-03T13:00:00.000Z"
-
+          description: Unknown event type
+        "401":
+          description: Invalid internal secret
 
 # ===========================================================================
 # COMPONENTS
 # ===========================================================================
 components:
 
-  # =========================================================================
-  # SECURITY SCHEMES
-  # =========================================================================
   securitySchemes:
     BearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
       description: |
-        JWT access token obtained from `/api/auth/login` or `/api/auth/register`.
-        Include in the `Authorization` header as `Bearer <token>`.
+        JWT access token from `/auth/login` or `/auth/register`.
+        Header: `Authorization: Bearer <token>`
 
-  # =========================================================================
+  # -------------------------------------------------------------------------
   # PARAMETERS
-  # =========================================================================
+  # -------------------------------------------------------------------------
   parameters:
     UserId:
       name: userId
       in: path
       required: true
-      description: User ID
       schema:
         type: integer
         format: int64
@@ -1567,7 +1656,6 @@ components:
       name: courseId
       in: path
       required: true
-      description: Course ID
       schema:
         type: integer
         format: int64
@@ -1577,7 +1665,6 @@ components:
       name: assignmentId
       in: path
       required: true
-      description: Assignment ID
       schema:
         type: integer
         format: int64
@@ -1587,7 +1674,15 @@ components:
       name: submissionId
       in: path
       required: true
-      description: Submission ID
+      schema:
+        type: integer
+        format: int64
+        example: 1
+
+    GradeId:
+      name: gradeId
+      in: path
+      required: true
       schema:
         type: integer
         format: int64
@@ -1597,17 +1692,24 @@ components:
       name: announcementId
       in: path
       required: true
-      description: Announcement ID
       schema:
         type: integer
         format: int64
         example: 1
 
-    NotificationId:
-      name: notificationId
+    CommentId:
+      name: commentId
       in: path
       required: true
-      description: Notification ID
+      schema:
+        type: integer
+        format: int64
+        example: 1
+
+    AttachmentId:
+      name: attachmentId
+      in: path
+      required: true
       schema:
         type: integer
         format: int64
@@ -1625,19 +1727,19 @@ components:
     LimitParam:
       name: limit
       in: query
-      description: Number of items per page
+      description: Items per page
       schema:
         type: integer
         minimum: 1
         maximum: 100
         default: 20
 
-  # =========================================================================
-  # RESPONSE TEMPLATES
-  # =========================================================================
+  # -------------------------------------------------------------------------
+  # SHARED RESPONSES
+  # -------------------------------------------------------------------------
   responses:
     Unauthorized:
-      description: Authentication required or invalid token
+      description: Missing or invalid JWT token
       content:
         application/json:
           schema:
@@ -1646,7 +1748,7 @@ components:
             success: false
             error: Unauthorized
             message: Invalid or missing authentication token
-            timestamp: "2026-02-03T13:00:00Z"
+            timestamp: "2026-04-28T12:00:00Z"
 
     Forbidden:
       description: Insufficient permissions
@@ -1658,7 +1760,7 @@ components:
             success: false
             error: Forbidden
             message: You do not have permission to perform this action
-            timestamp: "2026-02-03T13:00:00Z"
+            timestamp: "2026-04-28T12:00:00Z"
 
     NotFound:
       description: Resource not found
@@ -1670,10 +1772,10 @@ components:
             success: false
             error: Not Found
             message: Resource not found
-            timestamp: "2026-02-03T13:00:00Z"
+            timestamp: "2026-04-28T12:00:00Z"
 
     ValidationError:
-      description: Validation error
+      description: Request validation failed
       content:
         application/json:
           schema:
@@ -1685,16 +1787,14 @@ components:
             details:
               email: Email is required
               password: Password must be at least 8 characters
-            timestamp: "2026-02-03T13:00:00Z"
+            timestamp: "2026-04-28T12:00:00Z"
 
-  # =========================================================================
+  # -------------------------------------------------------------------------
   # SCHEMAS
-  # =========================================================================
+  # -------------------------------------------------------------------------
   schemas:
 
-    # -----------------------------------------------------------------------
-    # Generic Response Wrappers
-    # -----------------------------------------------------------------------
+    # --- Generic envelopes ---
 
     ErrorResponse:
       type: object
@@ -1704,10 +1804,10 @@ components:
           example: false
         error:
           type: string
-          example: "Not Found"
+          example: Not Found
         message:
           type: string
-          example: "Resource not found"
+          example: Resource not found
         timestamp:
           type: string
           format: date-time
@@ -1721,17 +1821,13 @@ components:
           example: false
         error:
           type: string
-          example: "Validation Error"
+          example: Validation Error
         message:
           type: string
-          example: "Invalid input data"
         details:
           type: object
           additionalProperties:
             type: string
-          example:
-            email: "Email is required"
-            password: "Password must be at least 8 characters"
         timestamp:
           type: string
           format: date-time
@@ -1751,7 +1847,6 @@ components:
         timestamp:
           type: string
           format: date-time
-      required: [success, message, timestamp]
 
     PaginationMeta:
       type: object
@@ -1768,11 +1863,8 @@ components:
         pages:
           type: integer
           example: 3
-      required: [page, limit, total, pages]
 
-    # -----------------------------------------------------------------------
-    # Health
-    # -----------------------------------------------------------------------
+    # --- Health ---
 
     HealthResponse:
       type: object
@@ -1780,14 +1872,12 @@ components:
         status:
           type: string
           enum: [UP, DOWN]
-          example: UP
         service:
           type: string
           example: gateway
         timestamp:
           type: string
           format: date-time
-      required: [status, service, timestamp]
 
     ChainTestResponse:
       type: object
@@ -1812,25 +1902,8 @@ components:
         timestamp:
           type: string
           format: date-time
-      required: [status, message, chain, timestamp]
 
-    # -----------------------------------------------------------------------
-    # Authentication
-    # -----------------------------------------------------------------------
-
-    LoginRequest:
-      type: object
-      properties:
-        email:
-          type: string
-          format: email
-          example: "student@committed.com"
-        password:
-          type: string
-          format: password
-          minLength: 8
-          example: "password123"
-      required: [email, password]
+    # --- Authentication ---
 
     RegisterRequest:
       type: object
@@ -1838,20 +1911,40 @@ components:
         email:
           type: string
           format: email
-          example: "newstudent@committed.com"
+          example: jane.doe@example.com
         fullName:
           type: string
           minLength: 1
           maxLength: 255
-          example: "Jane Doe"
+          example: Jane Doe
         password:
           type: string
           format: password
           minLength: 8
-          example: "securepass123"
+          example: securepass123
       required: [email, fullName, password]
 
-    RefreshTokenRequest:
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          example: student@committed.com
+        password:
+          type: string
+          format: password
+          example: password123
+      required: [email, password]
+
+    LogoutRequest:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+          description: If provided, the refresh token is also blacklisted
+
+    TokenRefreshRequest:
       type: object
       properties:
         refreshToken:
@@ -1864,13 +1957,14 @@ components:
       properties:
         accessToken:
           type: string
-          description: JWT access token (short-lived, default 24h)
+          description: JWT access token (24 hours)
         refreshToken:
           type: string
-          description: JWT refresh token (long-lived, default 7d)
+          nullable: true
+          description: JWT refresh token (7 days). Null when returned from profile update.
         user:
           $ref: "#/components/schemas/UserResponse"
-      required: [accessToken, refreshToken, user]
+      required: [accessToken, user]
 
     ApiResponse_AuthResponse:
       type: object
@@ -1882,15 +1976,40 @@ components:
           $ref: "#/components/schemas/AuthResponse"
         message:
           type: string
-          example: "Login successful"
         timestamp:
           type: string
           format: date-time
-      required: [success, data, message, timestamp]
 
-    # -----------------------------------------------------------------------
-    # Users
-    # -----------------------------------------------------------------------
+    ApiResponse_TokenClaims:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            userId:
+              type: integer
+            email:
+              type: string
+            fullName:
+              type: string
+            systemRole:
+              type: string
+              enum: [user, admin]
+            tokenVersion:
+              type: integer
+            expiresAt:
+              type: string
+              format: date-time
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    # --- Users ---
 
     UserResponse:
       type: object
@@ -1898,25 +2017,28 @@ components:
         userId:
           type: integer
           format: int64
-          example: 1
+          example: 5
         email:
           type: string
           format: email
-          example: "student@committed.com"
+          example: student@committed.com
         fullName:
           type: string
-          example: "Jane Doe"
+          example: Jane Doe
         systemRole:
           type: string
           enum: [user, admin]
-          example: "user"
+          example: user
         isActive:
           type: boolean
           example: true
         createdAt:
           type: string
           format: date-time
-          example: "2026-02-01T10:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
       required: [userId, email, fullName, systemRole, isActive, createdAt]
 
     ApiResponse_UserResponse:
@@ -1924,7 +2046,6 @@ components:
       properties:
         success:
           type: boolean
-          example: true
         data:
           $ref: "#/components/schemas/UserResponse"
         message:
@@ -1932,32 +2053,123 @@ components:
         timestamp:
           type: string
           format: date-time
-      required: [success, data, message, timestamp]
 
-    UpdateUserRequest:
+    UpdateProfileRequest:
       type: object
+      description: At least one field required
       properties:
         fullName:
           type: string
           maxLength: 255
-          example: "Jane M. Doe"
+          example: Jane Updated
         email:
           type: string
           format: email
-          example: "jane.doe@committed.com"
+          example: jane.updated@example.com
+
+    ChangePasswordRequest:
+      type: object
+      properties:
         currentPassword:
           type: string
           format: password
-          description: Required when changing password
+          example: oldpassword123
         newPassword:
           type: string
           format: password
           minLength: 8
-          description: New password (requires currentPassword)
+          example: newpassword456
+      required: [currentPassword, newPassword]
 
-    # -----------------------------------------------------------------------
-    # Courses
-    # -----------------------------------------------------------------------
+    # --- Admin ---
+
+    AdminUserResponse:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        email:
+          type: string
+          format: email
+        fullName:
+          type: string
+        systemRole:
+          type: string
+          enum: [user, admin]
+        isActive:
+          type: boolean
+        tokenVersion:
+          type: integer
+          description: Incremented on password change or deactivation
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    AdminUpdateUserRequest:
+      type: object
+      description: All fields optional; only provided fields are updated
+      properties:
+        email:
+          type: string
+          format: email
+        fullName:
+          type: string
+          maxLength: 255
+        systemRole:
+          type: string
+          enum: [user, admin]
+        isActive:
+          type: boolean
+
+    ApiResponse_AdminUserResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: "#/components/schemas/AdminUserResponse"
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    ApiResponse_PagedAdminUsers:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            content:
+              type: array
+              items:
+                $ref: "#/components/schemas/AdminUserResponse"
+            page:
+              type: integer
+            size:
+              type: integer
+            totalElements:
+              type: integer
+            totalPages:
+              type: integer
+            hasNext:
+              type: boolean
+            hasPrev:
+              type: boolean
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    # --- Courses ---
 
     CourseResponse:
       type: object
@@ -1968,26 +2180,25 @@ components:
           example: 1
         courseCode:
           type: string
-          example: "CS101"
+          example: CS101
         courseName:
           type: string
-          example: "Introduction to Computer Science"
+          example: Introduction to Computer Science
         description:
           type: string
           nullable: true
-          example: "An introductory course covering basic CS concepts."
         section:
           type: string
           nullable: true
-          example: "Section A"
+          example: Section A
         subject:
           type: string
           nullable: true
-          example: "Computer Science"
+          example: Computer Science
         isOpen:
           type: boolean
           example: true
-          description: Whether the course accepts new enrollments
+          description: Whether new enrollments are accepted
         isActive:
           type: boolean
           example: true
@@ -2001,14 +2212,120 @@ components:
         updatedAt:
           type: string
           format: date-time
-      required: [courseId, courseCode, courseName, isOpen, isActive, teacherId, createdAt, updatedAt]
+      required: [courseId, courseCode, courseName, isOpen, isActive, teacherId, createdAt]
+
+    CreateCourseRequest:
+      type: object
+      properties:
+        courseCode:
+          type: string
+          maxLength: 50
+          example: CS201
+        courseName:
+          type: string
+          maxLength: 255
+          example: Data Structures
+        description:
+          type: string
+          nullable: true
+          maxLength: 1000
+        section:
+          type: string
+          nullable: true
+          maxLength: 50
+        subject:
+          type: string
+          nullable: true
+          maxLength: 100
+        isOpen:
+          type: boolean
+          default: true
+      required: [courseCode, courseName]
+
+    UpdateCourseRequest:
+      type: object
+      properties:
+        courseName:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+        section:
+          type: string
+          nullable: true
+        subject:
+          type: string
+          nullable: true
+        isOpen:
+          type: boolean
+
+    EnrollCourseRequest:
+      type: object
+      properties:
+        courseCode:
+          type: string
+          example: CS101
+      required: [courseCode]
+
+    EnrollmentResponse:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        courseId:
+          type: integer
+          format: int64
+        courseRole:
+          type: string
+          enum: [student, professor]
+        enrolledAt:
+          type: string
+          format: date-time
+        user:
+          $ref: "#/components/schemas/UserResponse"
+          nullable: true
+
+    CourseStatsResponse:
+      type: object
+      properties:
+        totalStudents:
+          type: integer
+          example: 24
+        averageGrade:
+          type: number
+          format: float
+          nullable: true
+          example: 82.5
+        completionRate:
+          type: number
+          format: float
+          description: Ratio of graded submissions to total submissions (0–1)
+          example: 0.67
+        recentActivity:
+          type: string
+          format: date-time
+          nullable: true
+
+    ApiResponse_EnrollmentResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: "#/components/schemas/EnrollmentResponse"
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
 
     ApiResponse_CourseResponse:
       type: object
       properties:
         success:
           type: boolean
-          example: true
         data:
           $ref: "#/components/schemas/CourseResponse"
         message:
@@ -2016,14 +2333,12 @@ components:
         timestamp:
           type: string
           format: date-time
-      required: [success, data, message, timestamp]
 
     ApiResponse_PaginatedCourses:
       type: object
       properties:
         success:
           type: boolean
-          example: true
         data:
           type: object
           properties:
@@ -2038,101 +2353,8 @@ components:
         timestamp:
           type: string
           format: date-time
-      required: [success, data, message, timestamp]
 
-    CreateCourseRequest:
-      type: object
-      properties:
-        courseCode:
-          type: string
-          maxLength: 50
-          example: "CS201"
-          description: Unique course code
-        courseName:
-          type: string
-          maxLength: 255
-          example: "Data Structures"
-        description:
-          type: string
-          nullable: true
-          maxLength: 1000
-          example: "Advanced course on data structures and algorithms."
-        section:
-          type: string
-          nullable: true
-          maxLength: 50
-          example: "Section B"
-        subject:
-          type: string
-          nullable: true
-          maxLength: 100
-          example: "Computer Science"
-      required: [courseCode, courseName]
-
-    UpdateCourseRequest:
-      type: object
-      properties:
-        courseName:
-          type: string
-          maxLength: 255
-        description:
-          type: string
-          nullable: true
-          maxLength: 1000
-        section:
-          type: string
-          nullable: true
-          maxLength: 50
-        subject:
-          type: string
-          nullable: true
-          maxLength: 100
-        isOpen:
-          type: boolean
-          description: Toggle enrollment open/closed
-
-    # -----------------------------------------------------------------------
-    # Enrollments
-    # -----------------------------------------------------------------------
-
-    EnrollmentResponse:
-      type: object
-      properties:
-        userId:
-          type: integer
-          format: int64
-          example: 5
-        courseId:
-          type: integer
-          format: int64
-          example: 1
-        courseRole:
-          type: string
-          enum: [student, professor]
-          example: "student"
-        enrolledAt:
-          type: string
-          format: date-time
-        user:
-          $ref: "#/components/schemas/UserResponse"
-          description: Populated when listing students in a course
-      required: [userId, courseId, courseRole, enrolledAt]
-
-    ApiResponse_EnrollmentResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          $ref: "#/components/schemas/EnrollmentResponse"
-        message:
-          type: string
-        timestamp:
-          type: string
-          format: date-time
-      required: [success, data, message, timestamp]
-
-    ApiResponse_PaginatedEnrollments:
+    ApiResponse_PaginatedStudents:
       type: object
       properties:
         success:
@@ -2151,11 +2373,44 @@ components:
         timestamp:
           type: string
           format: date-time
-      required: [success, data, message, timestamp]
 
-    # -----------------------------------------------------------------------
-    # Assignments
-    # -----------------------------------------------------------------------
+    ApiResponse_CourseStats:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: "#/components/schemas/CourseStatsResponse"
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    # --- Assignments ---
+
+    AttachmentResponse:
+      type: object
+      properties:
+        attachmentId:
+          type: integer
+          format: int64
+        fileName:
+          type: string
+          example: requirements.pdf
+        fileType:
+          type: string
+          example: application/pdf
+        fileSize:
+          type: integer
+          description: Size in bytes
+          example: 204800
+        uploadedBy:
+          type: integer
+          format: int64
+        uploadedAt:
+          type: string
+          format: date-time
 
     AssignmentResponse:
       type: object
@@ -2178,38 +2433,67 @@ components:
         description:
           type: string
           nullable: true
-          example: "Write a Hello World program in Python."
         maxPoints:
           type: number
           format: float
-          example: 100.00
+          example: 100.0
         dueDate:
           type: string
           format: date-time
           nullable: true
-          example: "2026-03-15T23:59:00Z"
         allowLateSubmission:
           type: boolean
           example: false
-        requireGithubRepo:
+        requireRepoUrl:
           type: boolean
           example: true
+          description: When true, students must provide a GitHub/GitLab repo URL
+        attachments:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttachmentResponse"
         createdAt:
           type: string
           format: date-time
         updatedAt:
           type: string
           format: date-time
-      required:
-        - assignmentId
-        - courseId
-        - createdBy
-        - title
-        - maxPoints
-        - allowLateSubmission
-        - requireGithubRepo
-        - createdAt
-        - updatedAt
+      required: [assignmentId, courseId, createdBy, title, maxPoints, allowLateSubmission, requireRepoUrl, createdAt]
+
+    AssignmentFormRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 500
+          example: "Lab 2: Linked Lists"
+        description:
+          type: string
+          nullable: true
+        maxPoints:
+          type: number
+          format: float
+          default: 100.0
+          example: 100.0
+        dueDate:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-05-15T23:59:00Z"
+        allowLateSubmission:
+          type: boolean
+          default: false
+        requireRepoUrl:
+          type: boolean
+          default: false
+          description: Require students to submit a GitHub/GitLab repository URL
+        files:
+          type: array
+          items:
+            type: string
+            format: binary
+          description: Optional file attachments
+      required: [title]
 
     ApiResponse_AssignmentResponse:
       type: object
@@ -2223,7 +2507,6 @@ components:
         timestamp:
           type: string
           format: date-time
-      required: [success, data, message, timestamp]
 
     ApiResponse_PaginatedAssignments:
       type: object
@@ -2244,62 +2527,8 @@ components:
         timestamp:
           type: string
           format: date-time
-      required: [success, data, message, timestamp]
 
-    CreateAssignmentRequest:
-      type: object
-      properties:
-        title:
-          type: string
-          maxLength: 500
-          example: "Lab 2: Linked Lists"
-        description:
-          type: string
-          nullable: true
-          example: "Implement a singly linked list in Java."
-        maxPoints:
-          type: number
-          format: float
-          default: 100.00
-          example: 100.00
-        dueDate:
-          type: string
-          format: date-time
-          nullable: true
-          example: "2026-04-01T23:59:00Z"
-        allowLateSubmission:
-          type: boolean
-          default: false
-        requireGithubRepo:
-          type: boolean
-          default: false
-          description: When true, students must provide a GitHub repo URL
-      required: [title]
-
-    UpdateAssignmentRequest:
-      type: object
-      properties:
-        title:
-          type: string
-          maxLength: 500
-        description:
-          type: string
-          nullable: true
-        maxPoints:
-          type: number
-          format: float
-        dueDate:
-          type: string
-          format: date-time
-          nullable: true
-        allowLateSubmission:
-          type: boolean
-        requireGithubRepo:
-          type: boolean
-
-    # -----------------------------------------------------------------------
-    # Submissions
-    # -----------------------------------------------------------------------
+    # --- Submissions ---
 
     SubmissionResponse:
       type: object
@@ -2319,45 +2548,49 @@ components:
         submissionText:
           type: string
           nullable: true
-          example: "See attached GitHub repository."
-        githubRepoUrl:
+        repoUrl:
           type: string
           nullable: true
           example: "https://github.com/student/lab2-linked-lists"
+        resubmissionCount:
+          type: integer
+          example: 0
         status:
           type: string
           enum: [pending, submitted, graded, late, returned]
-          example: "submitted"
+          example: submitted
+        attachments:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttachmentResponse"
+        codeAnalysis:
+          $ref: "#/components/schemas/AnalysisResponse"
+          nullable: true
         submittedAt:
           type: string
           format: date-time
         updatedAt:
           type: string
           format: date-time
-      required:
-        - submissionId
-        - assignmentId
-        - studentId
-        - status
-        - submittedAt
-        - updatedAt
+      required: [submissionId, assignmentId, studentId, status, submittedAt]
 
-    SubmissionDetailResponse:
-      description: Extended submission response including analysis and grade info
-      allOf:
-        - $ref: "#/components/schemas/SubmissionResponse"
-        - type: object
-          properties:
-            analysis:
-              $ref: "#/components/schemas/AnalysisResultSummary"
-              nullable: true
-            grade:
-              $ref: "#/components/schemas/GradeResponse"
-              nullable: true
-            student:
-              $ref: "#/components/schemas/UserResponse"
-              nullable: true
-              description: Populated for teachers viewing submissions
+    SubmissionFormRequest:
+      type: object
+      properties:
+        submissionText:
+          type: string
+          nullable: true
+          example: See attached GitHub repository.
+        repoUrl:
+          type: string
+          nullable: true
+          example: "https://github.com/student/lab2-linked-lists"
+          description: Required if assignment has requireRepoUrl=true. Must be GitHub or GitLab.
+        files:
+          type: array
+          items:
+            type: string
+            format: binary
 
     ApiResponse_SubmissionResponse:
       type: object
@@ -2371,21 +2604,6 @@ components:
         timestamp:
           type: string
           format: date-time
-      required: [success, data, message, timestamp]
-
-    ApiResponse_SubmissionDetailResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          $ref: "#/components/schemas/SubmissionDetailResponse"
-        message:
-          type: string
-        timestamp:
-          type: string
-          format: date-time
-      required: [success, data, message, timestamp]
 
     ApiResponse_PaginatedSubmissions:
       type: object
@@ -2406,204 +2624,11 @@ components:
         timestamp:
           type: string
           format: date-time
-      required: [success, data, message, timestamp]
 
-    CreateSubmissionRequest:
+    # --- Analysis ---
+
+    AnalysisResponse:
       type: object
-      properties:
-        submissionText:
-          type: string
-          nullable: true
-          example: "Here is my implementation of linked lists."
-        githubRepoUrl:
-          type: string
-          nullable: true
-          example: "https://github.com/student/lab2-linked-lists"
-          description: Required if assignment has requireGithubRepo=true
-
-    # -----------------------------------------------------------------------
-    # Analysis
-    # -----------------------------------------------------------------------
-
-    AnalyzeRequest:
-      type: object
-      description: Request sent by Core to Code Analyzer (internal)
-      properties:
-        submissionId:
-          type: integer
-          format: int64
-          example: 1
-        repoUrl:
-          type: string
-          example: "https://github.com/student/lab2-linked-lists"
-        studentId:
-          type: integer
-          format: int64
-          example: 5
-      required: [submissionId, repoUrl]
-
-    AnalyzeResponse:
-      type: object
-      description: Response from Code Analyzer (internal)
-      properties:
-        status:
-          type: string
-          enum: [success, error]
-        data:
-          type: object
-          properties:
-            submissionId:
-              type: integer
-              format: int64
-            status:
-              type: string
-              enum: [completed, failed]
-            metrics:
-              $ref: "#/components/schemas/CodeMetrics"
-            classification:
-              $ref: "#/components/schemas/CodeClassification"
-            feedback:
-              $ref: "#/components/schemas/AIFeedback"
-            reportUrl:
-              type: string
-              example: "/reports/analysis_report_1_20260203_130500.pdf"
-            analyzedAt:
-              type: string
-              format: date-time
-        timestamp:
-          type: string
-          format: date-time
-
-    AnalyzerErrorResponse:
-      type: object
-      properties:
-        status:
-          type: string
-          enum: [error]
-        message:
-          type: string
-        timestamp:
-          type: string
-          format: date-time
-      required: [status, message, timestamp]
-
-    AnalysisStatusResponse:
-      type: object
-      properties:
-        submissionId:
-          type: integer
-          format: int64
-        status:
-          type: string
-          enum: [pending, analyzing, completed, failed]
-        timestamp:
-          type: string
-          format: date-time
-      required: [submissionId, status, timestamp]
-
-    CodeMetrics:
-      type: object
-      description: Code quality metrics from static analysis
-      properties:
-        complexity:
-          type: number
-          description: Cyclomatic complexity score (0-100)
-          example: 45
-        maintainability:
-          type: number
-          description: Maintainability index (0-100)
-          example: 72
-        test_coverage:
-          type: number
-          description: Test coverage percentage (0-100)
-          example: 60
-        code_smells:
-          type: integer
-          description: Number of code smells detected
-          example: 5
-        documentation:
-          type: number
-          description: Documentation coverage (0-100)
-          example: 40
-
-    CodeClassification:
-      type: object
-      description: Quality classification based on metrics
-      properties:
-        score:
-          type: number
-          format: float
-          description: Overall quality score (0-100)
-          example: 65.5
-        category:
-          type: string
-          enum: [excellent, good, average, poor]
-          example: "good"
-        metrics:
-          $ref: "#/components/schemas/CodeMetrics"
-        timestamp:
-          type: string
-          format: date-time
-      required: [score, category, timestamp]
-
-    AIFeedback:
-      type: object
-      description: AI-generated feedback from OpenAI
-      properties:
-        category:
-          type: string
-          enum: [excellent, good, average, poor]
-          example: "good"
-        feedback:
-          type: string
-          description: AI-generated feedback text (HTML or plain text)
-          example: "Your code demonstrates solid fundamentals. Here are some suggestions..."
-        score:
-          type: number
-          format: float
-          example: 65.5
-        timestamp:
-          type: string
-          format: date-time
-      required: [category, feedback, score, timestamp]
-
-    AnalysisResultSummary:
-      type: object
-      description: Analysis result summary included in submission detail responses
-      properties:
-        analysisId:
-          type: integer
-          format: int64
-          example: 42
-        status:
-          type: string
-          enum: [pending, analyzing, completed, failed]
-          example: "completed"
-        score:
-          type: number
-          format: float
-          nullable: true
-          example: 65.5
-        category:
-          type: string
-          enum: [excellent, good, average, poor]
-          nullable: true
-          example: "good"
-        reportPdfUrl:
-          type: string
-          nullable: true
-          example: "/reports/analysis_report_1_20260203_130500.pdf"
-        errorMessage:
-          type: string
-          nullable: true
-        analyzedAt:
-          type: string
-          format: date-time
-          nullable: true
-
-    AnalysisResultResponse:
-      type: object
-      description: Full analysis results
       properties:
         analysisId:
           type: integer
@@ -2616,14 +2641,51 @@ components:
         status:
           type: string
           enum: [pending, analyzing, completed, failed]
-        metrics:
-          $ref: "#/components/schemas/CodeMetrics"
+          example: completed
+        metricsData:
+          type: object
           nullable: true
-        classification:
-          $ref: "#/components/schemas/CodeClassification"
+          description: JSON metrics from the Code Analyzer (score, category, complexity, etc.)
+          example:
+            score: 72.5
+            category: good
+            complexity: 45
+            maintainability: 78
+            documentation: 60
+        reportPdfUrl:
+          type: string
           nullable: true
-        feedback:
-          $ref: "#/components/schemas/AIFeedback"
+          example: "/reports/analysis_report_1_20260428_120000.pdf"
+        errorMessage:
+          type: string
+          nullable: true
+      required: [analysisId, submissionId, status]
+
+    ApiResponse_AnalysisResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: "#/components/schemas/AnalysisResponse"
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    AnalysisResultCallback:
+      type: object
+      description: Posted by Code Analyzer to Gateway `/internal/analysis-result`
+      properties:
+        submissionId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum: [completed, failed]
+        metricsData:
+          type: object
           nullable: true
         reportPdfUrl:
           type: string
@@ -2631,54 +2693,9 @@ components:
         errorMessage:
           type: string
           nullable: true
-        analyzedAt:
-          type: string
-          format: date-time
-          nullable: true
+      required: [submissionId, status]
 
-    ApiResponse_AnalysisTriggerResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          type: object
-          properties:
-            submissionId:
-              type: integer
-              format: int64
-            analysisId:
-              type: integer
-              format: int64
-            status:
-              type: string
-              enum: [analyzing]
-            message:
-              type: string
-        message:
-          type: string
-        timestamp:
-          type: string
-          format: date-time
-      required: [success, data, message, timestamp]
-
-    ApiResponse_AnalysisResultResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          $ref: "#/components/schemas/AnalysisResultResponse"
-        message:
-          type: string
-        timestamp:
-          type: string
-          format: date-time
-      required: [success, data, message, timestamp]
-
-    # -----------------------------------------------------------------------
-    # Grades
-    # -----------------------------------------------------------------------
+    # --- Grades ---
 
     GradeResponse:
       type: object
@@ -2698,25 +2715,42 @@ components:
         pointsEarned:
           type: number
           format: float
-          example: 85.50
+          example: 85.5
         maxPoints:
           type: number
           format: float
-          example: 100.00
+          example: 100.0
         feedback:
           type: string
           nullable: true
           example: "Good work! Consider adding more unit tests."
+        source:
+          type: string
+          enum: [manual, ai]
+          example: manual
+          description: Whether graded manually by teacher or suggested by AI
+        isFinalized:
+          type: boolean
+          example: true
+          description: AI-suggested grades are finalized by teacher via `/grades/{id}/validate`
         gradedAt:
           type: string
           format: date-time
-      required:
-        - gradeId
-        - submissionId
-        - gradedBy
-        - pointsEarned
-        - maxPoints
-        - gradedAt
+      required: [gradeId, submissionId, gradedBy, pointsEarned, maxPoints, source, isFinalized, gradedAt]
+
+    GradeRequest:
+      type: object
+      properties:
+        pointsEarned:
+          type: number
+          format: float
+          example: 85.5
+          description: Must not exceed the assignment's maxPoints
+        feedback:
+          type: string
+          nullable: true
+          example: "Good work! Consider adding more unit tests."
+      required: [pointsEarned]
 
     ApiResponse_GradeResponse:
       type: object
@@ -2730,36 +2764,23 @@ components:
         timestamp:
           type: string
           format: date-time
-      required: [success, data, message, timestamp]
 
-    CreateGradeRequest:
+    ApiResponse_GradeList:
       type: object
       properties:
-        pointsEarned:
-          type: number
-          format: float
-          example: 85.50
-          description: Points earned (must not exceed assignment maxPoints)
-        feedback:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/GradeResponse"
+        message:
           type: string
-          nullable: true
-          example: "Good work! Consider adding more unit tests."
-      required: [pointsEarned]
-
-    UpdateGradeRequest:
-      type: object
-      properties:
-        pointsEarned:
-          type: number
-          format: float
-          example: 90.00
-        feedback:
+        timestamp:
           type: string
-          nullable: true
+          format: date-time
 
-    # -----------------------------------------------------------------------
-    # Announcements
-    # -----------------------------------------------------------------------
+    # --- Announcements ---
 
     AnnouncementResponse:
       type: object
@@ -2778,32 +2799,49 @@ components:
           example: 2
         title:
           type: string
-          example: "Welcome to CS101!"
+          example: Welcome to CS101!
         content:
           type: string
-          example: "Welcome to the course. Please review the syllabus."
+          example: Please review the syllabus.
+        attachments:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttachmentResponse"
         postedAt:
           type: string
           format: date-time
         updatedAt:
           type: string
           format: date-time
-        author:
-          $ref: "#/components/schemas/UserResponse"
           nullable: true
-          description: Author info (populated in list responses)
-        commentCount:
-          type: integer
-          example: 3
-          description: Number of comments on this announcement
-      required:
-        - announcementId
-        - courseId
-        - postedBy
-        - title
-        - content
-        - postedAt
-        - updatedAt
+      required: [announcementId, courseId, postedBy, title, content, postedAt]
+
+    AnnouncementFormRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 500
+          example: Midterm Exam Schedule
+        content:
+          type: string
+          example: The midterm exam will be held on May 20th at 2:00 PM.
+        files:
+          type: array
+          items:
+            type: string
+            format: binary
+      required: [title, content]
+
+    UpdateAnnouncementRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 500
+        content:
+          type: string
+      required: [title, content]
 
     ApiResponse_AnnouncementResponse:
       type: object
@@ -2817,7 +2855,6 @@ components:
         timestamp:
           type: string
           format: date-time
-      required: [success, data, message, timestamp]
 
     ApiResponse_PaginatedAnnouncements:
       type: object
@@ -2838,32 +2875,8 @@ components:
         timestamp:
           type: string
           format: date-time
-      required: [success, data, message, timestamp]
 
-    CreateAnnouncementRequest:
-      type: object
-      properties:
-        title:
-          type: string
-          maxLength: 500
-          example: "Midterm Exam Schedule"
-        content:
-          type: string
-          example: "The midterm exam will be held on March 20th at 2:00 PM."
-      required: [title, content]
-
-    UpdateAnnouncementRequest:
-      type: object
-      properties:
-        title:
-          type: string
-          maxLength: 500
-        content:
-          type: string
-
-    # -----------------------------------------------------------------------
-    # Comments
-    # -----------------------------------------------------------------------
+    # --- Comments ---
 
     CommentResponse:
       type: object
@@ -2884,27 +2897,42 @@ components:
           type: integer
           format: int64
           nullable: true
-          description: ID of parent comment for threaded replies
-          example: null
+          description: Non-null for nested replies
         content:
           type: string
-          example: "Thanks for the information!"
+          example: "Thanks for the info!"
+        author:
+          $ref: "#/components/schemas/UserResponse"
+          nullable: true
         createdAt:
           type: string
           format: date-time
         updatedAt:
           type: string
           format: date-time
-        author:
-          $ref: "#/components/schemas/UserResponse"
           nullable: true
-      required:
-        - commentId
-        - announcementId
-        - userId
-        - content
-        - createdAt
-        - updatedAt
+      required: [commentId, announcementId, userId, content, createdAt]
+
+    CreateCommentRequest:
+      type: object
+      properties:
+        content:
+          type: string
+          example: "Thanks for the information!"
+        parentCommentId:
+          type: integer
+          format: int64
+          nullable: true
+          description: Set to reply to another comment
+      required: [content]
+
+    UpdateCommentRequest:
+      type: object
+      properties:
+        content:
+          type: string
+          example: "Updated comment text."
+      required: [content]
 
     ApiResponse_CommentResponse:
       type: object
@@ -2918,7 +2946,6 @@ components:
         timestamp:
           type: string
           format: date-time
-      required: [success, data, message, timestamp]
 
     ApiResponse_PaginatedComments:
       type: object
@@ -2939,166 +2966,67 @@ components:
         timestamp:
           type: string
           format: date-time
-      required: [success, data, message, timestamp]
 
-    CreateCommentRequest:
+    # --- Internal ---
+
+    NotifyPayload:
       type: object
+      description: Event payload sent by Gateway to Notifications service
       properties:
-        content:
-          type: string
-          example: "Thanks for the information!"
-        parentCommentId:
-          type: integer
-          format: int64
-          nullable: true
-          description: Set to reply to a specific comment (threaded replies)
-      required: [content]
-
-    # -----------------------------------------------------------------------
-    # Notifications
-    # -----------------------------------------------------------------------
-
-    NotificationResponse:
-      type: object
-      properties:
-        notificationId:
-          type: integer
-          format: int64
-          example: 42
-        userId:
-          type: integer
-          format: int64
-          example: 5
         type:
           type: string
           enum:
-            - SUBMISSION_ANALYZED
-            - SUBMISSION_GRADED
-            - ASSIGNMENT_CREATED
-            - ENROLLMENT_CONFIRMED
-            - ANNOUNCEMENT_POSTED
-            - GRADE_UPDATED
-            - ANALYSIS_FAILED
-          example: "SUBMISSION_ANALYZED"
-        subject:
-          type: string
-          example: "Your code has been analyzed"
-        message:
-          type: string
-          example: "Analysis complete for submission #1. Quality score: 65.5/100 (Good)"
-        isRead:
-          type: boolean
-          example: false
-        readAt:
-          type: string
-          format: date-time
-          nullable: true
-        emailSentAt:
-          type: string
-          format: date-time
-          nullable: true
-        createdAt:
-          type: string
-          format: date-time
-      required:
-        - notificationId
-        - userId
-        - type
-        - subject
-        - message
-        - isRead
-        - createdAt
-
-    ApiResponse_PaginatedNotifications:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          type: object
-          properties:
-            data:
-              type: array
-              items:
-                $ref: "#/components/schemas/NotificationResponse"
-            pagination:
-              $ref: "#/components/schemas/PaginationMeta"
-        message:
-          type: string
-        timestamp:
-          type: string
-          format: date-time
-      required: [success, data, message, timestamp]
-
-    SendNotificationRequest:
-      type: object
-      description: Internal request to create and optionally email a notification
-      properties:
-        userId:
-          type: integer
-          format: int64
-          example: 5
-        type:
-          type: string
-          example: "SUBMISSION_ANALYZED"
-        subject:
-          type: string
-          maxLength: 500
-          example: "Your code has been analyzed"
-        message:
-          type: string
-          example: "Analysis complete for submission #1. Quality score: 65.5/100 (Good)"
-        userEmail:
+            - announcement.created
+            - assignment.created
+            - grade.created
+            - grade.validated
+            - analysis.completed
+            - analysis.failed
+          example: grade.created
+        recipientEmail:
           type: string
           format: email
-          nullable: true
-          example: "student@committed.com"
-          description: If provided with sendEmail=true, an email will also be sent
-        sendEmail:
-          type: boolean
-          default: false
-          description: Whether to also send an email notification
-      required: [userId, type, subject, message]
-
-    SendEmailRequest:
-      type: object
-      description: Internal request to send a direct email
-      properties:
-        toEmail:
+        recipientName:
           type: string
-          format: email
-          example: "student@committed.com"
-        subject:
+        courseName:
           type: string
-          maxLength: 500
-          example: "Welcome to CS101"
-        htmlBody:
+        title:
           type: string
-          example: "<h1>Welcome!</h1><p>You have been enrolled in CS101.</p>"
-        textBody:
+          description: Assignment or announcement title
+        content:
           type: string
           nullable: true
-          example: "Welcome! You have been enrolled in CS101."
-      required: [toEmail, subject, htmlBody]
-
-    NotificationOperationResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-          example: true
-        message:
+          description: Announcement content (for announcement.created)
+        dueDate:
           type: string
-          example: "Notification sent successfully"
-        notificationId:
-          type: integer
-          format: int64
+          format: date-time
           nullable: true
-          example: 42
-      required: [success, message]
+        pointsEarned:
+          type: number
+          format: float
+          nullable: true
+        maxPoints:
+          type: number
+          format: float
+          nullable: true
+        feedback:
+          type: string
+          nullable: true
+        source:
+          type: string
+          enum: [manual, ai]
+          nullable: true
+        analysisScore:
+          type: number
+          format: float
+          nullable: true
+        failureReason:
+          type: string
+          nullable: true
+      required: [type, recipientEmail, recipientName, courseName]
 
 # ===========================================================================
-# DEFAULT SECURITY (applied to all endpoints unless overridden)
+# DEFAULT SECURITY
 # ===========================================================================
 security:
   - BearerAuth: []

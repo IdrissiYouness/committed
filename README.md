@@ -6,13 +6,14 @@ Educational platform for automated code analysis and grading, similar to Google 
 
 Microservices architecture with:
 
-- **Gateway** (Java Spring Boot) - Authentication & routing
-- **Core** (PHP Symfony) - Courses, assignments, submissions
-- **Code Analyzer** (Python Flask) - GitHub cloning & AI analysis
-- **Notifications** (.NET Core) - Email notifications
-- **Web** (React + Tailwind CSS) - Frontend application
-- **PostgreSQL 16** - Shared data store
-- **Nginx** - Reverse proxy
+- **Gateway** (Java Spring Boot) — JWT auth, rate limiting, token versioning, routing
+- **Core** (PHP Symfony) — Courses, assignments, submissions, grades, file storage
+- **Code Analyzer** (Python Flask) — GitHub cloning, Kilo AI analysis, PDF reports
+- **Notifications** (.NET Core) — Async SMTP email with HTML templates
+- **Web** (React + Tailwind CSS) — Frontend application
+- **PostgreSQL 16** — Shared relational data store
+- **Redis** — JWT blacklist and per-user token version counters
+- **Nginx** — Reverse proxy, static frontend, Scalar API docs at `/docs`
 
 ## Quick Start
 
@@ -55,14 +56,14 @@ docker compose ps
 
 | Service       | Port | Technology                    |
 | ------------- | ---- | ----------------------------- |
-| Nginx         | 80   | Reverse Proxy                 |
+| Nginx         | 80   | Reverse Proxy + API Docs      |
 | Gateway       | 8080 | Java Spring Boot              |
 | Core          | 8000 | PHP Symfony                   |
 | Code Analyzer | 5000 | Python Flask                  |
 | Notifications | 5001 | .NET Core                     |
 | Web           | 3000 | React + Vite + Tailwind CSS   |
 | PostgreSQL    | 5432 | PostgreSQL 16 Alpine          |
-| API Docs      | 80   | Scalar (via Nginx at `/docs`) |
+| Redis         | 6379 | JWT blacklist + token version |
 
 ## Testing Connectivity
 
@@ -115,11 +116,12 @@ committed/
 
 ## Documentation
 
-- [CONTRIBUTING.md](CONTRIBUTING.md) - **Start here!** Collaboration guide for the team
-- [SETUP.md](docs/SETUP.md) - IDE setup guides
-- [WINDOWS-SETUP.md](docs/WINDOWS-SETUP.md) - **Windows users guide** (Docker Desktop on Windows)
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - System architecture
-- [API.md](docs/API.md) - API documentation
+- [CONTRIBUTING.md](CONTRIBUTING.md) — **Start here!** Collaboration guide for the team
+- [QUICKSTART.md](docs/QUICKSTART.md) — Step-by-step local setup with DBeaver verification
+- [SETUP.md](docs/SETUP.md) — IDE setup guides per service
+- [WINDOWS-SETUP.md](docs/WINDOWS-SETUP.md) — **Windows users guide** (Docker Desktop on WSL2)
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) — System architecture, security, and data flow
+- [openapi.yaml](docs/openapi.yaml) — Full OpenAPI 3.0 spec (rendered at http://localhost/docs)
 
 ## CI/CD Pipeline
 
