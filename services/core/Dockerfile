@@ -1,51 +1,45 @@
-FROM php:8.2-cli
+FROM php:8.3-fpm-alpine
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apk add --no-cache \
     git \
+    curl \
+    libpq-dev \
+    icu-dev \
+    zip \
     unzip \
-    libzip-dev \
-    libaio1t64 \
-    wget \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create symlink for libaio (newer Debian uses libaio1t64)
-RUN ln -sf /usr/lib/x86_64-linux-gnu/libaio.so.1t64 /usr/lib/x86_64-linux-gnu/libaio.so.1 || true
+    nginx \
+    supervisor
 
 # Install PHP extensions
-RUN docker-php-ext-install zip pdo
-
-# Install Oracle Instant Client
-RUN mkdir -p /opt/oracle && \
-    cd /opt/oracle && \
-    wget https://download.oracle.com/otn_software/linux/instantclient/2112000/instantclient-basiclite-linux.x64-21.12.0.0.0dbru.zip && \
-    unzip instantclient-basiclite-linux.x64-21.12.0.0.0dbru.zip && \
-    rm instantclient-basiclite-linux.x64-21.12.0.0.0dbru.zip && \
-    wget https://download.oracle.com/otn_software/linux/instantclient/2112000/instantclient-sdk-linux.x64-21.12.0.0.0dbru.zip && \
-    unzip instantclient-sdk-linux.x64-21.12.0.0.0dbru.zip && \
-    rm instantclient-sdk-linux.x64-21.12.0.0.0dbru.zip
-
-ENV LD_LIBRARY_PATH=/opt/oracle/instantclient_21_12:$LD_LIBRARY_PATH
-ENV ORACLE_HOME=/opt/oracle/instantclient_21_12
-
-# Install OCI8 extension
-RUN echo 'instantclient,/opt/oracle/instantclient_21_12' | pecl install oci8-3.3.0 && \
-    docker-php-ext-enable oci8
+RUN docker-php-ext-install \
+    pdo \
+    pdo_pgsql \
+    pgsql \
+    intl \
+    opcache
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-WORKDIR /var/www/html
-COPY composer.json ./
+WORKDIR /var/www/core
 
-# Install dependencies first (better caching)
-RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts
+# Copy composer files first (layer caching)
+COPY composer.json composer.lock ./
+RUN composer install --no-scripts --no-autoloader --prefer-dist
 
-# Copy the rest of the application
+# Copy application
 COPY . .
+RUN composer dump-autoload --optimize
 
-# Run post-install scripts
-RUN composer run-script post-install-cmd --no-interaction || true
+# Copy config files
+COPY docker/nginx.conf /etc/nginx/nginx.conf
+COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY docker/php.ini /usr/local/etc/php/conf.d/custom.ini
+
+RUN mkdir -p var/cache var/log && \
+    chmod -R 777 var/
 
 EXPOSE 8000
-CMD ["php", "-S", "0.0.0.0:8000", "-t", "public"]
+
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

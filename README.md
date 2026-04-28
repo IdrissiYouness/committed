@@ -5,13 +5,15 @@ Educational platform for automated code analysis and grading, similar to Google 
 ## Architecture
 
 Microservices architecture with:
-- **Gateway** (Java Spring Boot) - Authentication & routing
-- **Core** (PHP Symfony) - Courses, assignments, submissions
-- **Code Analyzer** (Python Flask) - GitHub cloning & AI analysis
-- **Notifications** (.NET Core) - Email notifications
-- **Web** (React + Tailwind CSS) - Frontend application
-- **Oracle Database** - Shared data store
-- **Nginx** - Reverse proxy
+
+- **Gateway** (Java Spring Boot) — JWT auth, rate limiting, token versioning, routing
+- **Core** (PHP Symfony) — Courses, assignments, submissions, grades, file storage
+- **Code Analyzer** (Python Flask) — GitHub cloning, Kilo AI analysis, PDF reports
+- **Notifications** (.NET Core) — Async SMTP email with HTML templates
+- **Web** (React + Tailwind CSS) — Frontend application
+- **PostgreSQL 16** — Shared relational data store
+- **Redis** — JWT blacklist and per-user token version counters
+- **Nginx** — Reverse proxy, static frontend, Scalar API docs at `/docs`
 
 ## Quick Start
 
@@ -20,47 +22,48 @@ Microservices architecture with:
 ### Prerequisites
 
 1. **Docker Desktop** (with at least 4GB RAM allocated)
-2. **Oracle Container Registry account** - Sign up at https://container-registry.oracle.com
 
 ### Setup
 
-1. Login to Oracle Container Registry:
+1. Set up environment:
+
 ```bash
-docker login container-registry.oracle.com
+cp docker/.env.example docker/.env
+# Edit docker/.env — in particular set KILO_AUTH_JSON_B64
+# (see docs/QUICKSTART.md for how to generate it)
 ```
 
-2. Set up environment:
-```bash
-cp .env.example .env
-# Edit .env with your configuration
-```
+2. Start all services:
 
-3. Start all services:
 ```bash
 cd docker
 docker compose up -d
 ```
 
-4. Wait for Oracle to be healthy (may take 2-3 minutes):
+3. Wait for PostgreSQL to be healthy (usually under 10 seconds):
+
 ```bash
 docker compose ps
 ```
 
-5. Access application:
+4. Access application:
+
 - Frontend: http://localhost
 - API: http://localhost/api
+- API Docs: http://localhost/docs
 
 ## Service Ports
 
-| Service | Port | Technology |
-|---------|------|------------|
-| Nginx | 80 | Reverse Proxy |
-| Gateway | 8080 | Java Spring Boot |
-| Core | 8000 | PHP Symfony |
-| Code Analyzer | 5000 | Python Flask |
-| Notifications | 5001 | .NET Core |
-| Web | 3000 | React + Vite + Tailwind CSS |
-| Oracle DB | 1521 | Oracle XE 21c |
+| Service       | Port | Technology                    |
+| ------------- | ---- | ----------------------------- |
+| Nginx         | 80   | Reverse Proxy + API Docs      |
+| Gateway       | 8080 | Java Spring Boot              |
+| Core          | 8000 | PHP Symfony                   |
+| Code Analyzer | 5000 | Python Flask                  |
+| Notifications | 5001 | .NET Core                     |
+| Web           | 3000 | React + Vite + Tailwind CSS   |
+| PostgreSQL    | 5432 | PostgreSQL 16 Alpine          |
+| Redis         | 6379 | JWT blacklist + token version |
 
 ## Testing Connectivity
 
@@ -70,16 +73,11 @@ After starting all services, test the end-to-end chain:
 # Test the full chain: Gateway → Core → Database
 curl http://localhost/api/test-chain
 
-# Expected response:
-# {
-#   "status": "success",
-#   "message": "End-to-end chain test successful",
-#   "chain": {
-#     "gateway": "connected",
-#     "core": "connected",
-#     "database": "connected"
-#   }
-# }
+# Test Core service healthcheck (database connectivity + user data)
+curl http://localhost:8000/health
+
+# Or via the web frontend proxy
+curl http://localhost:3000/api/core/health
 ```
 
 ## Development
@@ -89,13 +87,13 @@ See individual service READMEs for setup instructions.
 
 ### IDE Recommendations
 
-| Service | IDE | Directory |
-|---------|-----|-----------|
-| Gateway | IntelliJ IDEA | `services/gateway/` |
-| Core | PhpStorm | `services/core/` |
-| Code Analyzer | VSCode | `services/code-analyzer/` |
-| Notifications | VSCode | `services/notifications/` |
-| Web | VSCode | `web/` |
+| Service       | IDE           | Directory                 |
+| ------------- | ------------- | ------------------------- |
+| Gateway       | IntelliJ IDEA | `services/gateway/`       |
+| Core          | PhpStorm      | `services/core/`          |
+| Code Analyzer | VSCode        | `services/code-analyzer/` |
+| Notifications | VSCode        | `services/notifications/` |
+| Web           | VSCode        | `web/`                    |
 
 See [docs/SETUP.md](docs/SETUP.md) for detailed IDE setup instructions.
 
@@ -118,11 +116,12 @@ committed/
 
 ## Documentation
 
-- [CONTRIBUTING.md](CONTRIBUTING.md) - **Start here!** Collaboration guide for the team
-- [SETUP.md](docs/SETUP.md) - IDE setup guides
-- [WINDOWS-SETUP.md](docs/WINDOWS-SETUP.md) - **Windows users guide** (Docker Desktop on Windows)
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - System architecture
-- [API.md](docs/API.md) - API documentation
+- [CONTRIBUTING.md](CONTRIBUTING.md) — **Start here!** Collaboration guide for the team
+- [QUICKSTART.md](docs/QUICKSTART.md) — Step-by-step local setup with DBeaver verification
+- [SETUP.md](docs/SETUP.md) — IDE setup guides per service
+- [WINDOWS-SETUP.md](docs/WINDOWS-SETUP.md) — **Windows users guide** (Docker Desktop on WSL2)
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) — System architecture, security, and data flow
+- [openapi.yaml](docs/openapi.yaml) — Full OpenAPI 3.0 spec (rendered at http://localhost/docs)
 
 ## CI/CD Pipeline
 
@@ -138,6 +137,7 @@ This project uses GitLab CI/CD for automated testing and deployment.
 ### Running the Pipeline
 
 The pipeline runs automatically on:
+
 - Every push to any branch
 - Every merge request
 
@@ -185,11 +185,17 @@ docker compose up -d --build gateway
 # Stop all services
 docker compose down
 
-# Clean everything (including volumes)
+# Clean everything (including database volume)
 docker compose down -v
 
-# Access database
-docker exec -it committed-oracle sqlplus committed_user/SecurePassword123!@XEPDB1
+# Access PostgreSQL database
+docker exec -it committed-postgres psql -U core_user -d committed_core
+
+# Test Core service DB connectivity
+curl http://localhost:8000/health
+
+# Run SQL via Doctrine DBAL
+docker exec committed-core php bin/console dbal:run-sql "SELECT COUNT(*) FROM users"
 ```
 
 ## License

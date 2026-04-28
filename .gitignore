@@ -3,6 +3,9 @@
 .env.local
 .env.*.local
 
+# Local .NET overrides (may contain real credentials)
+appsettings.Development.json
+
 # IDE
 .idea/
 .vscode/
@@ -20,6 +23,7 @@ logs/
 
 # Docker
 oracle-data/
+docker/uploads/
 
 # Temporary files
 tmp/
@@ -31,6 +35,9 @@ temp/
 target/
 .gradle/
 build/
+application.yml
+application.properties
+application-*.yml
 
 # PHP
 vendor/
@@ -54,3 +61,6 @@ obj/
 node_modules/
 dist/
 .next/
+
+# claude
+.claude

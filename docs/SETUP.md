@@ -7,15 +7,9 @@ This guide explains how to open and configure each service in its respective IDE
 Before setting up the IDEs, ensure you have:
 
 1. **Docker Desktop** installed and running (with at least 4GB RAM)
-2. **Oracle Container Registry** account - Sign up at https://container-registry.oracle.com
-3. **Git** installed
+2. **Git** installed
 
-### Oracle Container Registry Login
-
-```bash
-docker login container-registry.oracle.com
-# Enter your Oracle account credentials
-```
+> **Note**: PostgreSQL images are pulled directly from Docker Hub — no registry login or license agreement is needed.
 
 ---
 
@@ -35,24 +29,26 @@ docker login container-registry.oracle.com
 1. Click **Run → Edit Configurations**
 2. Click **+** → **Spring Boot**
 3. Configure:
-   - **Name**: `GatewayApplication`
-   - **Main class**: `com.committed.gateway.GatewayApplication`
-   - **Active profiles**: (leave empty for default)
+    - **Name**: `GatewayApplication`
+    - **Main class**: `com.committed.gateway.GatewayApplication`
+    - **Active profiles**: (leave empty for default)
 4. Click **Modify options → Environment variables**
 5. Add the following environment variables:
-   ```
-   SPRING_DATASOURCE_URL=jdbc:oracle:thin:@localhost:1521/XEPDB1
-   SPRING_DATASOURCE_USERNAME=committed_user
-   SPRING_DATASOURCE_PASSWORD=SecurePassword123!
-   CORE_SERVICE_URL=http://localhost:8000
-   ANALYZER_SERVICE_URL=http://localhost:5000
-   NOTIFICATION_SERVICE_URL=http://localhost:5001
-   ```
+    ```
+    SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/committed_core
+    SPRING_DATASOURCE_USERNAME=core_user
+    SPRING_DATASOURCE_PASSWORD=CoreSecurePass123!
+    SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.postgresql.Driver
+    SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.PostgreSQLDialect
+    CORE_SERVICE_URL=http://localhost:8000
+    ANALYZER_SERVICE_URL=http://localhost:5000
+    NOTIFICATION_SERVICE_URL=http://localhost:5001
+    ```
 6. Click **Apply** and **OK**
 
 ### Running the Service
 
-1. Ensure Oracle database is running (via Docker)
+1. Ensure PostgreSQL database is running (via Docker)
 2. Click the green **Run** button or press `Shift+F10`
 3. The service will start on port 8080
 
@@ -88,122 +84,113 @@ composer install
 1. Go to **Settings → PHP**
 2. Click **...** next to CLI Interpreter
 3. Add a new interpreter:
-   - **Local PHP** (if PHP 8.2 is installed locally)
-   - Or **Docker** (recommended for consistency)
-4. Select PHP 8.2 or higher
+    - **Local PHP** (if PHP 8.3 is installed locally)
+    - Or **Docker** (recommended for consistency)
+4. Select PHP 8.3 or higher
 
 ### Configuring the Run Configuration
 
 1. Click **Run → Edit Configurations**
 2. Click **+** → **PHP Built-in Web Server**
 3. Configure:
-   - **Name**: `Core Service`
-   - **Host**: `localhost`
-   - **Port**: `8000`
-   - **Document root**: Select the `public` folder
+    - **Name**: `Core Service`
+    - **Host**: `localhost`
+    - **Port**: `8000`
+    - **Document root**: Select the `public` folder
 4. Click **Modify options → Environment variables**
 5. Add:
-   ```
-   APP_ENV=dev
-   APP_SECRET=symfony-secret-key-change-this
-   DATABASE_URL=oci8://committed_user:SecurePassword123!@localhost:1521/XEPDB1
-   ```
+    ```
+    APP_ENV=dev
+    APP_SECRET=symfony-secret-key-change-this
+    DATABASE_URL=postgresql://core_user:CoreSecurePass123!@localhost:5432/committed_core?serverVersion=16&charset=utf8
+    ```
 6. Click **Apply** and **OK**
 
 ### Running the Service
 
-1. Ensure Oracle database is running
+1. Ensure PostgreSQL database is running
 2. Click the green **Run** button
 3. The service will start on port 8000
 
 ### Testing
 
 ```bash
+# Healthcheck endpoint (returns DB status + user data)
 curl http://localhost:8000/health
-curl http://localhost:8000/db-test
 ```
 
 ---
 
 ## Code Analyzer Service (Python Flask) - VSCode
 
-### Opening the Project
+The Code Analyzer runs entirely inside Docker — it bundles the Kilo Code CLI, Typst PDF compiler, and all Python dependencies. No local Python or Node.js setup is needed.
 
-1. Open **VSCode**
-2. Click **File → Open Folder**
-3. Navigate to `committed/services/code-analyzer`
-4. Click **Select Folder**
+### Running via Docker (recommended)
 
-### Installing Python Extension
-
-1. Go to Extensions (`Ctrl+Shift+X`)
-2. Search for "Python"
-3. Install the **Python** extension by Microsoft
-
-### Setting Up Virtual Environment
-
-Open the terminal (`Ctrl+``) and run:
+Ensure `KILO_AUTH_JSON_B64` is set in `docker/.env` (see [QUICKSTART.md — Step 0](QUICKSTART.md)), then:
 
 ```bash
-# Create virtual environment
-python -m venv venv
-
-# Activate it
-source venv/bin/activate  # Linux/Mac
-# or
-.\venv\Scripts\activate   # Windows
-
-# Install dependencies
-pip install -r requirements.txt
+cd docker
+docker compose up code-analyzer --no-deps
 ```
 
-### Configuring VSCode
+To skip AI analysis during development (no auth token needed):
 
-Create `.vscode/settings.json`:
-```json
-{
-    "python.defaultInterpreterPath": "./venv/bin/python",
-    "python.linting.enabled": true,
-    "python.linting.pylintEnabled": true
-}
+```bash
+# In docker/.env, set:
+AGENT_RUNNER=mock
 ```
-
-Create `.vscode/launch.json`:
-```json
-{
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": "Flask",
-            "type": "python",
-            "request": "launch",
-            "module": "flask",
-            "env": {
-                "FLASK_APP": "app.py",
-                "FLASK_DEBUG": "1",
-                "GATEWAY_SERVICE_URL": "http://localhost:8080",
-                "NOTIFICATION_SERVICE_URL": "http://localhost:5001"
-            },
-            "args": ["run", "--host=0.0.0.0", "--port=5000"],
-            "jinja": true
-        }
-    ]
-}
-```
-
-### Running the Service
-
-1. Press `F5` to start debugging
-2. Or run from terminal: `python app.py`
-3. The service will start on port 5000
 
 ### Testing
 
 ```bash
+# Health check
 curl http://localhost:5000/health
+
+# Trigger a mock analysis
+curl -s -X POST http://localhost:5000/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"submissionId": 1, "repoUrl": "https://github.com/gothinkster/realworld", "studentId": 1}' \
+  | python3 -m json.tool
+
+# Fetch generated PDF report
+curl -o report.pdf http://localhost:5000/reports/1.pdf
 ```
 
-**Note**: The Code Analyzer service does NOT connect to the database directly. It receives all necessary data from the Gateway service via HTTP requests.
+### Local Development (without Docker)
+
+If you need to run the service outside Docker (e.g. to step through Python code):
+
+```bash
+cd services/code-analyzer
+
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Copy and fill in environment variables
+cp .env.example .env
+# Set AGENT_RUNNER=mock to avoid needing the Kilo CLI locally
+
+# Run
+python app.py
+```
+
+> **Note**: With `AGENT_RUNNER=kilo` locally, you also need the Kilo CLI installed (`npm install -g @kilocode/cli`) and authenticated (`kilo auth login`).
+
+### Rebuilding the image
+
+After changing `requirements.txt`, the `Dockerfile`, or any `.kilo/` agent config:
+
+```bash
+cd docker
+docker compose build code-analyzer
+```
+
+**Note**: The Code Analyzer does NOT connect to the database directly. It receives all necessary data from the Gateway service via HTTP requests.
 
 ---
 
@@ -234,6 +221,7 @@ dotnet restore
 ### Configuring VSCode
 
 Create `.vscode/launch.json`:
+
 ```json
 {
     "version": "0.2.0",
@@ -257,6 +245,7 @@ Create `.vscode/launch.json`:
 ```
 
 Create `.vscode/tasks.json`:
+
 ```json
 {
     "version": "2.0.0",
@@ -287,7 +276,6 @@ Create `.vscode/tasks.json`:
 
 ```bash
 curl http://localhost:5001/health
-curl http://localhost:5001/db-test
 ```
 
 ---
@@ -304,6 +292,7 @@ curl http://localhost:5001/db-test
 ### Installing Extensions
 
 Install these recommended extensions:
+
 - ES7+ React/Redux/React-Native snippets
 - Prettier - Code formatter
 - ESLint
@@ -320,6 +309,7 @@ npm install
 ### Configuring VSCode
 
 Create `.vscode/launch.json`:
+
 ```json
 {
     "version": "0.2.0",
@@ -375,47 +365,64 @@ docker compose down
 
 ### Option 2: Individual Services (Development)
 
-1. Start Oracle database first:
-   ```bash
-   cd docker
-   docker compose up -d oracle-db
-   # Wait for it to be healthy (2-3 minutes)
-   docker compose ps
-   ```
+1. Start PostgreSQL database first:
+
+    ```bash
+    cd docker
+    docker compose up -d postgres-db
+    # Wait for it to be healthy (usually under 10 seconds)
+    docker compose ps
+    ```
 
 2. Start each service in its IDE:
-   - Gateway (IntelliJ) - Port 8080
-   - Core (PhpStorm) - Port 8000
-   - Code Analyzer (VSCode) - Port 5000
-   - Notifications (VSCode) - Port 5001
-   - Web (VSCode) - Port 3000
+    - Gateway (IntelliJ) - Port 8080
+    - Core (PhpStorm) - Port 8000
+    - Code Analyzer (VSCode) - Port 5000
+    - Notifications (VSCode) - Port 5001
+    - Web (VSCode) - Port 3000
 
 3. Test the chain:
-   ```bash
-   curl http://localhost:8080/test-chain
-   ```
+
+    ```bash
+    curl http://localhost:8080/test-chain
+    ```
+
+4. Test Core healthcheck:
+    ```bash
+    curl http://localhost:8000/health
+    ```
 
 ---
 
 ## Troubleshooting
 
-### Oracle Database Won't Start
-- Ensure Docker has at least 4GB RAM allocated
-- Check if port 1521 is already in use
-- View logs: `docker compose logs oracle-db`
+### PostgreSQL Won't Start
+
+- Check if port 5432 is already in use
+- View logs: `docker compose logs postgres-db`
 
 ### Service Can't Connect to Database
-- Ensure Oracle is healthy: `docker compose ps`
-- Check connection string format
-- Verify credentials match `.env` file
+
+- Ensure PostgreSQL is healthy: `docker compose ps`
+- Check connection string format (must use `postgresql://` scheme for Symfony, `jdbc:postgresql://` for Spring Boot)
+- Verify credentials match `.env` file (`core_user` / `CoreSecurePass123!`)
+
+### Core Returns "could not find driver"
+
+- The Docker image needs to be rebuilt with the `pdo_pgsql` extension:
+    ```bash
+    docker compose up -d --build core
+    ```
 
 ### Port Already in Use
+
 - Find process: `lsof -i :PORT` (Linux/Mac) or `netstat -ano | findstr :PORT` (Windows)
 - Kill process or change port in configuration
 
 ### Composer/npm/pip Install Fails
+
 - Check internet connection
 - Try clearing cache:
-  - Composer: `composer clear-cache`
-  - npm: `npm cache clean --force`
-  - pip: `pip cache purge`
+    - Composer: `composer clear-cache`
+    - npm: `npm cache clean --force`
+    - pip: `pip cache purge`

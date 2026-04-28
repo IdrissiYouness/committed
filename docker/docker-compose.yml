@@ -1,150 +1,189 @@
+name: committed
+
 services:
-  # Oracle Database
-  oracle-db:
-    image: container-registry.oracle.com/database/express:21.3.0-xe
-    container_name: committed-oracle
-    environment:
-      - ORACLE_PWD=${ORACLE_PASSWORD}
-      - ORACLE_CHARACTERSET=AL32UTF8
-    ports:
-      - "${DB_PORT}:1521"
-    volumes:
-      - oracle-data:/opt/oracle/oradata
-      - ./db/init.sql:/opt/oracle/scripts/startup/init.sql
-    healthcheck:
-      test: ["CMD-SHELL", "echo 'SELECT 1 FROM DUAL;' | sqlplus -s system/$$ORACLE_PWD@//localhost:1521/XEPDB1 || exit 1"]
-      interval: 30s
-      timeout: 30s
-      retries: 10
-      start_period: 180s
-    networks:
-      - committed-network
+    # Redis — token blacklist + token version cache for JWT revocation
+    redis:
+        image: redis:7-alpine
+        container_name: committed-redis
+        ports:
+            - "${REDIS_PORT:-6379}:6379"
+        command: redis-server --requirepass ${REDIS_PASSWORD}
+        volumes:
+            - redis-data:/data
+        networks:
+            - committed-network
+        restart: unless-stopped
 
-  # Gateway Service (Java Spring Boot)
-  gateway:
-    build:
-      context: ../services/gateway
-      dockerfile: Dockerfile
-    container_name: committed-gateway
-    ports:
-      - "${GATEWAY_PORT}:8080"
-    environment:
-      - SPRING_DATASOURCE_URL=jdbc:oracle:thin:@oracle-db:${DB_PORT}/${DB_SERVICE}
-      - SPRING_DATASOURCE_USERNAME=${DB_USER}
-      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
-      - JWT_SECRET=${JWT_SECRET}
-      - JWT_EXPIRATION=${JWT_EXPIRATION}
-      - CORE_SERVICE_URL=http://core:8000
-      - ANALYZER_SERVICE_URL=http://code-analyzer:5000
-      - NOTIFICATION_SERVICE_URL=http://notifications:5001
-    depends_on:
-      oracle-db:
-        condition: service_healthy
-    networks:
-      - committed-network
-    restart: unless-stopped
+    # PostgreSQL Database (shared by all services)
+    postgres-db:
+        image: postgres:16-alpine
+        container_name: committed-postgres
+        environment:
+            - POSTGRES_DB=${POSTGRES_DB}
+            - POSTGRES_USER=${POSTGRES_USER}
+            - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+        ports:
+            - "${POSTGRES_PORT:-5432}:5432"
+        volumes:
+            - postgres-data:/var/lib/postgresql/data
+            - ./db/init.sql:/docker-entrypoint-initdb.d/00_init.sql:ro
+            - ./db/01_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+            - ./db/02_seed_data.sql:/docker-entrypoint-initdb.d/02_seed_data.sql:ro
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}",
+                ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+        networks:
+            - committed-network
 
-  # Core Service (PHP Symfony)
-  core:
-    build:
-      context: ../services/core
-      dockerfile: Dockerfile
-    container_name: committed-core
-    ports:
-      - "${CORE_PORT}:8000"
-    environment:
-      - DATABASE_URL=oci8://${DB_USER}:${DB_PASSWORD}@oracle-db:${DB_PORT}/${DB_SERVICE}
-      - APP_ENV=${APP_ENV}
-      - APP_SECRET=${APP_SECRET}
-      - GATEWAY_SERVICE_URL=http://gateway:8080
-      - ANALYZER_SERVICE_URL=http://code-analyzer:5000
-      - NOTIFICATION_SERVICE_URL=http://notifications:5001
-    depends_on:
-      oracle-db:
-        condition: service_healthy
-    networks:
-      - committed-network
-    restart: unless-stopped
+    # Gateway Service (Java Spring Boot)
+    gateway:
+        build:
+            context: ../services/gateway
+            dockerfile: Dockerfile
+        container_name: committed-gateway
+        ports:
+            - "${GATEWAY_PORT}:8080"
+        environment:
+            - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-db:5432/${POSTGRES_DB}
+            - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
+            - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+            - SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.postgresql.Driver
+            - SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.PostgreSQLDialect
+            - JWT_SECRET=${JWT_SECRET}
+            - JWT_EXPIRATION=${JWT_EXPIRATION}
+            - INTERNAL_SECRET=${INTERNAL_SECRET}
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+            - REDIS_PASSWORD=${REDIS_PASSWORD}
+            - CORE_SERVICE_URL=http://core:8000
+            - ANALYZER_SERVICE_URL=http://code-analyzer:5000
+            - NOTIFICATION_SERVICE_URL=http://notifications:5001
+        depends_on:
+            postgres-db:
+                condition: service_healthy
+            redis:
+                condition: service_started
+        networks:
+            - committed-network
+        restart: unless-stopped
 
-  # Code Analyzer Service (Python Flask)
-  # Note: This service does NOT connect to database directly.
-  # Gateway sends all necessary data via HTTP requests.
-  code-analyzer:
-    build:
-      context: ../services/code-analyzer
-      dockerfile: Dockerfile
-    container_name: committed-analyzer
-    ports:
-      - "${ANALYZER_PORT}:5000"
-    environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - TEMP_CLONE_DIR=${TEMP_CLONE_DIR}
-      - NOTIFICATION_SERVICE_URL=http://notifications:5001
-      - GATEWAY_SERVICE_URL=http://gateway:8080
-    volumes:
-      - analyzer-temp:/tmp/code-analysis
-    networks:
-      - committed-network
-    restart: unless-stopped
+    # Core Service (PHP Symfony)
+    core:
+        build:
+            context: ../services/core
+            dockerfile: Dockerfile
+        container_name: committed-core
+        ports:
+            - "${CORE_PORT}:8000"
+        environment:
+            - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres-db:5432/${POSTGRES_DB}?serverVersion=16&charset=utf8
+            - APP_ENV=${APP_ENV}
+            - APP_SECRET=${APP_SECRET}
+            - CORS_ALLOW_ORIGIN='^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$$'
+            - DEFAULT_URI=http://localhost:${CORE_PORT:-8000}
+            - GATEWAY_SERVICE_URL=http://gateway:8080
+            - ANALYZER_SERVICE_URL=http://code-analyzer:5000
+            - NOTIFICATION_SERVICE_URL=http://notifications:5001
+        depends_on:
+            postgres-db:
+                condition: service_healthy
+        volumes:
+            - ./uploads:/var/www/core/public/uploads
+        networks:
+            - committed-network
+        restart: unless-stopped
 
-  # Notification Service (.NET Core)
-  notifications:
-    build:
-      context: ../services/notifications
-      dockerfile: Dockerfile
-    container_name: committed-notifications
-    ports:
-      - "${NOTIFICATION_PORT}:5001"
-    environment:
-      - ConnectionStrings__OracleDb=User Id=${DB_USER};Password=${DB_PASSWORD};Data Source=oracle-db:${DB_PORT}/${DB_SERVICE}
-      - SmtpSettings__Host=${SMTP_HOST}
-      - SmtpSettings__Port=${SMTP_PORT}
-      - SmtpSettings__Username=${SMTP_USER}
-      - SmtpSettings__Password=${SMTP_PASSWORD}
-      - SmtpSettings__FromEmail=${FROM_EMAIL}
-      - SmtpSettings__FromName=${FROM_NAME}
-    depends_on:
-      oracle-db:
-        condition: service_healthy
-    networks:
-      - committed-network
-    restart: unless-stopped
+    # Code Analyzer Service (Python Flask + Kilo Code CLI + Typst)
+    # Note: This service does NOT connect to database directly.
+    # Gateway sends all necessary data via HTTP requests.
+    #
+    # Requires KILO_AUTH_JSON_B64 in docker/.env (base64-encoded auth.json).
+    # See docs/QUICKSTART.md Step 0 for how to generate it.
+    code-analyzer:
+        build:
+            context: ../services/code-analyzer
+            dockerfile: Dockerfile
+        container_name: committed-analyzer
+        ports:
+            - "${ANALYZER_PORT}:5000"
+        environment:
+            - TEMP_DIR=${TEMP_CLONE_DIR:-/tmp/code-analysis}
+            - NOTIFICATION_SERVICE_URL=http://notifications:5001
+            - GATEWAY_SERVICE_URL=http://gateway:8080
+            - AGENT_CLI=kilo
+            - AGENT_RUNNER=kilo
+            - MAX_WORKERS=${ANALYZER_MAX_WORKERS:-4}
+            - CALLBACK_TIMEOUT=${ANALYZER_CALLBACK_TIMEOUT:-10}
+            - GATEWAY_CALLBACK_URL=${GATEWAY_CALLBACK_URL:-http://gateway:8080/internal/analysis-result}
+            - INTERNAL_SECRET=${INTERNAL_SECRET}
+            # Base64-encoded Kilo Code auth.json (GitHub Copilot OAuth tokens).
+            # Generate with: base64 -w 0 ~/.local/share/kilo/auth.json
+            - KILO_AUTH_JSON_B64=${KILO_AUTH_JSON_B64}
+        volumes:
+            - analyzer-temp:/tmp/code-analysis
+            - analyzer-reports:/tmp/reports
+        healthcheck:
+            test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 15s
+        networks:
+            - committed-network
+        restart: unless-stopped
 
-  # Web Frontend (React)
-  web:
-    build:
-      context: ../web
-      dockerfile: Dockerfile
-    container_name: committed-web
-    ports:
-      - "3000:80"
-    environment:
-      - VITE_API_URL=${VITE_API_URL}
-    depends_on:
-      - gateway
-    networks:
-      - committed-network
-    restart: unless-stopped
+    # Notification Service (.NET Core)
+    notifications:
+        build:
+            context: ../services/notifications
+            dockerfile: Dockerfile
+        container_name: committed-notifications
+        ports:
+            - "${NOTIFICATION_PORT}:5001"
+        environment:
+            - Smtp__Host=${SMTP_HOST}
+            - Smtp__Port=${SMTP_PORT}
+            - Smtp__Username=${SMTP_USER}
+            - Smtp__Password=${SMTP_PASSWORD}
+            - Smtp__FromEmail=${FROM_EMAIL}
+            - Smtp__FromName=${FROM_NAME}
+            - Platform__Url=${PLATFORM_URL:-http://localhost}
+        healthcheck:
+            test: ["CMD-SHELL", "curl -f http://localhost:5001/health || exit 1"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 15s
+        networks:
+            - committed-network
+        restart: unless-stopped
 
-  # Nginx Reverse Proxy
-  nginx:
-    image: nginx:alpine
-    container_name: committed-nginx
-    ports:
-      - "${NGINX_PORT}:80"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - gateway
-      - web
-    networks:
-      - committed-network
-    restart: unless-stopped
+    # Nginx Reverse Proxy + Frontend (React static files built inside)
+    nginx:
+        build:
+            context: ..
+            dockerfile: docker/nginx/Dockerfile
+        container_name: committed-nginx
+        ports:
+            - "${NGINX_PORT}:80"
+        depends_on:
+            - gateway
+        networks:
+            - committed-network
+        restart: unless-stopped
 
 volumes:
-  oracle-data:
-  analyzer-temp:
+    analyzer-temp:
+    analyzer-reports:
+    postgres-data:
+    redis-data:
 
 networks:
-  committed-network:
-    driver: bridge
+    committed-network:
+        driver: bridge

@@ -3,12 +3,13 @@
 ## Service Overview
 
 **Service Name**: Core Service  
-**Technology**: PHP Symfony  
-**Language**: PHP 8.2+  
+**Technology**: PHP Symfony 7.4  
+**Language**: PHP 8.3 (Alpine)  
 **Port**: 8000  
 **IDE**: PhpStorm  
 **Build Tool**: Composer  
-**Database**: Oracle Database 21c XE (via OCI8)
+**Database**: PostgreSQL 16 (via PDO_PGSQL)  
+**Container Runtime**: Docker (php:8.3-fpm-alpine + nginx + supervisord)
 
 ---
 
@@ -18,102 +19,220 @@
 
 ```json
 {
-  "require": {
-    "php": ">=8.2",
-    "symfony/console": "7.2.*",
-    "symfony/dotenv": "7.2.*",
-    "symfony/flex": "^2",
-    "symfony/framework-bundle": "7.2.*",
-    "symfony/runtime": "7.2.*",
-    "symfony/yaml": "7.2.*",
-    "doctrine/doctrine-bundle": "^2.11",
-    "doctrine/orm": "^3.0",
-    "symfony/validator": "7.2.*",
-    "symfony/serializer": "7.2.*",
-    "symfony/http-client": "7.2.*",
-    "symfony/messenger": "7.2.*",
-    "nelmio/cors-bundle": "^2.3"
-  },
-  "require-dev": {
-    "phpunit/phpunit": "^10.5",
-    "symfony/phpunit-bridge": "^7.2",
-    "symfony/maker-bundle": "^1.52",
-    "friendsofphp/php-cs-fixer": "^3.41",
-    "phpstan/phpstan": "^1.10"
-  }
+    "require": {
+        "php": ">=8.2",
+        "ext-ctype": "*",
+        "ext-iconv": "*",
+        "doctrine/doctrine-bundle": "^2.18",
+        "doctrine/doctrine-migrations-bundle": "^3.7",
+        "doctrine/orm": "^3.6",
+        "nelmio/cors-bundle": "^2.6",
+        "phpdocumentor/reflection-docblock": "^5.6",
+        "phpstan/phpdoc-parser": "^2.3",
+        "symfony/console": "7.4.*",
+        "symfony/dotenv": "7.4.*",
+        "symfony/flex": "^2",
+        "symfony/framework-bundle": "7.4.*",
+        "symfony/property-access": "7.4.*",
+        "symfony/property-info": "7.4.*",
+        "symfony/runtime": "7.4.*",
+        "symfony/serializer": "7.4.*",
+        "symfony/uid": "7.4.*",
+        "symfony/validator": "7.4.*",
+        "symfony/yaml": "7.4.*"
+    },
+    "require-dev": {
+        "symfony/maker-bundle": "^1.66"
+    }
 }
 ```
+
+### PHP Extensions (installed in Docker image)
+
+- `pdo` — PHP Data Objects base
+- `pdo_pgsql` — PostgreSQL PDO driver (Doctrine DBAL)
+- `pgsql` — Native PostgreSQL functions
+- `intl` — Internationalization (Symfony Validator)
+- `opcache` — Bytecode caching (performance)
 
 ---
 
 ## Project Structure
 
+### Current State (implemented)
+
 ```
 services/core/
 ├── config/
 │   ├── bundles.php
+│   ├── preload.php
+│   ├── reference.php
 │   ├── services.yaml
 │   ├── routes.yaml
+│   ├── routes/
+│   │   └── framework.yaml
 │   └── packages/
+│       ├── cache.yaml
 │       ├── doctrine.yaml
+│       ├── doctrine_migrations.yaml
 │       ├── framework.yaml
+│       ├── nelmio_cors.yaml
+│       ├── property_info.yaml
+│       ├── routing.yaml
 │       └── validator.yaml
+├── docker/
+│   ├── nginx.conf              # Nginx reverse proxy → PHP-FPM
+│   ├── supervisord.conf        # Manages nginx + php-fpm processes
+│   └── php.ini                 # Custom PHP settings
+├── migrations/
 ├── public/
 │   └── index.php
 ├── src/
 │   ├── Controller/
-│   │   ├── AuthController.php
-│   │   ├── CourseController.php
-│   │   ├── AssignmentController.php
-│   │   ├── SubmissionController.php
-│   │   ├── AnnouncementController.php
-│   │   └── HealthController.php
-│   ├── Entity/
-│   │   ├── User.php
-│   │   ├── Course.php
-│   │   ├── Enrollment.php
-│   │   ├── Assignment.php
-│   │   ├── Submission.php
-│   │   ├── Announcement.php
-│   │   ├── Comment.php
-│   │   ├── Grade.php
-│   │   └── CodeAnalysis.php
-│   ├── Repository/
-│   │   ├── UserRepository.php
-│   │   ├── CourseRepository.php
-│   │   ├── EnrollmentRepository.php
-│   │   ├── AssignmentRepository.php
-│   │   ├── SubmissionRepository.php
-│   │   └── AnnouncementRepository.php
-│   ├── Service/
-│   │   ├── CourseService.php
-│   │   ├── AssignmentService.php
-│   │   ├── SubmissionService.php
-│   │   ├── AnnouncementService.php
-│   │   └── AnalyzerServiceClient.php
-│   ├── DTO/
-│   │   ├── Request/
-│   │   │   ├── CreateCourseRequest.php
-│   │   │   ├── UpdateCourseRequest.php
-│   │   │   └── CreateAssignmentRequest.php
-│   │   └── Response/
-│   │       ├── CourseResponse.php
-│   │       ├── AssignmentResponse.php
-│   │       └── ApiResponse.php
-│   ├── Exception/
-│   │   ├── ResourceNotFoundException.php
-│   │   ├── ValidationException.php
-│   │   └── UnauthorizedException.php
-│   ├── EventListener/
-│   │   └── ExceptionListener.php
+│   │   └── HealthCheckController.php   # ✅ Implemented — DB connectivity test
+│   ├── Entity/                          # (empty — to be created)
+│   ├── Repository/                      # (empty — to be created)
 │   └── Kernel.php
 ├── tests/
-│   ├── Controller/
-│   ├── Service/
-│   └── Repository/
+├── var/
+├── vendor/
+├── .editorconfig
+├── .env.dev
 ├── composer.json
+├── composer.lock
+├── compose.yaml
+├── compose.override.yaml
 ├── Dockerfile
-└── README.md
+└── symfony.lock
+```
+
+### Target Structure (planned)
+
+```
+src/
+├── Controller/
+│   ├── HealthCheckController.php       # ✅ Implemented
+│   ├── CourseController.php
+│   ├── AssignmentController.php
+│   ├── SubmissionController.php
+│   ├── AnnouncementController.php
+│   └── AuthController.php
+├── Entity/
+│   ├── User.php
+│   ├── Course.php
+│   ├── Enrollment.php
+│   ├── Assignment.php
+│   ├── Submission.php
+│   ├── Announcement.php
+│   ├── Comment.php
+│   ├── Grade.php
+│   ├── CodeAnalysis.php
+│   ├── AnnouncementAttachment.php
+│   ├── SubmissionAttachment.php
+│   └── AssignmentAttachment.php
+├── Repository/
+│   ├── UserRepository.php
+│   ├── CourseRepository.php
+│   ├── EnrollmentRepository.php
+│   ├── AssignmentRepository.php
+│   ├── SubmissionRepository.php
+│   └── AnnouncementRepository.php
+├── Service/
+│   ├── CourseService.php
+│   ├── AssignmentService.php
+│   ├── SubmissionService.php
+│   ├── AnnouncementService.php
+│   └── AnalyzerServiceClient.php
+├── DTO/
+│   ├── Request/
+│   │   ├── CreateCourseRequest.php
+│   │   ├── UpdateCourseRequest.php
+│   │   └── CreateAssignmentRequest.php
+│   └── Response/
+│       ├── CourseResponse.php
+│       ├── AssignmentResponse.php
+│       └── ApiResponse.php
+├── Exception/
+│   ├── ResourceNotFoundException.php
+│   ├── ValidationException.php
+│   └── UnauthorizedException.php
+├── EventListener/
+│   └── ExceptionListener.php
+└── Kernel.php
+```
+
+---
+
+## Docker & Deployment
+
+### Dockerfile
+
+```dockerfile
+FROM php:8.3-fpm-alpine
+
+# Install system dependencies
+RUN apk add --no-cache \
+    git curl libpq-dev icu-dev zip unzip nginx supervisor
+
+# Install PHP extensions
+RUN docker-php-ext-install \
+    pdo pdo_pgsql pgsql intl opcache
+
+# Install Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+WORKDIR /var/www/core
+
+# Copy composer files first (layer caching)
+COPY composer.json composer.lock ./
+RUN composer install --no-scripts --no-autoloader --prefer-dist
+
+# Copy application
+COPY . .
+RUN composer dump-autoload --optimize
+
+# Copy config files
+COPY docker/nginx.conf /etc/nginx/nginx.conf
+COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY docker/php.ini /usr/local/etc/php/conf.d/custom.ini
+
+RUN mkdir -p var/cache var/log && chmod -R 777 var/
+
+EXPOSE 8000
+
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+```
+
+### Container Process Management (supervisord)
+
+The container runs **two processes** managed by supervisord:
+
+- **nginx** — Listens on port 8000, proxies PHP requests to php-fpm on 127.0.0.1:9000
+- **php-fpm** — FastCGI process manager handling PHP requests
+
+### Docker Compose (core service)
+
+```yaml
+core:
+    build:
+        context: ../services/core
+        dockerfile: Dockerfile
+    container_name: committed-core
+    ports:
+        - "${CORE_PORT}:8000"
+    environment:
+        - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres-db:5432/${POSTGRES_DB}?serverVersion=16&charset=utf8
+        - APP_ENV=${APP_ENV}
+        - APP_SECRET=${APP_SECRET}
+        - CORS_ALLOW_ORIGIN='^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$$'
+        - GATEWAY_SERVICE_URL=http://gateway:8080
+        - ANALYZER_SERVICE_URL=http://code-analyzer:5000
+        - NOTIFICATION_SERVICE_URL=http://notifications:5001
+    depends_on:
+        postgres-db:
+            condition: service_healthy
+    networks:
+        - committed-network
 ```
 
 ---
@@ -123,6 +242,7 @@ services/core/
 ### Naming Conventions
 
 #### Classes
+
 ```php
 // Use PascalCase
 class CourseController { }
@@ -131,6 +251,7 @@ class ResourceNotFoundException { }
 ```
 
 #### Methods
+
 ```php
 // Use camelCase, start with verb
 public function getAllCourses(): array { }
@@ -140,6 +261,7 @@ public function isCourseActive(int $id): bool { }
 ```
 
 #### Variables
+
 ```php
 // Use camelCase
 $courseName = 'Introduction to Programming';
@@ -148,6 +270,7 @@ $isActive = true;
 ```
 
 #### Constants
+
 ```php
 // Use UPPER_SNAKE_CASE
 const MAX_COURSE_NAME_LENGTH = 255;
@@ -160,6 +283,7 @@ const ROLE_STUDENT = 'student';
 Use **PSR-12** coding standard with these tools:
 
 **PHP CS Fixer Configuration** (.php-cs-fixer.php):
+
 ```php
 <?php
 
@@ -192,12 +316,87 @@ Controller Layer (REST API)
     ↓
 Service Layer (Business Logic)
     ↓
-Repository Layer (Data Access)
+Repository Layer (Data Access via Doctrine ORM / DBAL)
     ↓
-Database
+PostgreSQL 16
 ```
 
-### Controller Pattern
+### HealthCheck Controller (Implemented)
+
+This controller is fully implemented and tests Doctrine DBAL connectivity to PostgreSQL.
+It uses the raw `Connection` object (not ORM entities) so it works without entity classes.
+
+```php
+<?php
+
+namespace App\Controller;
+
+use Doctrine\DBAL\Connection;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\Routing\Attribute\Route;
+
+class HealthCheckController extends AbstractController
+{
+    #[Route('/health', name: 'health_check', methods: ['GET'])]
+    public function index(Connection $connection): JsonResponse
+    {
+        try {
+            // Test basic connectivity
+            $connection->executeQuery('SELECT 1');
+
+            // Get user count
+            $userCount = $connection->fetchOne('SELECT COUNT(*) FROM users');
+
+            // Get list of users (limited to 10)
+            $users = $connection->fetchAllAssociative(
+                'SELECT user_id, email, full_name, system_role, is_active, created_at FROM users ORDER BY user_id LIMIT 10'
+            );
+
+            // Get table count in public schema
+            $tableCount = $connection->fetchOne(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'"
+            );
+
+            return $this->json([
+                'status' => 'ok',
+                'database' => [
+                    'connected' => true,
+                    'driver' => 'pdo_pgsql',
+                    'tables_count' => (int) $tableCount,
+                ],
+                'users' => [
+                    'total_count' => (int) $userCount,
+                    'sample' => array_map(fn(array $user) => [
+                        'user_id' => (int) $user['user_id'],
+                        'email' => $user['email'],
+                        'full_name' => $user['full_name'],
+                        'system_role' => $user['system_role'],
+                        'is_active' => (bool) $user['is_active'],
+                        'created_at' => $user['created_at'],
+                    ], $users),
+                ],
+                'timestamp' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
+            ]);
+        } catch (\Exception $e) {
+            return $this->json([
+                'status' => 'error',
+                'database' => [
+                    'connected' => false,
+                    'error' => $e->getMessage(),
+                ],
+                'timestamp' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
+            ], 503);
+        }
+    }
+}
+```
+
+**Endpoint**: `GET /health`  
+**Accessible via web frontend**: `GET /api/core/health` (proxied through web nginx)  
+**Test via CLI**: `docker exec committed-core php bin/console dbal:run-sql "SELECT 1"`
+
+### Controller Pattern (Planned)
 
 ```php
 <?php
@@ -208,9 +407,10 @@ use App\Service\CourseService;
 use App\DTO\Request\CreateCourseRequest;
 use App\DTO\Response\CourseResponse;
 use App\DTO\Response\ApiResponse;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Component\Validator\ConstraintViolationList;
 
@@ -505,6 +705,11 @@ class CourseRepository extends ServiceEntityRepository
 
 ### Entity Pattern
 
+> **Important**: Entities are not yet created. The PostgreSQL database schema already exists
+> (created by `docker/db/01_schema.sql` init scripts). Entities must be written to **map to
+> the existing tables** — Doctrine will not recreate them. Use `IDENTITY` generation strategy
+> (not `SEQUENCE`) since the PostgreSQL tables use `GENERATED BY DEFAULT AS IDENTITY`.
+
 ```php
 <?php
 
@@ -523,8 +728,7 @@ use Doctrine\ORM\Mapping as ORM;
 class Course
 {
     #[ORM\Id]
-    #[ORM\GeneratedValue(strategy: 'SEQUENCE')]
-    #[ORM\SequenceGenerator(sequenceName: 'seq_course_id', allocationSize: 1)]
+    #[ORM\GeneratedValue(strategy: 'IDENTITY')]
     #[ORM\Column(name: 'course_id')]
     private ?int $courseId = null;
 
@@ -676,6 +880,28 @@ class Course
     }
 }
 ```
+
+### Existing Database Schema
+
+The PostgreSQL database is pre-populated by init scripts mounted into the container.
+Entities must match these existing tables exactly:
+
+| Table                     | Primary Key                      | Key Columns                                                           |
+| ------------------------- | -------------------------------- | --------------------------------------------------------------------- |
+| `users`                   | `user_id` (IDENTITY)             | `email` (UNIQUE), `system_role`, `is_active`                          |
+| `course`                  | `course_id` (IDENTITY)           | `course_code` (UNIQUE), `teacher_id` (FK → users)                     |
+| `enrollment`              | `(user_id, course_id)` composite | `course_role`                                                         |
+| `announcement`            | `announcement_id` (IDENTITY)     | `posted_by` (FK → users), `course_id` (FK → course)                   |
+| `comment`                 | `comment_id` (IDENTITY)          | `announcement_id` (FK), `user_id` (FK), `parent_comment_id` (self-FK) |
+| `assignment`              | `assignment_id` (IDENTITY)       | `created_by` (FK → users), `course_id` (FK → course)                  |
+| `submission`              | `submission_id` (IDENTITY)       | `assignment_id` (FK), `student_id` (FK → users), `status`             |
+| `grade`                   | `grade_id` (IDENTITY)            | `submission_id` (FK, UNIQUE), `graded_by` (FK → users)                |
+| `code_analysis`           | `analysis_id` (IDENTITY)         | `submission_id` (FK, UNIQUE), `status`                                |
+| `announcement_attachment` | `attachment_id` (IDENTITY)       | `announcement_id` (FK), `uploaded_by` (FK)                            |
+| `submission_attachment`   | `attachment_id` (IDENTITY)       | `submission_id` (FK), `uploaded_by` (FK)                              |
+| `assignment_attachment`   | `attachment_id` (IDENTITY)       | `assignment_id` (FK), `uploaded_by` (FK)                              |
+
+All tables with `updated_at` have PostgreSQL triggers (`update_updated_at_column()`) that auto-update the timestamp on row changes.
 
 ### DTO Pattern
 
@@ -957,7 +1183,6 @@ class AnalyzerServiceClient
 
 ```yaml
 parameters:
-    env(DATABASE_URL): ''
 
 services:
     _defaults:
@@ -965,59 +1190,167 @@ services:
         autoconfigure: true
 
     App\:
-        resource: '../src/'
-        exclude:
-            - '../src/DependencyInjection/'
-            - '../src/Entity/'
-            - '../src/Kernel.php'
-
-    App\Controller\:
-        resource: '../src/Controller/'
-        tags: ['controller.service_arguments']
-
-    App\EventListener\ExceptionListener:
-        tags:
-            - { name: kernel.event_listener, event: kernel.exception }
+        resource: "../src/"
 ```
+
+> Note: Symfony 7.4 auto-discovers controllers, event listeners, etc. via `autoconfigure`.
+> The `ExceptionListener` tag will be needed once the listener class is created.
 
 ### config/packages/doctrine.yaml
 
 ```yaml
 doctrine:
     dbal:
-        url: '%env(resolve:DATABASE_URL)%'
-        driver: 'oci8'
-        charset: UTF8
-        default_table_options:
-            charset: UTF8
-            collate: UTF8_unicode_ci
+        url: "%env(resolve:DATABASE_URL)%"
 
+        # Must match the PostgreSQL image version (postgres:16-alpine)
+        server_version: "16"
+
+        profiling_collect_backtrace: "%kernel.debug%"
+        use_savepoints: true
     orm:
         auto_generate_proxy_classes: true
         enable_lazy_ghost_objects: true
         report_fields_where_declared: true
         validate_xml_mapping: true
         naming_strategy: doctrine.orm.naming_strategy.underscore_number_aware
+        identity_generation_preferences:
+            Doctrine\DBAL\Platforms\PostgreSQLPlatform: identity
         auto_mapping: true
         mappings:
             App:
                 type: attribute
                 is_bundle: false
-                dir: '%kernel.project_dir%/src/Entity'
+                dir: "%kernel.project_dir%/src/Entity"
                 prefix: 'App\Entity'
                 alias: App
+        controller_resolver:
+            auto_mapping: false
+
+when@test:
+    doctrine:
+        dbal:
+            dbname_suffix: "_test%env(default::TEST_TOKEN)%"
+
+when@prod:
+    doctrine:
+        orm:
+            auto_generate_proxy_classes: false
+            proxy_dir: "%kernel.build_dir%/doctrine/orm/Proxies"
+            query_cache_driver:
+                type: pool
+                pool: doctrine.system_cache_pool
+            result_cache_driver:
+                type: pool
+                pool: doctrine.result_cache_pool
+    framework:
+        cache:
+            pools:
+                doctrine.result_cache_pool:
+                    adapter: cache.app
+                doctrine.system_cache_pool:
+                    adapter: cache.system
 ```
 
-### .env
+### Environment Variables (via docker-compose)
 
 ```env
+# Set by docker-compose environment block — NOT in .env file
+DATABASE_URL=postgresql://core_user:CoreSecurePass123!@postgres-db:5432/committed_core?serverVersion=16&charset=utf8
+
 APP_ENV=dev
 APP_SECRET=your-secret-key-here
 
-DATABASE_URL=oci8://committed_user:SecurePassword123!@oracle-db:1521/XEPDB1
-
+GATEWAY_SERVICE_URL=http://gateway:8080
 ANALYZER_SERVICE_URL=http://code-analyzer:5000
 NOTIFICATION_SERVICE_URL=http://notifications:5001
+```
+
+> **Note**: The `DATABASE_URL` uses the `postgresql://` scheme, which Doctrine auto-detects
+> as `pdo_pgsql` driver. The `serverVersion=16` query parameter matches `server_version` in
+> `doctrine.yaml`. No explicit `driver` config is needed.
+
+---
+
+## Database Connectivity
+
+### How Doctrine Uses the Existing Database
+
+The PostgreSQL database is initialized by Docker entrypoint scripts (`docker/db/init.sql`,
+`01_schema.sql`, `02_seed_data.sql`) when the `postgres-db` container starts for the first
+time. Doctrine connects to this **pre-existing database** — it does NOT create or manage the
+schema.
+
+Key points:
+
+- **No `doctrine:schema:create`** needed — tables already exist
+- **No `doctrine:migrations:migrate`** needed for initial setup
+- Entity classes must map to the existing table/column names exactly
+- Use `doctrine:schema:validate` to verify entities match the DB schema
+- The `identity_generation_preferences` setting ensures Doctrine uses PostgreSQL `IDENTITY`
+  columns (not sequences) for auto-increment
+
+### Testing Connectivity
+
+```bash
+# Basic connection test via Doctrine DBAL
+docker exec committed-core php bin/console dbal:run-sql "SELECT 1"
+
+# List all tables
+docker exec committed-core php bin/console dbal:run-sql \
+  "SELECT table_name FROM information_schema.tables WHERE table_schema='public'"
+
+# Query seed data
+docker exec committed-core php bin/console dbal:run-sql "SELECT COUNT(*) FROM users"
+
+# Validate entity mappings against DB (once entities exist)
+docker exec committed-core php bin/console doctrine:schema:validate
+
+# Test via HTTP endpoint (from host)
+curl http://localhost:8000/health
+
+# Test via web frontend proxy (from host)
+curl http://localhost:3000/api/core/health
+```
+
+### Health Check Response Format
+
+```json
+{
+    "status": "ok",
+    "database": {
+        "connected": true,
+        "driver": "pdo_pgsql",
+        "tables_count": 12
+    },
+    "users": {
+        "total_count": 11,
+        "sample": [
+            {
+                "user_id": 1,
+                "email": "admin@committed.com",
+                "full_name": "System Administrator",
+                "system_role": "admin",
+                "is_active": true,
+                "created_at": "2026-02-24 13:58:59.999225"
+            }
+        ]
+    },
+    "timestamp": "2026-02-24T14:35:56+00:00"
+}
+```
+
+On failure (HTTP 503):
+
+```json
+{
+    "status": "error",
+    "database": {
+        "connected": false,
+        "error": "could not find driver"
+    },
+    "timestamp": "2026-02-24T14:35:56+00:00"
+}
 ```
 
 ---
@@ -1161,6 +1494,7 @@ class CourseControllerTest extends WebTestCase
 ```
 
 ### Test Coverage Target
+
 - **Minimum**: 80% overall coverage
 - **Services**: 90% coverage
 - **Controllers**: 80% coverage
@@ -1186,16 +1520,36 @@ class CourseControllerTest extends WebTestCase
 ## Quick Reference Commands
 
 ```bash
+# === Docker Commands (primary workflow) ===
+
+# Build and start core service
+cd docker && docker compose up -d --build core
+
+# View logs
+docker logs committed-core --tail 50 -f
+
+# Shell into container
+docker exec -it committed-core sh
+
+# Run Symfony console commands inside container
+docker exec committed-core php bin/console cache:clear
+docker exec committed-core php bin/console debug:router
+docker exec committed-core php bin/console doctrine:schema:validate
+
+# Test database connectivity
+docker exec committed-core php bin/console dbal:run-sql "SELECT 1"
+curl http://localhost:8000/health
+
+# Rebuild from scratch (wipes DB volume too)
+cd docker && docker compose down -v && docker compose up -d --build
+
+# === Local Development (without Docker) ===
+
 # Install dependencies
 composer install
 
 # Run development server
 php -S localhost:8000 -t public
-
-# Run console commands
-bin/console cache:clear
-bin/console doctrine:schema:validate
-bin/console doctrine:migrations:migrate
 
 # Run tests
 vendor/bin/phpunit
@@ -1203,22 +1557,45 @@ vendor/bin/phpunit
 # Run tests with coverage
 vendor/bin/phpunit --coverage-html coverage
 
-# Code style check
-vendor/bin/php-cs-fixer check
-
-# Code style fix
-vendor/bin/php-cs-fixer fix
-
-# Static analysis
-vendor/bin/phpstan analyse src
+# Check loaded PHP extensions
+php -m | grep pdo
 ```
+
+---
+
+## Important Notes
+
+### PostgreSQL Database Conventions
+
+This project uses PostgreSQL 16. Key conventions for Doctrine ORM entity mapping:
+
+| Aspect            | PostgreSQL Convention                                  |
+| ----------------- | ------------------------------------------------------ |
+| Driver            | `pdo_pgsql` (auto-detected from `DATABASE_URL`)        |
+| URL scheme        | `postgresql://user:pass@host:5432/db?serverVersion=16` |
+| ID generation     | `GENERATED BY DEFAULT AS IDENTITY`                     |
+| Doctrine strategy | `IDENTITY` (configured in `doctrine.yaml`)             |
+| Connectivity test | `SELECT 1`                                             |
+| Text columns      | `TEXT`                                                 |
+| Boolean columns   | `BOOLEAN` (native)                                     |
+| String columns    | `VARCHAR(n)`                                           |
+| Timestamps        | `TIMESTAMP` (maps to `\DateTimeImmutable` in PHP)      |
+
+### Web Frontend Integration
+
+The web frontend (React) can access the core healthcheck via a proxied route:
+
+- **Docker**: `http://localhost:3000/api/core/health` → nginx proxies to `http://core:8000/health`
+- **Vite dev**: `http://localhost:3000/api/core/health` → vite proxy to `http://localhost:8000/health`
 
 ---
 
 ## Resources
 
-- [Symfony Documentation](https://symfony.com/doc/current/index.html)
+- [Symfony 7.4 Documentation](https://symfony.com/doc/7.4/index.html)
 - [Doctrine ORM Documentation](https://www.doctrine-project.org/projects/doctrine-orm/en/latest/)
+- [Doctrine DBAL — PostgreSQL](https://www.doctrine-project.org/projects/doctrine-dbal/en/latest/reference/configuration.html)
 - [PHP The Right Way](https://phptherightway.com/)
 - [PSR Standards](https://www.php-fig.org/psr/)
 - [PHPUnit Documentation](https://phpunit.de/documentation.html)
+- [PostgreSQL 16 Documentation](https://www.postgresql.org/docs/16/)

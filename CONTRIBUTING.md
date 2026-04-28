@@ -36,9 +36,11 @@ Welcome to the Committed project! This guide will help you and your team collabo
    git config user.email "your.email@example.com"
    ```
 
-3. **Copy environment file:**
+3. **Set up environment:**
    ```bash
-   cp .env.example .env
+   cp docker/.env.example docker/.env
+   # Fill in docker/.env — get KILO_AUTH_JSON_B64 from the team password manager
+   # See docs/QUICKSTART.md Step 0 for full instructions
    ```
 
 4. **Start the services:**

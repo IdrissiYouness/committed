@@ -1,65 +1,46 @@
 -- ============================================================================
--- Committed Database Cleanup Script
+-- Committed Database Cleanup Script (PostgreSQL)
 -- File: 03_cleanup.sql
 -- Run this to completely reset the database to a clean state
 -- ============================================================================
 
 -- ============================================================================
--- DROP ALL DATA (Truncate tables - faster than DELETE)
+-- DROP ALL DATA (Truncate tables with CASCADE)
 -- ============================================================================
 
--- Disable foreign key checks by truncating in correct order
--- (child tables first, then parent tables)
-
--- Attachment tables (no dependencies)
-TRUNCATE TABLE assignment_attachment;
-TRUNCATE TABLE submission_attachment;
-TRUNCATE TABLE announcement_attachment;
-
--- Code analysis (depends on submission)
-TRUNCATE TABLE code_analysis;
-
--- Grades (depends on submission)
-TRUNCATE TABLE grade;
-
--- Submissions (depends on assignment, users)
-TRUNCATE TABLE submission;
-
--- Assignments (depends on course, users)
-TRUNCATE TABLE assignment;
-
--- Comments (depends on announcement, users, self)
-TRUNCATE TABLE comment;
-
--- Announcements (depends on course, users)
-TRUNCATE TABLE announcement;
-
--- Enrollments (depends on users, course)
-TRUNCATE TABLE enrollment;
-
--- Courses (depends on users)
-TRUNCATE TABLE course;
-
--- Users (base table)
-TRUNCATE TABLE users;
+-- PostgreSQL TRUNCATE CASCADE handles foreign key dependencies automatically,
+-- so we don't need to worry about ordering. We can truncate all tables at once.
+TRUNCATE TABLE
+    assignment_attachment,
+    submission_attachment,
+    announcement_attachment,
+    code_analysis,
+    grade,
+    submission,
+    assignment,
+    comment,
+    announcement,
+    enrollment,
+    course,
+    users
+CASCADE;
 
 -- ============================================================================
--- RESET SEQUENCES
+-- RESET IDENTITY SEQUENCES
 -- ============================================================================
 
--- Reset all sequences to start from 1
-ALTER SEQUENCE seq_user_id RESTART START WITH 1;
-ALTER SEQUENCE seq_course_id RESTART START WITH 1;
-ALTER SEQUENCE seq_enrollment_id RESTART START WITH 1;
-ALTER SEQUENCE seq_announcement_id RESTART START WITH 1;
-ALTER SEQUENCE seq_comment_id RESTART START WITH 1;
-ALTER SEQUENCE seq_assignment_id RESTART START WITH 1;
-ALTER SEQUENCE seq_submission_id RESTART START WITH 1;
-ALTER SEQUENCE seq_grade_id RESTART START WITH 1;
-ALTER SEQUENCE seq_analysis_id RESTART START WITH 1;
-ALTER SEQUENCE seq_attachment_id RESTART START WITH 1;
-
-COMMIT;
+-- Reset all identity columns to start from 1
+ALTER TABLE users ALTER COLUMN user_id RESTART WITH 1;
+ALTER TABLE course ALTER COLUMN course_id RESTART WITH 1;
+ALTER TABLE announcement ALTER COLUMN announcement_id RESTART WITH 1;
+ALTER TABLE comment ALTER COLUMN comment_id RESTART WITH 1;
+ALTER TABLE assignment ALTER COLUMN assignment_id RESTART WITH 1;
+ALTER TABLE submission ALTER COLUMN submission_id RESTART WITH 1;
+ALTER TABLE grade ALTER COLUMN grade_id RESTART WITH 1;
+ALTER TABLE code_analysis ALTER COLUMN analysis_id RESTART WITH 1;
+ALTER TABLE announcement_attachment ALTER COLUMN attachment_id RESTART WITH 1;
+ALTER TABLE submission_attachment ALTER COLUMN attachment_id RESTART WITH 1;
+ALTER TABLE assignment_attachment ALTER COLUMN attachment_id RESTART WITH 1;
 
 -- ============================================================================
 -- VERIFICATION
@@ -74,7 +55,10 @@ UNION ALL SELECT 'comment', COUNT(*) FROM comment
 UNION ALL SELECT 'assignment', COUNT(*) FROM assignment
 UNION ALL SELECT 'submission', COUNT(*) FROM submission
 UNION ALL SELECT 'grade', COUNT(*) FROM grade
-UNION ALL SELECT 'code_analysis', COUNT(*) FROM code_analysis;
+UNION ALL SELECT 'code_analysis', COUNT(*) FROM code_analysis
+UNION ALL SELECT 'announcement_attachment', COUNT(*) FROM announcement_attachment
+UNION ALL SELECT 'submission_attachment', COUNT(*) FROM submission_attachment
+UNION ALL SELECT 'assignment_attachment', COUNT(*) FROM assignment_attachment;
 
 -- ============================================================================
 -- USAGE INSTRUCTIONS
@@ -82,14 +66,14 @@ UNION ALL SELECT 'code_analysis', COUNT(*) FROM code_analysis;
 /*
 To run this script:
 
-1. Connect to Oracle as the application user:
-   docker exec -it committed-oracle sqlplus committed_user/SecurePassword123!@XEPDB1
+1. Connect to PostgreSQL:
+   docker exec -it committed-postgres psql -U core_user -d committed_core
 
 2. Run the script:
-   @/path/to/03_cleanup.sql
+   \i /path/to/03_cleanup.sql
 
 Or from command line:
-   docker exec -i committed-oracle sqlplus committed_user/SecurePassword123!@XEPDB1 < docker/db/03_cleanup.sql
+   docker exec -i committed-postgres psql -U core_user -d committed_core < docker/db/03_cleanup.sql
 
 After cleanup, run 02_seed_data.sql to repopulate with test data.
 */

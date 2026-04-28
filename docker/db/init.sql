@@ -1,51 +1,46 @@
 -- ============================================================================
--- Committed Database Initialization
--- This file runs automatically when Oracle container starts
+-- Committed Database Initialization (PostgreSQL)
+-- This file runs automatically when PostgreSQL container starts
+-- It is mounted into /docker-entrypoint-initdb.d/ as 00_init.sql
+--
+-- Execution order (alphabetical by filename):
+--   00_init.sql      → This file (extensions + privileges)
+--   01_schema.sql    → Tables, indexes, triggers
+--   02_seed_data.sql → Test data
 -- ============================================================================
 
--- Switch to the pluggable database
-ALTER SESSION SET CONTAINER = XEPDB1;
-
--- Drop user if exists (for clean restart)
-BEGIN
-   EXECUTE IMMEDIATE 'DROP USER committed_user CASCADE';
-EXCEPTION
-   WHEN OTHERS THEN
-      IF SQLCODE != -1918 THEN
-         RAISE;
-      END IF;
-END;
-/
-
--- Create application user (password quoted to handle special characters)
-CREATE USER committed_user IDENTIFIED BY "SecurePassword123!";
-
--- Grant privileges
-GRANT CONNECT, RESOURCE TO committed_user;
-GRANT CREATE SESSION TO committed_user;
-GRANT CREATE TABLE TO committed_user;
-GRANT CREATE VIEW TO committed_user;
-GRANT CREATE SEQUENCE TO committed_user;
-GRANT CREATE TRIGGER TO committed_user;
-GRANT CREATE PROCEDURE TO committed_user;
-GRANT UNLIMITED TABLESPACE TO committed_user;
-
 -- ============================================================================
--- NOTE: Schema and data are created separately
--- ============================================================================
--- After the container starts, run these scripts manually:
---
--- 1. Create schema:
---    docker exec -i committed-oracle sqlplus committed_user/SecurePassword123!@XEPDB1 < docker/db/01_schema.sql
---
--- 2. Populate test data:
---    docker exec -i committed-oracle sqlplus committed_user/SecurePassword123!@XEPDB1 < docker/db/02_seed_data.sql
---
--- 3. To reset database:
---    docker exec -i committed-oracle sqlplus committed_user/SecurePassword123!@XEPDB1 < docker/db/03_cleanup.sql
---
--- 4. Reference queries:
---    See docker/db/04_example_queries.sql
+-- NOTE: The database and user are created automatically by PostgreSQL
+-- container from environment variables:
+--   POSTGRES_DB       = committed_core
+--   POSTGRES_USER     = core_user
+--   POSTGRES_PASSWORD = CoreSecurePass123!
 -- ============================================================================
 
-EXIT;
+-- Enable useful extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- ============================================================================
+-- Grant schema privileges to the application user
+-- ============================================================================
+
+GRANT ALL PRIVILEGES ON SCHEMA public TO core_user;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO core_user;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO core_user;
+
+-- Make sure future tables/sequences are also accessible
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+    GRANT ALL PRIVILEGES ON TABLES TO core_user;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+    GRANT ALL PRIVILEGES ON SEQUENCES TO core_user;
+
+-- ============================================================================
+-- Manual commands (only needed if you bypassed auto-init):
+--
+-- Schema:  docker exec -i committed-postgres psql -U core_user -d committed_core < docker/db/01_schema.sql
+-- Seed:    docker exec -i committed-postgres psql -U core_user -d committed_core < docker/db/02_seed_data.sql
+-- Cleanup: docker exec -i committed-postgres psql -U core_user -d committed_core < docker/db/03_cleanup.sql
+-- Queries: See docker/db/04_example_queries.sql
+-- ============================================================================

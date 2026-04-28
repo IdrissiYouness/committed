@@ -1,0 +1,1447 @@
+{
+    "info": {
+        "_postman_id": "committed-platform-v2",
+        "name": "Committed Platform v2",
+        "description": "Full API test collection for the Committed LMS.\n\n## Setup\n1. Start Docker: `cd docker && docker compose up -d`\n2. Import this collection into Postman.\n3. Run **1 — Health** to verify connectivity.\n4. Run **2.1 Register** or **2.2 Login** — tokens are captured automatically.\n5. Run requests in order within each folder.\n\n## Variables\n- `gateway_url` — Gateway base URL (default: `http://localhost:8080`)\n- `access_token` — Set automatically after login/register\n- `refresh_token` — Set automatically after login/register\n- `course_id`, `assignment_id`, `submission_id`, `grade_id`, `announcement_id`, `comment_id` — Set automatically as you create resources\n\n## Architecture\n- **Gateway** (Java Spring Boot) — :8080 — JWT auth, routing\n- **Core** (PHP Symfony) — :8000 — data persistence\n- **Code Analyzer** (Python Flask) — :5000 — AI code analysis\n- **Notifications** (.NET) — :5001 — email delivery\n- **Redis** — :6379 — JWT blacklist and token versioning",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        { "key": "gateway_url", "value": "http://localhost:8080", "type": "string" },
+        { "key": "access_token", "value": "", "type": "string" },
+        { "key": "refresh_token", "value": "", "type": "string" },
+        { "key": "user_id", "value": "", "type": "string" },
+        { "key": "course_id", "value": "", "type": "string" },
+        { "key": "assignment_id", "value": "", "type": "string" },
+        { "key": "submission_id", "value": "", "type": "string" },
+        { "key": "grade_id", "value": "", "type": "string" },
+        { "key": "announcement_id", "value": "", "type": "string" },
+        { "key": "comment_id", "value": "", "type": "string" },
+        { "key": "test_email", "value": "testuser@committed.com", "type": "string" },
+        { "key": "test_password", "value": "password123", "type": "string" }
+    ],
+    "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }]
+    },
+    "item": [
+        {
+            "name": "1 — Health & Connectivity",
+            "description": "Verify all services are running.",
+            "item": [
+                {
+                    "name": "1.1 Gateway Health",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": { "raw": "{{gateway_url}}/health", "host": ["{{gateway_url}}"], "path": ["health"] },
+                        "description": "Liveness check for the Gateway service."
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                                "pm.test('Gateway is UP', () => {",
+                                "    const json = pm.response.json();",
+                                "    pm.expect(json.status).to.eql('UP');",
+                                "    pm.expect(json.service).to.eql('gateway');",
+                                "});"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "1.2 Core Health (proxied)",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": { "raw": "{{gateway_url}}/core/health", "host": ["{{gateway_url}}"], "path": ["core", "health"] },
+                        "description": "Gateway proxies to Core service health endpoint."
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                                "pm.test('Core DB connected', () => {",
+                                "    const json = pm.response.json();",
+                                "    pm.expect(json.database.connected).to.be.true;",
+                                "});"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "1.3 Test Service Chain",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": { "raw": "{{gateway_url}}/test-chain", "host": ["{{gateway_url}}"], "path": ["test-chain"] },
+                        "description": "Tests Gateway → Core → Database connectivity."
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                                "pm.test('Chain has status field', () => {",
+                                "    const json = pm.response.json();",
+                                "    pm.expect(['success','partial','error']).to.include(json.status);",
+                                "});"
+                            ]
+                        }
+                    }]
+                }
+            ]
+        },
+        {
+            "name": "2 — Authentication",
+            "description": "Register, login, logout. Tokens are auto-saved to collection variables.",
+            "item": [
+                {
+                    "name": "2.1 Register",
+                    "request": {
+                        "auth": { "type": "noauth" },
+                        "method": "POST",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"{{test_email}}\",\n    \"fullName\": \"Test User\",\n    \"password\": \"{{test_password}}\"\n}"
+                        },
+                        "url": { "raw": "{{gateway_url}}/api/auth/register", "host": ["{{gateway_url}}"], "path": ["api", "auth", "register"] }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                                "pm.test('Returns tokens and user', () => {",
+                                "    const json = pm.response.json();",
+                                "    pm.expect(json.success).to.be.true;",
+                                "    pm.expect(json.data.accessToken).to.be.a('string');",
+                                "    pm.expect(json.data.refreshToken).to.be.a('string');",
+                                "    pm.collectionVariables.set('access_token', json.data.accessToken);",
+                                "    pm.collectionVariables.set('refresh_token', json.data.refreshToken);",
+                                "    pm.collectionVariables.set('user_id', json.data.user.userId.toString());",
+                                "});"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "2.2 Login",
+                    "request": {
+                        "auth": { "type": "noauth" },
+                        "method": "POST",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"{{test_email}}\",\n    \"password\": \"{{test_password}}\"\n}"
+                        },
+                        "url": { "raw": "{{gateway_url}}/api/auth/login", "host": ["{{gateway_url}}"], "path": ["api", "auth", "login"] }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                                "pm.test('Returns tokens', () => {",
+                                "    const json = pm.response.json();",
+                                "    pm.expect(json.success).to.be.true;",
+                                "    pm.collectionVariables.set('access_token', json.data.accessToken);",
+                                "    pm.collectionVariables.set('refresh_token', json.data.refreshToken);",
+                                "    pm.collectionVariables.set('user_id', json.data.user.userId.toString());",
+                                "});"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "2.3 Login as Admin (seed data)",
+                    "request": {
+                        "auth": { "type": "noauth" },
+                        "method": "POST",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"admin@committed.com\",\n    \"password\": \"password123\"\n}"
+                        },
+                        "url": { "raw": "{{gateway_url}}/api/auth/login", "host": ["{{gateway_url}}"], "path": ["api", "auth", "login"] },
+                        "description": "Login with the seeded admin account. Saves token to access_token."
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                                "const json = pm.response.json();",
+                                "pm.collectionVariables.set('access_token', json.data.accessToken);",
+                                "pm.collectionVariables.set('refresh_token', json.data.refreshToken);"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "2.4 Login as Professor (seed data)",
+                    "request": {
+                        "auth": { "type": "noauth" },
+                        "method": "POST",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"prof.johnson@committed.com\",\n    \"password\": \"password123\"\n}"
+                        },
+                        "url": { "raw": "{{gateway_url}}/api/auth/login", "host": ["{{gateway_url}}"], "path": ["api", "auth", "login"] }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                                "const json = pm.response.json();",
+                                "pm.collectionVariables.set('access_token', json.data.accessToken);",
+                                "pm.collectionVariables.set('refresh_token', json.data.refreshToken);"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "2.5 Logout",
+                    "request": {
+                        "method": "POST",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"refreshToken\": \"{{refresh_token}}\"\n}"
+                        },
+                        "url": { "raw": "{{gateway_url}}/api/auth/logout", "host": ["{{gateway_url}}"], "path": ["api", "auth", "logout"] }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                                "pm.test('Logout confirmed', () => {",
+                                "    pm.expect(pm.response.json().success).to.be.true;",
+                                "});"
+                            ]
+                        }
+                    }]
+                }
+            ]
+        },
+        {
+            "name": "3 — Token",
+            "description": "Token refresh and validation.",
+            "item": [
+                {
+                    "name": "3.1 Refresh Token",
+                    "request": {
+                        "auth": { "type": "noauth" },
+                        "method": "POST",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"refreshToken\": \"{{refresh_token}}\"\n}"
+                        },
+                        "url": { "raw": "{{gateway_url}}/api/token/refresh", "host": ["{{gateway_url}}"], "path": ["api", "token", "refresh"] }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                                "pm.test('New tokens returned', () => {",
+                                "    const json = pm.response.json();",
+                                "    pm.collectionVariables.set('access_token', json.data.accessToken);",
+                                "    pm.collectionVariables.set('refresh_token', json.data.refreshToken);",
+                                "});"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "3.2 Validate Token",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": { "raw": "{{gateway_url}}/api/token/validate", "host": ["{{gateway_url}}"], "path": ["api", "token", "validate"] }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                                "pm.test('Token claims returned', () => {",
+                                "    const json = pm.response.json();",
+                                "    pm.expect(json.data.userId).to.be.a('number');",
+                                "    pm.expect(json.data.email).to.be.a('string');",
+                                "    pm.expect(json.data.systemRole).to.be.oneOf(['user', 'admin']);",
+                                "});"
+                            ]
+                        }
+                    }]
+                }
+            ]
+        },
+        {
+            "name": "4 — Profile",
+            "description": "Manage the authenticated user's own profile.",
+            "item": [
+                {
+                    "name": "4.1 Get Profile",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": { "raw": "{{gateway_url}}/api/users/profile", "host": ["{{gateway_url}}"], "path": ["api", "users", "profile"] }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                                "pm.test('Profile has required fields', () => {",
+                                "    const d = pm.response.json().data;",
+                                "    pm.expect(d.userId).to.be.a('number');",
+                                "    pm.expect(d.email).to.be.a('string');",
+                                "    pm.expect(d.fullName).to.be.a('string');",
+                                "});"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "4.2 Update Profile",
+                    "request": {
+                        "method": "PUT",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"fullName\": \"Updated Name\"\n}"
+                        },
+                        "url": { "raw": "{{gateway_url}}/api/users/profile", "host": ["{{gateway_url}}"], "path": ["api", "users", "profile"] }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                                "const json = pm.response.json();",
+                                "if (json.data && json.data.accessToken) {",
+                                "    pm.collectionVariables.set('access_token', json.data.accessToken);",
+                                "}"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "4.3 Change Password",
+                    "request": {
+                        "method": "POST",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"currentPassword\": \"{{test_password}}\",\n    \"newPassword\": \"newpassword456\"\n}"
+                        },
+                        "url": { "raw": "{{gateway_url}}/api/users/profile/change-password", "host": ["{{gateway_url}}"], "path": ["api", "users", "profile", "change-password"] },
+                        "description": "Bumps tokenVersion — all other sessions are invalidated immediately."
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                                "pm.test('Password changed', () => {",
+                                "    pm.expect(pm.response.json().success).to.be.true;",
+                                "});"
+                            ]
+                        }
+                    }]
+                }
+            ]
+        },
+        {
+            "name": "5 — Admin — User Management",
+            "description": "Admin-only endpoints. Requires admin token.",
+            "item": [
+                {
+                    "name": "5.1 List Users",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/admin/users?page=0&size=20&sortBy=userId&sortDir=asc",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "admin", "users"],
+                            "query": [
+                                { "key": "page", "value": "0" },
+                                { "key": "size", "value": "20" },
+                                { "key": "sortBy", "value": "userId" },
+                                { "key": "sortDir", "value": "asc" },
+                                { "key": "search", "value": "", "disabled": true },
+                                { "key": "role", "value": "user", "disabled": true },
+                                { "key": "active", "value": "true", "disabled": true }
+                            ]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                                "pm.test('Paginated user list', () => {",
+                                "    const d = pm.response.json().data;",
+                                "    pm.expect(d.content).to.be.an('array');",
+                                "    pm.expect(d.totalElements).to.be.a('number');",
+                                "});"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "5.2 Search Users by Email",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/admin/users?search=student",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "admin", "users"],
+                            "query": [{ "key": "search", "value": "student" }]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "5.3 Update User",
+                    "request": {
+                        "method": "PUT",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"fullName\": \"Updated Admin Name\",\n    \"isActive\": true\n}"
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/admin/users/2",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "admin", "users", "2"]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "5.4 Deactivate User",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/admin/users/11",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "admin", "users", "11"]
+                        },
+                        "description": "Soft-deactivates user 11 and invalidates all their sessions."
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                                "pm.test('Deactivated', () => {",
+                                "    pm.expect(pm.response.json().success).to.be.true;",
+                                "});"
+                            ]
+                        }
+                    }]
+                }
+            ]
+        },
+        {
+            "name": "6 — Courses",
+            "description": "Course CRUD, enrollment, and statistics.",
+            "item": [
+                {
+                    "name": "6.1 List Courses",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/courses?page=1&limit=20",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "courses"],
+                            "query": [
+                                { "key": "page", "value": "1" },
+                                { "key": "limit", "value": "20" },
+                                { "key": "search", "value": "", "disabled": true }
+                            ]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                                "pm.test('Returns course list', () => {",
+                                "    pm.expect(pm.response.json().success).to.be.true;",
+                                "});"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "6.2 Create Course",
+                    "request": {
+                        "method": "POST",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"courseCode\": \"TEST101\",\n    \"courseName\": \"Test Course\",\n    \"description\": \"A test course for API testing.\",\n    \"section\": \"Section A\",\n    \"subject\": \"Testing\",\n    \"isOpen\": true\n}"
+                        },
+                        "url": { "raw": "{{gateway_url}}/api/courses", "host": ["{{gateway_url}}"], "path": ["api", "courses"] }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                                "pm.test('Course created', () => {",
+                                "    const d = pm.response.json().data;",
+                                "    pm.collectionVariables.set('course_id', d.courseId.toString());",
+                                "    pm.expect(d.courseCode).to.eql('TEST101');",
+                                "});"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "6.3 Get Course",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/courses/{{course_id}}",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "courses", "{{course_id}}"]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                                "pm.test('Correct course', () => {",
+                                "    pm.expect(pm.response.json().data.courseId.toString()).to.eql(pm.collectionVariables.get('course_id'));",
+                                "});"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "6.4 Update Course",
+                    "request": {
+                        "method": "PUT",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"courseName\": \"Test Course Updated\",\n    \"isOpen\": true\n}"
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/courses/{{course_id}}",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "courses", "{{course_id}}"]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "6.5 Enroll in Course by Code",
+                    "request": {
+                        "method": "POST",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"courseCode\": \"CS101\"\n}"
+                        },
+                        "url": { "raw": "{{gateway_url}}/api/courses/enroll", "host": ["{{gateway_url}}"], "path": ["api", "courses", "enroll"] }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 201 or 400 (already enrolled)', () => {",
+                                "    pm.expect([201, 400]).to.include(pm.response.code);",
+                                "});"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "6.6 List Course Students",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/courses/1/students?page=1&limit=20",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "courses", "1", "students"],
+                            "query": [
+                                { "key": "page", "value": "1" },
+                                { "key": "limit", "value": "20" }
+                            ]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200 or 403', () => {",
+                                "    pm.expect([200, 403]).to.include(pm.response.code);",
+                                "});"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "6.7 Get Course Stats",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/courses/1/stats",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "courses", "1", "stats"]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200 or 403', () => {",
+                                "    pm.expect([200, 403]).to.include(pm.response.code);",
+                                "});"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "6.8 Unenroll from Course",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/courses/{{course_id}}/enroll",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "courses", "{{course_id}}", "enroll"]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200 or 404', () => {",
+                                "    pm.expect([200, 404]).to.include(pm.response.code);",
+                                "});"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "6.9 Delete Course",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/courses/{{course_id}}",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "courses", "{{course_id}}"]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                            ]
+                        }
+                    }]
+                }
+            ]
+        },
+        {
+            "name": "7 — Assignments",
+            "description": "Assignment CRUD inside a course (professor token needed for write ops).",
+            "item": [
+                {
+                    "name": "7.1 List Assignments",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/courses/1/assignments?page=1&limit=20",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "courses", "1", "assignments"],
+                            "query": [
+                                { "key": "page", "value": "1" },
+                                { "key": "limit", "value": "20" }
+                            ]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "7.2 Create Assignment",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                { "key": "title", "value": "Lab 1: Hello World", "type": "text" },
+                                { "key": "description", "value": "Write a Hello World program in Python.", "type": "text" },
+                                { "key": "maxPoints", "value": "100", "type": "text" },
+                                { "key": "dueDate", "value": "2026-06-01T23:59:00Z", "type": "text" },
+                                { "key": "allowLateSubmission", "value": "false", "type": "text" },
+                                { "key": "requireRepoUrl", "value": "true", "type": "text" }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/courses/1/assignments",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "courses", "1", "assignments"]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                                "const d = pm.response.json().data;",
+                                "pm.collectionVariables.set('assignment_id', d.assignmentId.toString());"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "7.3 Get Assignment",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/assignments/{{assignment_id}}",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "assignments", "{{assignment_id}}"]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "7.4 Update Assignment",
+                    "request": {
+                        "method": "PUT",
+                        "header": [],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                { "key": "title", "value": "Lab 1: Hello World (Updated)", "type": "text" },
+                                { "key": "maxPoints", "value": "100", "type": "text" }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/assignments/{{assignment_id}}",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "assignments", "{{assignment_id}}"]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "7.5 Delete Assignment",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/assignments/{{assignment_id}}",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "assignments", "{{assignment_id}}"]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                            ]
+                        }
+                    }]
+                }
+            ]
+        },
+        {
+            "name": "8 — Submissions",
+            "description": "Student submissions for assignments. Use seeded assignment IDs 1–9.",
+            "item": [
+                {
+                    "name": "8.1 List Submissions",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/assignments/1/submissions?page=1&limit=20",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "assignments", "1", "submissions"],
+                            "query": [
+                                { "key": "page", "value": "1" },
+                                { "key": "limit", "value": "20" },
+                                { "key": "status", "value": "submitted", "disabled": true }
+                            ]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "8.2 Create Submission (with repo URL)",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                { "key": "submissionText", "value": "See GitHub repository for implementation.", "type": "text" },
+                                { "key": "repoUrl", "value": "https://github.com/octocat/Hello-World", "type": "text" }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/assignments/1/submissions",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "assignments", "1", "submissions"]
+                        },
+                        "description": "Submit to assignment 1. If requireRepoUrl=true on the assignment, include repoUrl. Code analysis is triggered automatically in the background."
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                                "const d = pm.response.json().data;",
+                                "pm.collectionVariables.set('submission_id', d.submissionId.toString());"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "8.3 Get Submission",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/submissions/{{submission_id}}",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "submissions", "{{submission_id}}"]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "8.4 Get Code Analysis",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/submissions/{{submission_id}}/analysis",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "submissions", "{{submission_id}}", "analysis"]
+                        },
+                        "description": "Poll this endpoint until status is 'completed' or 'failed'. Analysis runs asynchronously after submission creation."
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200 or 404', () => {",
+                                "    pm.expect([200, 404]).to.include(pm.response.code);",
+                                "});",
+                                "if (pm.response.code === 200) {",
+                                "    pm.test('Analysis status is valid', () => {",
+                                "        const status = pm.response.json().data.status;",
+                                "        pm.expect(['pending','analyzing','completed','failed']).to.include(status);",
+                                "    });",
+                                "}"
+                            ]
+                        }
+                    }]
+                }
+            ]
+        },
+        {
+            "name": "9 — Grades",
+            "description": "Grading submissions. Teacher or admin required for create/update/validate.",
+            "item": [
+                {
+                    "name": "9.1 Grade Submission",
+                    "request": {
+                        "method": "POST",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"pointsEarned\": 85.5,\n    \"feedback\": \"Good work! Consider adding more unit tests.\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/submissions/{{submission_id}}/grade",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "submissions", "{{submission_id}}", "grade"]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 201 or 409', () => {",
+                                "    pm.expect([201, 409]).to.include(pm.response.code);",
+                                "});",
+                                "if (pm.response.code === 201) {",
+                                "    pm.collectionVariables.set('grade_id', pm.response.json().data.gradeId.toString());",
+                                "}"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "9.2 Get Grade",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/submissions/{{submission_id}}/grade",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "submissions", "{{submission_id}}", "grade"]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200 or 404', () => {",
+                                "    pm.expect([200, 404]).to.include(pm.response.code);",
+                                "});"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "9.3 Update Grade",
+                    "request": {
+                        "method": "PUT",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"pointsEarned\": 90.0,\n    \"feedback\": \"Excellent work after review!\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/grades/{{grade_id}}",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "grades", "{{grade_id}}"]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "9.4 Validate AI Grade",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/grades/{{grade_id}}/validate",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "grades", "{{grade_id}}", "validate"]
+                        },
+                        "description": "Finalizes an AI-suggested grade. Triggers a grade.validated notification."
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                                "pm.test('Grade is finalized', () => {",
+                                "    pm.expect(pm.response.json().data.isFinalized).to.be.true;",
+                                "});"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "9.5 Get Recent Grades",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/grades/recent",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "grades", "recent"]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                                "pm.test('Returns an array', () => {",
+                                "    pm.expect(pm.response.json().data).to.be.an('array');",
+                                "});"
+                            ]
+                        }
+                    }]
+                }
+            ]
+        },
+        {
+            "name": "10 — Announcements",
+            "description": "Course announcements with file attachments.",
+            "item": [
+                {
+                    "name": "10.1 List Announcements",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/courses/1/announcements?page=1&limit=20",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "courses", "1", "announcements"],
+                            "query": [
+                                { "key": "page", "value": "1" },
+                                { "key": "limit", "value": "20" }
+                            ]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "10.2 Create Announcement",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                { "key": "title", "value": "Test Announcement", "type": "text" },
+                                { "key": "content", "value": "This is a test announcement for API testing.", "type": "text" }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/courses/1/announcements",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "courses", "1", "announcements"]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                                "pm.collectionVariables.set('announcement_id', pm.response.json().data.announcementId.toString());"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "10.3 Update Announcement",
+                    "request": {
+                        "method": "PUT",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"title\": \"Updated Test Announcement\",\n    \"content\": \"Content has been updated.\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/courses/1/announcements/{{announcement_id}}",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "courses", "1", "announcements", "{{announcement_id}}"]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "10.4 Delete Announcement",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/courses/1/announcements/{{announcement_id}}",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "courses", "1", "announcements", "{{announcement_id}}"]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                            ]
+                        }
+                    }]
+                }
+            ]
+        },
+        {
+            "name": "11 — Comments",
+            "description": "Threaded comments on announcements.",
+            "item": [
+                {
+                    "name": "11.1 List Comments",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/courses/1/announcements/1/comments?page=1&limit=20",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "courses", "1", "announcements", "1", "comments"],
+                            "query": [
+                                { "key": "page", "value": "1" },
+                                { "key": "limit", "value": "20" }
+                            ]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "11.2 Create Comment",
+                    "request": {
+                        "method": "POST",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"content\": \"This is a test comment.\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/courses/1/announcements/1/comments",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "courses", "1", "announcements", "1", "comments"]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                                "pm.collectionVariables.set('comment_id', pm.response.json().data.commentId.toString());"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "11.3 Create Nested Reply",
+                    "request": {
+                        "method": "POST",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"content\": \"This is a reply to the first comment.\",\n    \"parentCommentId\": {{comment_id}}\n}"
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/courses/1/announcements/1/comments",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "courses", "1", "announcements", "1", "comments"]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                                "pm.test('Reply has parentCommentId', () => {",
+                                "    pm.expect(pm.response.json().data.parentCommentId).to.not.be.null;",
+                                "});"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "11.4 Update Comment",
+                    "request": {
+                        "method": "PUT",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"content\": \"Updated comment text.\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{gateway_url}}/api/courses/1/announcements/1/comments/{{comment_id}}",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "courses", "1", "announcements", "1", "comments", "{{comment_id}}"]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "11.5 Delete Comment",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{gateway_url}}/api/courses/1/announcements/1/comments/{{comment_id}}",
+                            "host": ["{{gateway_url}}"],
+                            "path": ["api", "courses", "1", "announcements", "1", "comments", "{{comment_id}}"]
+                        }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                            ]
+                        }
+                    }]
+                }
+            ]
+        },
+        {
+            "name": "12 — Error & Edge Cases",
+            "description": "Tests for invalid inputs, missing auth, and boundary conditions.",
+            "item": [
+                {
+                    "name": "12.1 No Token → 401",
+                    "request": {
+                        "auth": { "type": "noauth" },
+                        "method": "GET",
+                        "header": [],
+                        "url": { "raw": "{{gateway_url}}/api/users/profile", "host": ["{{gateway_url}}"], "path": ["api", "users", "profile"] }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 401', () => pm.response.to.have.status(401));",
+                                "pm.test('Error response envelope', () => {",
+                                "    const json = pm.response.json();",
+                                "    pm.expect(json.success).to.be.false;",
+                                "    pm.expect(json.message).to.be.a('string');",
+                                "});"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "12.2 Non-admin → 403 on Admin Endpoint",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": { "raw": "{{gateway_url}}/api/admin/users", "host": ["{{gateway_url}}"], "path": ["api", "admin", "users"] },
+                        "description": "Use a non-admin token to confirm 403 response."
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 403', () => pm.response.to.have.status(403));"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "12.3 Register with Invalid Email → 400",
+                    "request": {
+                        "auth": { "type": "noauth" },
+                        "method": "POST",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"not-an-email\",\n    \"fullName\": \"Test\",\n    \"password\": \"pass123\"\n}"
+                        },
+                        "url": { "raw": "{{gateway_url}}/api/auth/register", "host": ["{{gateway_url}}"], "path": ["api", "auth", "register"] }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                                "pm.test('Validation error', () => {",
+                                "    pm.expect(pm.response.json().success).to.be.false;",
+                                "});"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "12.4 Get Non-existent Course → 404",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": { "raw": "{{gateway_url}}/api/courses/99999", "host": ["{{gateway_url}}"], "path": ["api", "courses", "99999"] }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 404', () => pm.response.to.have.status(404));"
+                            ]
+                        }
+                    }]
+                },
+                {
+                    "name": "12.5 Refresh Expired/Invalid Token → 401",
+                    "request": {
+                        "auth": { "type": "noauth" },
+                        "method": "POST",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"refreshToken\": \"this.is.not.a.valid.token\"\n}"
+                        },
+                        "url": { "raw": "{{gateway_url}}/api/token/refresh", "host": ["{{gateway_url}}"], "path": ["api", "token", "refresh"] }
+                    },
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                                "pm.test('Status 401', () => pm.response.to.have.status(401));"
+                            ]
+                        }
+                    }]
+                }
+            ]
+        }
+    ]
+}

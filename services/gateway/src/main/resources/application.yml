@@ -1,44 +1,68 @@
 server:
-  port: 8080
+    port: 8080
 
 spring:
-  application:
-    name: gateway
-  datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:oracle:thin:@localhost:1521/XEPDB1}
-    username: ${SPRING_DATASOURCE_USERNAME:committed_user}
-    password: ${SPRING_DATASOURCE_PASSWORD:SecurePassword123!}
-    driver-class-name: oracle.jdbc.OracleDriver
-  jpa:
-    hibernate:
-      ddl-auto: none
-    show-sql: false
-    database-platform: org.hibernate.dialect.OracleDialect
+    application:
+        name: gateway
+    datasource:
+        url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/committed}
+        username: ${SPRING_DATASOURCE_USERNAME:committed_user}
+        password: ${SPRING_DATASOURCE_PASSWORD:SecurePassword123!}
+        driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.postgresql.Driver}
+    jpa:
+        hibernate:
+            ddl-auto: none
+        show-sql: false
+        database-platform: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.PostgreSQLDialect}
+    servlet:
+        multipart:
+            max-file-size: 10MB
+            max-request-size: 10MB
+    data:
+        redis:
+            host: ${REDIS_HOST:localhost}
+            port: ${REDIS_PORT:6379}
+            password: ${REDIS_PASSWORD:}
 
 # Service URLs
 core:
-  service:
-    url: ${CORE_SERVICE_URL:http://core:8000}
+    service:
+        url: ${CORE_SERVICE_URL:http://core:8000}
 
 analyzer:
-  service:
-    url: ${ANALYZER_SERVICE_URL:http://code-analyzer:5000}
+    service:
+        url: ${ANALYZER_SERVICE_URL:http://code-analyzer:5000}
 
 notification:
-  service:
-    url: ${NOTIFICATION_SERVICE_URL:http://notifications:5001}
+    service:
+        url: ${NOTIFICATION_SERVICE_URL:http://notifications:5001}
 
-# JWT Configuration
+platform:
+    url: ${PLATFORM_URL:http://localhost}
+
+# JWT Configuration — JWT_SECRET must be set in the environment; no default (fail-hard)
 jwt:
-  secret: ${JWT_SECRET:your-super-secret-jwt-key-change-this-in-production-min-256-bits}
-  expiration: ${JWT_EXPIRATION:86400000}
+    secret: ${JWT_SECRET}
+    expiration: ${JWT_EXPIRATION:900000}
+    refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
+    issuer: ${JWT_ISSUER:committed-platform}
 
-# Actuator endpoints
+# Internal API secret — used by InternalAuthFilter to protect /internal/** routes
+internal:
+    secret: ${INTERNAL_SECRET}
+
+# Actuator — expose health endpoint only; all other endpoints are denied in SecurityConfig
 management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info
-  endpoint:
-    health:
-      show-details: always
+    endpoints:
+        web:
+            exposure:
+                include: health
+    endpoint:
+        health:
+            show-details: always
+
+#logging configuration
+logging:
+    level:
+        com.committed.gateway: DEBUG
+        org.springframework.security: DEBUG

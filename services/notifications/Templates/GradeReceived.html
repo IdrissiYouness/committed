@@ -1,0 +1,20 @@
+<p style="color:#6b7280; margin-top:0;">Hi {{RecipientName}},</p>
+<p>Your submission for <strong>{{AssignmentTitle}}</strong> in <strong>{{CourseName}}</strong> has been graded.</p>
+
+<div style="background:#f0f4ff; border-left:4px solid #1e3a5f; border-radius:4px; padding:16px 20px; margin:24px 0;">
+  <table style="border-collapse:collapse; font-size:14px; width:100%;">
+    <tr>
+      <td style="color:#6b7280; padding-right:12px; padding-bottom:8px;">Score</td>
+      <td style="font-size:22px; font-weight:700; color:#1e3a5f;">{{PointsEarned}} <span style="font-size:14px; font-weight:400; color:#6b7280;">/ {{MaxPoints}}</span></td>
+    </tr>
+    <tr>
+      <td style="color:#6b7280; padding-right:12px;">Graded by</td>
+      <td style="font-weight:500; color:#374151; text-transform:capitalize;">{{GradeSource}}</td>
+    </tr>
+  </table>
+</div>
+
+<p style="font-size:14px; font-weight:600; color:#374151; margin-bottom:4px;">Feedback</p>
+{{Feedback}}
+
+<p style="color:#6b7280; font-size:14px;">Log in to Committed to view your full submission and report.</p>

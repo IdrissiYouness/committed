@@ -8,7 +8,7 @@
 **Port**: 5001  
 **IDE**: VSCode  
 **Build Tool**: dotnet CLI  
-**Database**: Oracle Database 21c XE (via Oracle.ManagedDataAccess)
+**Database**: PostgreSQL 16 (via Npgsql)
 
 ---
 
@@ -29,24 +29,23 @@
     <!-- ASP.NET Core -->
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
-    
+
     <!-- Database -->
-    <PackageReference Include="Oracle.ManagedDataAccess.Core" Version="23.6.0" />
-    <PackageReference Include="Oracle.ManagedDataAccess.EntityFramework" Version="23.6.0" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    
+
     <!-- Email -->
     <PackageReference Include="MailKit" Version="4.6.0" />
     <PackageReference Include="MimeKit" Version="4.6.0" />
-    
+
     <!-- Validation -->
     <PackageReference Include="FluentValidation" Version="11.9.0" />
     <PackageReference Include="FluentValidation.AspNetCore" Version="11.9.0" />
-    
+
     <!-- Logging -->
     <PackageReference Include="Serilog.AspNetCore" Version="8.0.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="5.0.0" />
@@ -123,6 +122,7 @@ services/notifications/
 ### Naming Conventions
 
 #### Classes and Interfaces
+
 ```csharp
 // Classes: PascalCase
 public class EmailService { }
@@ -135,6 +135,7 @@ public interface INotificationRepository { }
 ```
 
 #### Methods
+
 ```csharp
 // PascalCase, start with verb
 public async Task SendEmailAsync(SendEmailRequest request) { }
@@ -143,6 +144,7 @@ public bool IsEmailValid(string email) { }
 ```
 
 #### Variables and Properties
+
 ```csharp
 // PascalCase for public properties
 public string EmailAddress { get; set; }
@@ -155,6 +157,7 @@ bool isSent = false;
 ```
 
 #### Constants
+
 ```csharp
 // PascalCase
 public const int MaxRetryAttempts = 3;
@@ -686,7 +689,7 @@ public class ValidationException : Exception
 public class ServiceException : Exception
 {
     public ServiceException(string message) : base(message) { }
-    public ServiceException(string message, Exception innerException) 
+    public ServiceException(string message, Exception innerException)
         : base(message, innerException) { }
 }
 ```
@@ -759,29 +762,26 @@ public class ExceptionMiddleware
 
 ```json
 {
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft.AspNetCore": "Warning",
-      "Microsoft.EntityFrameworkCore": "Warning"
-    }
-  },
-  "ConnectionStrings": {
-    "OracleDb": "User Id=committed_user;Password=SecurePassword123!;Data Source=oracle-db:1521/XEPDB1"
-  },
-  "SmtpSettings": {
-    "Host": "smtp.gmail.com",
-    "Port": 587,
-    "Username": "your-email@gmail.com",
-    "Password": "your-app-specific-password",
-    "FromEmail": "noreply@committed.com",
-    "FromName": "Committed Platform",
-    "UseSsl": true
-  },
-  "AllowedOrigins": [
-    "http://localhost:3000",
-    "http://localhost"
-  ]
+    "Logging": {
+        "LogLevel": {
+            "Default": "Information",
+            "Microsoft.AspNetCore": "Warning",
+            "Microsoft.EntityFrameworkCore": "Warning"
+        }
+    },
+    "ConnectionStrings": {
+        "DefaultConnection": "Host=postgres-db;Port=5432;Database=committed_core;Username=core_user;Password=CoreSecurePass123!"
+    },
+    "SmtpSettings": {
+        "Host": "smtp.gmail.com",
+        "Port": 587,
+        "Username": "your-email@gmail.com",
+        "Password": "your-app-specific-password",
+        "FromEmail": "noreply@committed.com",
+        "FromName": "Committed Platform",
+        "UseSsl": true
+    },
+    "AllowedOrigins": ["http://localhost:3000", "http://localhost"]
 }
 ```
 
@@ -831,9 +831,8 @@ builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 
 // Configure database
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseOracle(
-        builder.Configuration.GetConnectionString("OracleDb"),
-        oracleOptions => oracleOptions.UseOracleSQLCompatibility("11")));
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // Configure CORS
 builder.Services.AddCors(options =>
@@ -880,36 +879,69 @@ app.Run();
 <!-- BODY -->
 <!DOCTYPE html>
 <html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; }
-        .content { padding: 20px; background: #f9f9f9; border-radius: 5px; }
-        .button { display: inline-block; padding: 12px 24px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px; }
-        .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🎓 Committed Platform</h1>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                line-height: 1.6;
+                color: #333;
+            }
+            .container {
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 20px;
+            }
+            .header {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 20px;
+                text-align: center;
+            }
+            .content {
+                padding: 20px;
+                background: #f9f9f9;
+                border-radius: 5px;
+            }
+            .button {
+                display: inline-block;
+                padding: 12px 24px;
+                background: #667eea;
+                color: white;
+                text-decoration: none;
+                border-radius: 5px;
+                margin-top: 20px;
+            }
+            .footer {
+                text-align: center;
+                padding: 20px;
+                color: #666;
+                font-size: 12px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>🎓 Committed Platform</h1>
+            </div>
+            <div class="content">
+                <h2>New Assignment Created</h2>
+                <p>Hello {{UserName}},</p>
+                <p>
+                    A new assignment has been created in your course
+                    <strong>{{CourseName}}</strong>.
+                </p>
+                <p><strong>Assignment:</strong> {{AssignmentTitle}}</p>
+                <p><strong>Due Date:</strong> {{DueDate}}</p>
+                <a href="{{AssignmentUrl}}" class="button">View Assignment</a>
+            </div>
+            <div class="footer">
+                <p>&copy; 2026 Committed Platform. All rights reserved.</p>
+            </div>
         </div>
-        <div class="content">
-            <h2>New Assignment Created</h2>
-            <p>Hello {{UserName}},</p>
-            <p>A new assignment has been created in your course <strong>{{CourseName}}</strong>.</p>
-            <p><strong>Assignment:</strong> {{AssignmentTitle}}</p>
-            <p><strong>Due Date:</strong> {{DueDate}}</p>
-            <a href="{{AssignmentUrl}}" class="button">View Assignment</a>
-        </div>
-        <div class="footer">
-            <p>&copy; 2026 Committed Platform. All rights reserved.</p>
-        </div>
-    </div>
-</body>
+    </body>
 </html>
 <!-- END BODY -->
 ```
@@ -1050,7 +1082,7 @@ public class NotificationControllerTests : IClassFixture<WebApplicationFactory<P
         response.EnsureSuccessStatusCode();
         var responseString = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<NotificationResponse>(responseString);
-        
+
         Assert.True(result.Success);
     }
 
@@ -1082,6 +1114,7 @@ public class NotificationControllerTests : IClassFixture<WebApplicationFactory<P
 ```
 
 ### Test Coverage Target
+
 - **Minimum**: 80% overall coverage
 - **Services**: 90% coverage
 - **Controllers**: 80% coverage
@@ -1142,6 +1175,7 @@ dotnet clean
 - [.NET Documentation](https://docs.microsoft.com/en-us/dotnet/)
 - [ASP.NET Core Documentation](https://docs.microsoft.com/en-us/aspnet/core/)
 - [Entity Framework Core Documentation](https://docs.microsoft.com/en-us/ef/core/)
+- [Npgsql EF Core Provider](https://www.npgsql.org/efcore/)
 - [MailKit Documentation](https://docs.mimekit.net/)
 - [FluentValidation Documentation](https://docs.fluentvalidation.net/)
 - [Serilog Documentation](https://serilog.net/)
