@@ -18,6 +18,11 @@ spring:
         multipart:
             max-file-size: 10MB
             max-request-size: 10MB
+    data:
+        redis:
+            host: ${REDIS_HOST:localhost}
+            port: ${REDIS_PORT:6379}
+            password: ${REDIS_PASSWORD:}
 
 # Service URLs
 core:
@@ -35,19 +40,23 @@ notification:
 platform:
     url: ${PLATFORM_URL:http://localhost}
 
-# JWT Configuration
+# JWT Configuration — JWT_SECRET must be set in the environment; no default (fail-hard)
 jwt:
-    secret: ${JWT_SECRET:8a7da2dbc6c2be6b72d6c66748787e71b11bf140c993c539b1064d39789a1e7324f920d1487327797ca8a3c7d64d3cc11e1a24b55ad4422d0a43909b96de599b}
-    expiration: ${JWT_EXPIRATION:86400000}
-    refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000} # 7 days in milliseconds
+    secret: ${JWT_SECRET}
+    expiration: ${JWT_EXPIRATION:900000}
+    refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
     issuer: ${JWT_ISSUER:committed-platform}
 
-# Actuator endpoints
+# Internal API secret — used by InternalAuthFilter to protect /internal/** routes
+internal:
+    secret: ${INTERNAL_SECRET}
+
+# Actuator — expose health endpoint only; all other endpoints are denied in SecurityConfig
 management:
     endpoints:
         web:
             exposure:
-                include: health,info
+                include: health
     endpoint:
         health:
             show-details: always

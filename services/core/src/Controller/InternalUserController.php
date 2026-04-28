@@ -116,6 +116,73 @@ class InternalUserController extends AbstractController
     }
 
     /**
+     * Get full user details by ID — called by Gateway's TokenController during refresh.
+     * Returns tokenVersion; does NOT return passwordHash.
+     * GET /api/users/{userId}/details
+     */
+    #[Route('/{userId}/details', name: 'internal_user_get_details', methods: ['GET'], requirements: ['userId' => '\d+'])]
+    public function getUserDetails(int $userId): JsonResponse
+    {
+        $this->logger->info('Received get-details request', ['userId' => $userId]);
+
+        try {
+            $user = $this->userService->getUserById($userId);
+
+            if ($user === null) {
+                throw new UserNotFoundException('User not found');
+            }
+
+            $data = [
+                'userId'       => $user->getUserId(),
+                'email'        => $user->getEmail(),
+                'fullName'     => $user->getFullName(),
+                'systemRole'   => $user->getSystemRole(),
+                'isActive'     => $user->isActive(),
+                'tokenVersion' => $user->getTokenVersion(),
+                'createdAt'    => $user->getCreatedAt()->format(\DateTime::ATOM),
+            ];
+
+            return $this->json($data, Response::HTTP_OK);
+
+        } catch (UserNotFoundException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            $this->logger->error('Unexpected error in get-details', [
+                'userId' => $userId,
+                'error'  => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Increment token_version for a user — called by Gateway after password change or deactivation.
+     * PUT /api/users/{userId}/token-version
+     */
+    #[Route('/{userId}/token-version', name: 'internal_user_increment_token_version', methods: ['PUT'], requirements: ['userId' => '\d+'])]
+    public function incrementTokenVersion(int $userId): JsonResponse
+    {
+        $this->logger->info('Received increment-token-version request', ['userId' => $userId]);
+
+        try {
+            $response = $this->userService->incrementTokenVersion($userId);
+
+            return $this->json([
+                'tokenVersion' => $response->toArray()['tokenVersion'],
+            ], Response::HTTP_OK);
+
+        } catch (UserNotFoundException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            $this->logger->error('Unexpected error in increment-token-version', [
+                'userId' => $userId,
+                'error'  => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
      * Get public profile for a user by ID — called by Gateway on GET /api/users/profile.
      * Does NOT return passwordHash.
      * GET /api/users/{userId}/profile

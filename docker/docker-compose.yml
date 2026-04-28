@@ -1,6 +1,19 @@
 name: committed
 
 services:
+    # Redis — token blacklist + token version cache for JWT revocation
+    redis:
+        image: redis:7-alpine
+        container_name: committed-redis
+        ports:
+            - "${REDIS_PORT:-6379}:6379"
+        command: redis-server --requirepass ${REDIS_PASSWORD}
+        volumes:
+            - redis-data:/data
+        networks:
+            - committed-network
+        restart: unless-stopped
+
     # PostgreSQL Database (shared by all services)
     postgres-db:
         image: postgres:16-alpine
@@ -44,12 +57,18 @@ services:
             - SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.PostgreSQLDialect
             - JWT_SECRET=${JWT_SECRET}
             - JWT_EXPIRATION=${JWT_EXPIRATION}
+            - INTERNAL_SECRET=${INTERNAL_SECRET}
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+            - REDIS_PASSWORD=${REDIS_PASSWORD}
             - CORE_SERVICE_URL=http://core:8000
             - ANALYZER_SERVICE_URL=http://code-analyzer:5000
             - NOTIFICATION_SERVICE_URL=http://notifications:5001
         depends_on:
             postgres-db:
                 condition: service_healthy
+            redis:
+                condition: service_started
         networks:
             - committed-network
         restart: unless-stopped
@@ -102,6 +121,7 @@ services:
             - MAX_WORKERS=${ANALYZER_MAX_WORKERS:-4}
             - CALLBACK_TIMEOUT=${ANALYZER_CALLBACK_TIMEOUT:-10}
             - GATEWAY_CALLBACK_URL=${GATEWAY_CALLBACK_URL:-http://gateway:8080/internal/analysis-result}
+            - INTERNAL_SECRET=${INTERNAL_SECRET}
             # Base64-encoded Kilo Code auth.json (GitHub Copilot OAuth tokens).
             # Generate with: base64 -w 0 ~/.local/share/kilo/auth.json
             - KILO_AUTH_JSON_B64=${KILO_AUTH_JSON_B64}
@@ -162,6 +182,7 @@ volumes:
     analyzer-temp:
     analyzer-reports:
     postgres-data:
+    redis-data:
 
 networks:
     committed-network:

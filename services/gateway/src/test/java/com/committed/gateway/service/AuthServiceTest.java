@@ -55,6 +55,7 @@ class AuthServiceTest {
             .fullName("Test User")
             .systemRole("user")
             .isActive(true)
+            .tokenVersion(1)
             .createdAt(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) + "+00:00")
             .build();
     }
@@ -68,7 +69,7 @@ class AuthServiceTest {
 
         when(passwordEncoder.encode(anyString())).thenReturn(hashedPassword);
         when(coreServiceClient.createUser(any(CreateUserRequest.class))).thenReturn(coreResponse);
-        when(jwtTokenProvider.generateToken(anyString(), anyString(), anyString(), anyString()))
+        when(jwtTokenProvider.generateToken(anyString(), anyString(), anyString(), anyString(), anyInt()))
             .thenReturn(accessToken);
         when(jwtTokenProvider.generateRefreshToken(anyString())).thenReturn(refreshToken);
 
@@ -97,7 +98,7 @@ class AuthServiceTest {
         // Verify interactions
         verify(passwordEncoder).encode("securepass123");
         verify(coreServiceClient).createUser(any(CreateUserRequest.class));
-        verify(jwtTokenProvider).generateToken("1", "test@committed.com", "Test User", "USER");
+        verify(jwtTokenProvider).generateToken("1", "test@committed.com", "Test User", "USER", 1);
         verify(jwtTokenProvider).generateRefreshToken("1");
     }
 
@@ -145,7 +146,7 @@ class AuthServiceTest {
         when(coreServiceClient.createUser(argThat(request ->
             request.getPasswordHash().equals(hashedPassword)
         ))).thenReturn(coreResponse);
-        when(jwtTokenProvider.generateToken(anyString(), anyString(), anyString(), anyString()))
+        when(jwtTokenProvider.generateToken(anyString(), anyString(), anyString(), anyString(), anyInt()))
             .thenReturn("token");
         when(jwtTokenProvider.generateRefreshToken(anyString())).thenReturn("refresh");
 

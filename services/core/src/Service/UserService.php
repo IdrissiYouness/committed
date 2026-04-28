@@ -72,12 +72,13 @@ class UserService
             ]);
 
             return new CreateUserResponse(
-                userId:     $user->getUserId(),
-                email:      $user->getEmail(),
-                fullName:   $user->getFullName(),
-                systemRole: $user->getSystemRole(),
-                isActive:   $user->isActive(),
-                createdAt:  $user->getCreatedAt()->format(\DateTime::ATOM)
+                userId:        $user->getUserId(),
+                email:         $user->getEmail(),
+                fullName:      $user->getFullName(),
+                systemRole:    $user->getSystemRole(),
+                isActive:      $user->isActive(),
+                createdAt:     $user->getCreatedAt()->format(\DateTime::ATOM),
+                tokenVersion:  $user->getTokenVersion()
             );
         } catch (\Exception $e) {
             $this->em->rollback();
@@ -115,7 +116,8 @@ class UserService
             passwordHash: $user->getPasswordHash(),
             systemRole:   $user->getSystemRole(),
             isActive:     $user->isActive(),
-            createdAt:    $user->getCreatedAt()->format(\DateTime::ATOM)
+            createdAt:    $user->getCreatedAt()->format(\DateTime::ATOM),
+            tokenVersion: $user->getTokenVersion()
         );
     }
 
@@ -442,6 +444,42 @@ class UserService
             ]);
             throw $e;
         }
+    }
+
+    /**
+     * Increment token_version for a user, persisting the new value.
+     * Called by Gateway after a password change or admin deactivation.
+     *
+     * @throws UserNotFoundException if no user with that ID exists
+     */
+    public function incrementTokenVersion(int $userId): UserDetailsResponse
+    {
+        $this->logger->info('Incrementing token version', ['userId' => $userId]);
+
+        $user = $this->userRepository->find($userId);
+        if ($user === null) {
+            throw UserNotFoundException::byId($userId);
+        }
+
+        $user->incrementTokenVersion();
+        $user->setUpdatedAt(new \DateTime());
+        $this->em->flush();
+
+        $this->logger->info('Token version incremented', [
+            'userId'  => $userId,
+            'version' => $user->getTokenVersion(),
+        ]);
+
+        return new UserDetailsResponse(
+            userId:       $user->getUserId(),
+            email:        $user->getEmail(),
+            fullName:     $user->getFullName(),
+            passwordHash: $user->getPasswordHash(),
+            systemRole:   $user->getSystemRole(),
+            isActive:     $user->isActive(),
+            createdAt:    $user->getCreatedAt()->format(\DateTime::ATOM),
+            tokenVersion: $user->getTokenVersion()
+        );
     }
 
     /**

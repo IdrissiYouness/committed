@@ -54,6 +54,7 @@ class Config:
     GATEWAY_CALLBACK_URL = os.getenv(
         "GATEWAY_CALLBACK_URL", "http://gateway:8080/internal/analysis-result"
     )
+    INTERNAL_SECRET = os.getenv("INTERNAL_SECRET", "")
 
     @classmethod
     def validate(cls) -> None:

@@ -10,13 +10,14 @@ namespace App\DTO;
 class UserDetailsResponse
 {
     public function __construct(
-        private int $userId,
+        private int    $userId,
         private string $email,
         private string $fullName,
         private string $passwordHash,
         private string $systemRole,
-        private bool $isActive,
-        private string $createdAt
+        private bool   $isActive,
+        private string $createdAt,
+        private int    $tokenVersion = 1
     ) {}
 
     public function toArray(): array
@@ -28,6 +29,7 @@ class UserDetailsResponse
             'passwordHash' => $this->passwordHash,
             'systemRole'   => $this->systemRole,
             'isActive'     => $this->isActive,
+            'tokenVersion' => $this->tokenVersion,
             'createdAt'    => $this->createdAt,
         ];
     }

@@ -29,6 +29,7 @@ CREATE TABLE users (
     system_role VARCHAR(20) DEFAULT 'user' NOT NULL
         CHECK (system_role IN ('user', 'admin')),
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
+    token_version INTEGER DEFAULT 1 NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
 );

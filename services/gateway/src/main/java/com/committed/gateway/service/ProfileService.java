@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+
 /**
  * Profile Service
  *
@@ -31,9 +32,10 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class ProfileService {
 
-    private final CoreServiceClient coreServiceClient;
-    private final JwtTokenProvider  jwtTokenProvider;
-    private final PasswordEncoder   passwordEncoder;
+    private final CoreServiceClient     coreServiceClient;
+    private final JwtTokenProvider      jwtTokenProvider;
+    private final PasswordEncoder       passwordEncoder;
+    private final TokenBlacklistService blacklistService;
 
     // -------------------------------------------------------------------------
     // Get Profile
@@ -97,11 +99,15 @@ public class ProfileService {
 
         if (claimsChanged) {
             log.info("JWT claims changed for userId={} — issuing new tokens", userId);
+            // Fetch current tokenVersion to embed in the new token
+            var userDetails = coreServiceClient.getUserByEmail(updated.getEmail());
+            int tokenVersion = userDetails.getTokenVersion() != null ? userDetails.getTokenVersion() : 1;
             newAccessToken = jwtTokenProvider.generateToken(
                 principal.userId(),
                 updated.getEmail(),
                 updated.getFullName(),
-                updated.getSystemRole().toUpperCase()
+                updated.getSystemRole().toUpperCase(),
+                tokenVersion
             );
             newRefreshToken = jwtTokenProvider.generateRefreshToken(principal.userId());
         }
@@ -158,13 +164,18 @@ public class ProfileService {
 
         log.info("Password changed successfully for userId={}", userId);
 
-        // 5. Issue fresh tokens — old tokens remain valid until they expire (stateless),
-        //    but returning new ones lets the client immediately replace them.
+        // 5. Bump token version — immediately invalidates all existing sessions
+        int newVersion = coreServiceClient.incrementTokenVersion(userId);
+        blacklistService.setTokenVersion(String.valueOf(userId), newVersion);
+        log.info("Token version bumped to {} for userId={} after password change", newVersion, userId);
+
+        // 6. Issue fresh tokens with the new version
         String newAccessToken = jwtTokenProvider.generateToken(
             principal.userId(),
             principal.email(),
             coreUser.getFullName(),
-            coreUser.getSystemRole().toUpperCase()
+            coreUser.getSystemRole().toUpperCase(),
+            newVersion
         );
         String newRefreshToken = jwtTokenProvider.generateRefreshToken(principal.userId());
 

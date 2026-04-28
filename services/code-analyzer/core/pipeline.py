@@ -286,7 +286,8 @@ def dispatch_result(result: dict, callback_url: str) -> None:
     /analyze/<id>/status as a fallback.
     """
     try:
-        resp = requests.post(callback_url, json=result, timeout=Config.CALLBACK_TIMEOUT)
+        headers = {"X-Internal-Secret": Config.INTERNAL_SECRET}
+        resp = requests.post(callback_url, json=result, headers=headers, timeout=Config.CALLBACK_TIMEOUT)
         resp.raise_for_status()
         logger.info("[%s] callback delivered to %s", result.get("submissionId"), callback_url)
     except Exception as exc:

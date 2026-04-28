@@ -45,8 +45,8 @@ class JwtTokenProviderTest {
         String fullName = "Test User";
         String systemRole = "USER";
         
-        String token = tokenProvider.generateToken(userId, email, fullName, systemRole);
-        
+        String token = tokenProvider.generateToken(userId, email, fullName, systemRole, 1);
+
         assertNotNull(token);
         assertTrue(token.length() > 0);
         assertTrue(token.split("\\.").length == 3); // JWT has 3 parts
@@ -54,8 +54,8 @@ class JwtTokenProviderTest {
     
     @Test
     void shouldValidateToken() {
-        String token = tokenProvider.generateToken("123", "test@example.com", "Test User", "STUDENT");
-        
+        String token = tokenProvider.generateToken("123", "test@example.com", "Test User", "STUDENT", 1);
+
         boolean isValid = tokenProvider.validateToken(token);
         
         assertTrue(isValid);
@@ -64,8 +64,8 @@ class JwtTokenProviderTest {
     @Test
     void shouldExtractUserIdFromToken() {
         String userId = "123";
-        String token = tokenProvider.generateToken(userId, "test@example.com", "Test User", "STUDENT");
-        
+        String token = tokenProvider.generateToken(userId, "test@example.com", "Test User", "STUDENT", 1);
+
         String extractedUserId = tokenProvider.getUserIdFromToken(token);
         
         assertEquals(userId, extractedUserId);
@@ -74,8 +74,8 @@ class JwtTokenProviderTest {
     @Test
     void shouldExtractEmailFromToken() {
         String email = "test@example.com";
-        String token = tokenProvider.generateToken("123", email, "Test User", "USER");
-        
+        String token = tokenProvider.generateToken("123", email, "Test User", "USER", 1);
+
         String extractedEmail = tokenProvider.getEmailFromToken(token);
         
         assertEquals(email, extractedEmail);
@@ -84,8 +84,8 @@ class JwtTokenProviderTest {
     @Test
     void shouldExtractSystemRoleFromToken() {
         String systemRole = "USER";
-        String token = tokenProvider.generateToken("123", "test@example.com", "Test User", systemRole);
-        
+        String token = tokenProvider.generateToken("123", "test@example.com", "Test User", systemRole, 1);
+
         String extractedRole = tokenProvider.getSystemRoleFromToken(token);
         
         assertEquals(systemRole, extractedRole);
@@ -105,7 +105,7 @@ class JwtTokenProviderTest {
         when(jwtConfig.getExpiration()).thenReturn(1L); // 1 millisecond
         JwtTokenProvider shortExpiryProvider = new JwtTokenProvider(jwtConfig);
         
-        String token = shortExpiryProvider.generateToken("123", "test@example.com", "Test User", "USER");
+        String token = shortExpiryProvider.generateToken("123", "test@example.com", "Test User", "USER", 1);
         
         try {
             Thread.sleep(10);
